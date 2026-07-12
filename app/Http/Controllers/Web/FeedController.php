@@ -55,8 +55,9 @@ class FeedController extends Controller
     {
         $followedIds = $request->user()?->following()->pluck('users.id')->flip() ?? collect();
         $fanSports = ! $following && $request->user()?->hasRole('fan') ? ($request->user()->fanProfile?->interested_sports ?? []) : [];
+        $fanSports = collect($fanSports)->filter()->map(fn ($name) => mb_strtolower((string) $name))->values()->all();
         $videos = Video::query()->where('status', 'published')->where('visibility', 'public')
-            ->when($fanSports, fn ($query) => $query->where(function ($videos) use ($fanSports) { $videos->whereHas('sport', fn ($sport) => $sport->whereIn('name', $fanSports))->orWhereHas('user.athleteProfile.sport', fn ($sport) => $sport->whereIn('name', $fanSports)); }))
+            ->when($fanSports, fn ($query) => $query->where(function ($videos) use ($fanSports) { $videos->whereHas('sport', fn ($sport) => $sport->whereIn(DB::raw('LOWER(name)'), $fanSports))->orWhereHas('user.athleteProfile.sport', fn ($sport) => $sport->whereIn(DB::raw('LOWER(name)'), $fanSports)); }))
             ->when($location, fn ($query) => $query->whereHas('user.profile', fn ($profile) => $profile->whereRaw('LOWER(city) = ?', [mb_strtolower($location)])))
             ->when($sport, fn ($query) => $query->where(function ($videoQuery) use ($sport) {
                 $videoQuery->whereHas('sport', fn ($sportQuery) => $sportQuery->whereRaw('LOWER(name) = ?', [mb_strtolower($sport)]))
