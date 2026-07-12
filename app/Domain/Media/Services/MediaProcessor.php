@@ -19,6 +19,7 @@ class MediaProcessor
     {
         $source = $this->localCopy($media);
         $thumb = tempnam(sys_get_temp_dir(), 'su-thumb-').'.jpg';
+        $renditionFiles = [];
         try {
             $probe = new Process([config('media.ffprobe_binary'), '-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', $source]);
             $probe->setTimeout(120);
@@ -30,11 +31,24 @@ class MediaProcessor
             $ffmpeg->mustRun();
             $thumbPath = "users/{$media->user_id}/thumbnails/{$media->public_id}.jpg";
             Storage::disk($media->disk)->put($thumbPath, file_get_contents($thumb), ['visibility' => 'private']);
+            $renditions = [];
+            foreach ([480, 720] as $width) {
+                if (($stream['width'] ?? 0) <= $width) continue;
+                $output = tempnam(sys_get_temp_dir(), "su-{$width}-").'.mp4';
+                $renditionFiles[] = $output;
+                $transcode = new Process([config('media.ffmpeg_binary'),'-y','-i',$source,'-vf',"scale={$width}:-2",'-c:v','libx264','-preset','veryfast','-crf','24','-c:a','aac','-b:a','128k','-movflags','+faststart',$output]);
+                $transcode->setTimeout(600);
+                $transcode->mustRun();
+                $path = "users/{$media->user_id}/renditions/{$media->public_id}-{$width}p.mp4";
+                Storage::disk($media->disk)->put($path, file_get_contents($output), ['visibility'=>'private']);
+                $renditions["{$width}p"] = ['path'=>$path,'width'=>$width,'size_bytes'=>filesize($output)];
+            }
 
-            return ['thumbnail_path' => $thumbPath, 'duration_ms' => (int) round(((float) ($data['format']['duration'] ?? 0)) * 1000), 'width' => $stream['width'] ?? null, 'height' => $stream['height'] ?? null, 'metadata' => ['codec' => $stream['codec_name'] ?? null]];
+            return ['thumbnail_path' => $thumbPath, 'duration_ms' => (int) round(((float) ($data['format']['duration'] ?? 0)) * 1000), 'width' => $stream['width'] ?? null, 'height' => $stream['height'] ?? null, 'metadata' => ['codec' => $stream['codec_name'] ?? null,'renditions'=>$renditions]];
         } finally {
             @unlink($source);
             @unlink($thumb);
+            foreach ($renditionFiles as $file) @unlink($file);
         }
     }
 

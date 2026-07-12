@@ -10,6 +10,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('feed/following', [FeedController::class, 'following']);
     Route::get('feed/saved', [VideoController::class, 'saved']);
     Route::post('videos', [VideoController::class, 'store']);
+    Route::patch('videos/{video}', [VideoController::class, 'update']);
     Route::get('videos/mine', [VideoController::class, 'mine']);
     Route::get('videos/mine/reposts', [VideoController::class, 'reposts']);
     Route::get('videos/mine/favourites', [VideoController::class, 'favourites']);

@@ -46,6 +46,28 @@ class FeedModuleTest extends TestCase
         $this->assertDatabaseHas('video_images', ['video_id' => $video->id, 'media_id' => $images->last()->id, 'is_cover' => true]);
     }
 
+    public function test_user_can_publish_picture_only_post_and_edit_metadata(): void
+    {
+        $user = User::factory()->create();
+        $images = Media::factory()->count(2)->for($user)->create(['kind'=>'image']);
+        $created = $this->actingAs($user,'sanctum')->postJson('/api/v1/videos',[
+            'image_media_ids'=>$images->pluck('public_id')->all(),'cover_media_id'=>$images->first()->public_id,
+            'caption'=>'Match day','hashtags'=>['Football'],'location_name'=>'Soweto','comments_enabled'=>false,'publish'=>true,
+        ])->assertCreated()->assertJsonPath('data.type','images')->assertJsonPath('data.location.name','Soweto');
+        $id=$created->json('data.id');
+        $this->patchJson('/api/v1/videos/'.$id,['caption'=>'Final whistle','hashtags'=>['Champions'],'visibility'=>'followers'])
+            ->assertOk()->assertJsonPath('data.caption','Final whistle')->assertJsonPath('data.visibility','followers');
+        $this->assertDatabaseHas('videos',['public_id'=>$id,'media_id'=>null,'location_name'=>'Soweto','comments_enabled'=>false]);
+    }
+
+    public function test_owner_can_delete_post(): void
+    {
+        $user=User::factory()->create();
+        $post=Video::factory()->for($user)->create();
+        $this->actingAs($user,'sanctum')->deleteJson('/api/v1/videos/'.$post->public_id)->assertOk();
+        $this->assertDatabaseMissing('videos',['id'=>$post->id]);
+    }
+
     public function test_following_feed_only_contains_followed_creators(): void
     {
         $viewer = User::factory()->create();

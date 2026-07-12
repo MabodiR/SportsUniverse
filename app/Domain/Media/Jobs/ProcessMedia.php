@@ -14,7 +14,7 @@ class ProcessMedia implements ShouldQueue
 
     public int $tries = 3;
 
-    public int $timeout = 900;
+    public int $timeout = 1800;
 
     public function __construct(public Media $media)
     {

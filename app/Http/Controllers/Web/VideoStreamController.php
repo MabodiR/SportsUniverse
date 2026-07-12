@@ -13,10 +13,13 @@ class VideoStreamController extends Controller
     {
         abort_unless($video->status === 'published' && $video->visibility === 'public', 404);
         $media = $video->media;
-        abort_unless($media && Storage::disk($media->disk)->exists($media->path), 404);
+        $quality = request()->string('quality')->value();
+        $renditions = $media?->metadata['renditions'] ?? [];
+        $path = $quality ? ($renditions[$quality]['path'] ?? null) : ($renditions['720p']['path'] ?? $renditions['480p']['path'] ?? $media?->path);
+        abort_unless($media && $path && Storage::disk($media->disk)->exists($path), 404);
 
-        return Storage::disk($media->disk)->response($media->path, $media->original_name, [
-            'Content-Type' => $media->mime_type,
+        return Storage::disk($media->disk)->response($path, $media->original_name, [
+            'Content-Type' => 'video/mp4',
             'Cache-Control' => 'public, max-age=3600',
             'Content-Disposition' => 'inline',
         ]);

@@ -31,6 +31,6 @@ class FeedController extends Controller
 
     private function published()
     {
-        return Video::query()->where('status', 'published')->where('visibility', 'public')->whereHas('media', fn ($q) => $q->where('processing_status', 'ready')->where('moderation_status', 'approved'))->with('user.profile','media','sport');
+        return Video::query()->where('status', 'published')->where('visibility', 'public')->where(function($post){$post->whereHas('media', fn ($q) => $q->where('processing_status', 'ready')->where('moderation_status', 'approved'))->orWhereHas('images', fn ($q) => $q->where('processing_status', 'ready')->where('moderation_status', 'approved'));})->with('user.profile','media','images','sport');
     }
 }

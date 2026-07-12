@@ -110,9 +110,14 @@ class FeedController extends Controller
         return $videos->map(fn (Video $video) => [
             'id' => $video->public_id,
             'caption' => $video->caption,
-            'url' => route('videos.stream', $video),
-            'images' => $video->images->map(fn ($image) => ['id' => $image->public_id, 'url' => route('media.download', $image), 'is_cover' => (bool) $image->pivot->is_cover])->values(),
-            'cover_url' => $video->images->first(fn ($image) => (bool) $image->pivot->is_cover) ? route('media.download', $video->images->first(fn ($image) => (bool) $image->pivot->is_cover)) : null,
+            'visibility' => $video->visibility,
+            'url' => $video->media ? route('videos.stream', $video) : null,
+            'type' => $video->media ? ($video->images->isNotEmpty() ? 'carousel' : 'video') : 'images',
+            'images' => $video->images->map(fn ($image) => ['id' => $image->public_id, 'url' => route('media.public', $image), 'is_cover' => (bool) $image->pivot->is_cover])->values(),
+            'cover_url' => $video->images->first(fn ($image) => (bool) $image->pivot->is_cover) ? route('media.public', $video->images->first(fn ($image) => (bool) $image->pivot->is_cover)) : null,
+            'sport' => $video->sport?->only(['id','name','slug']),
+            'location' => ['name'=>$video->location_name,'latitude'=>$video->latitude,'longitude'=>$video->longitude],
+            'comments_enabled' => (bool)$video->comments_enabled,
             'hashtags' => $video->hashtags ?? [],
             'creator' => [
                 'id' => $video->user->id,

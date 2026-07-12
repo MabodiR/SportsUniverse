@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Bookmark, Cast, Download, Ellipsis, Eye, Flag, Heart, LockKeyhole, MessageCircle, Megaphone, Repeat2, Send, Share2, Sparkles, UserPlus, Users, Volume2, VolumeX, X } from '@lucide/vue';
+import { Bookmark, Cast, ChevronLeft, ChevronRight, Download, Ellipsis, Eye, Flag, Heart, LockKeyhole, MessageCircle, Megaphone, Pencil, Repeat2, Send, Share2, Sparkles, Trash2, UserPlus, Users, Volume2, VolumeX, X } from '@lucide/vue';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import AppShell from '../../Layouts/AppShell.vue';
 
@@ -10,6 +10,8 @@ const authenticated = computed(() => Boolean((page.props.auth as any)?.user));
 const gateVisible = ref(false);
 const videoElements = new Map<string, HTMLVideoElement>();
 const soundEnabled = ref(false);
+const activeMedia = ref<Record<string, number>>({});
+let touchX = 0;
 const recordedViews = new Set<string>();
 let observer: IntersectionObserver | null = null;
 const demos = [
@@ -21,6 +23,18 @@ const feed = computed(() => props.videos ?? []);
 const featured = computed(() => feed.value[0]);
 const trending = computed(() => (props.suggestions ?? []).slice(0, 4));
 const compact = (value: number) => new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(value ?? 0);
+const slides = (item: any) => {
+    const pictures = [...(item.images ?? [])].sort((a:any,b:any) => Number(b.is_cover)-Number(a.is_cover)).map((image:any) => ({ type: 'image', url: image.url }));
+    return [...pictures, ...(item.url ? [{ type: 'video', url: item.url }] : [])];
+};
+const mediaIndex = (item:any) => activeMedia.value[item.id] ?? 0;
+const changeMedia = (item:any, direction:number) => {
+    const total=slides(item).length;if(total<2)return;
+    activeMedia.value[item.id]=(mediaIndex(item)+direction+total)%total;
+    const video=videoElements.get(item.id);if(video) direction ? video.pause() : undefined;
+};
+const swipeStart=(event:TouchEvent)=>{touchX=event.touches[0].clientX};
+const swipeEnd=(item:any,event:TouchEvent)=>{const delta=event.changedTouches[0].clientX-touchX;if(Math.abs(delta)>45)changeMedia(item,delta<0?1:-1)};
 const csrf = () => (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '';
 const actionBusy = ref<string | null>(null);
 const commentsPost = ref<any | null>(null);
@@ -30,6 +44,8 @@ const replyingTo = ref<any | null>(null);
 const commentsLoading = ref(false);
 const sharePost = ref<any | null>(null);
 const controlsPost = ref<any | null>(null);
+const editingPost = ref<any|null>(null);
+const editCaption = ref(''), editHashtags = ref(''), editLocation = ref(''), editVisibility = ref('public'), editBusy = ref(false);
 const messaging = ref<any | null>(null);
 const messageBody = ref('');
 const messagingLoading = ref(false);
@@ -82,6 +98,9 @@ const share = async (item: any, channel = 'copy_link') => {
     sharePost.value = null;
 };
 const hidePost = (item: any) => { const index = props.videos.indexOf(item); if (index >= 0) props.videos.splice(index, 1); controlsPost.value = null; };
+const startEdit=(item:any)=>{editingPost.value=item;editCaption.value=item.caption??'';editHashtags.value=(item.hashtags??[]).join(' ');editLocation.value=item.location?.name??'';editVisibility.value=item.visibility??'public';controlsPost.value=null};
+const saveEdit=async()=>{if(!editingPost.value)return;editBusy.value=true;try{const response=await fetch('/api/v1/videos/'+editingPost.value.id,{method:'PATCH',credentials:'same-origin',headers:{Accept:'application/json','Content-Type':'application/json','X-CSRF-TOKEN':csrf()},body:JSON.stringify({caption:editCaption.value,hashtags:editHashtags.value.split(/[\s,]+/).filter(Boolean),location_name:editLocation.value||null,visibility:editVisibility.value})});const body=await response.json();if(!response.ok)throw new Error(body.message??'Unable to update post.');Object.assign(editingPost.value,{caption:editCaption.value,hashtags:body.data.hashtags,location:body.data.location,visibility:body.data.visibility});editingPost.value=null}finally{editBusy.value=false}};
+const deletePost=async(item:any)=>{if(!confirm('Delete this post permanently?'))return;await fetch('/api/v1/videos/'+item.id,{method:'DELETE',credentials:'same-origin',headers:{Accept:'application/json','X-CSRF-TOKEN':csrf()}});hidePost(item)};
 const reportPost = async (item: any) => { if (!authenticated.value) return showGate(); await request('/post-reports', { type: 'video', id: item.id, reason: 'other', details: 'Reported from feed controls.' }); controlsPost.value = null; };
 const castPost = async (item: any) => { const video = videoElements.get(item.id) as any; if (video?.remote?.prompt) await video.remote.prompt().catch(() => undefined); else alert('Casting is not available in this browser.'); controlsPost.value = null; };
 const messageRequest = async (item: any) => {
@@ -146,6 +165,7 @@ const registerVideo = (element: HTMLVideoElement | null, id: string) => {
     if (!element) return;
     element.muted = !soundEnabled.value;
     videoElements.set(id, element);
+    observer?.observe(element);
 };
 const toggleSound = async (video: HTMLVideoElement) => {
     soundEnabled.value = !soundEnabled.value;
@@ -187,8 +207,11 @@ onUnmounted(() => { window.removeEventListener('scroll', onScroll); observer?.di
                 <div class="feed-stream">
                     <div v-for="(item, index) in feed" :id="item.id" :key="item.id" class="featured-video-wrap">
                         <article class="featured-video-card" :class="`feed-card-${(index % 3) + 1}`">
-                            <video v-if="item.url" :ref="element => registerVideo(element as HTMLVideoElement, item.id)" class="feed-video" :src="item.url" :poster="item.cover_url || undefined" :muted="!soundEnabled" loop playsinline preload="metadata" @click="toggleVideo" @timeupdate="recordView(item, $event.currentTarget as HTMLVideoElement)" />
-                            <button v-if="item.url" class="video-sound-toggle" :aria-label="soundEnabled ? 'Mute video' : 'Turn on sound'" @click.stop="toggleSound(videoElements.get(item.id)!)"><Volume2 v-if="soundEnabled" /><VolumeX v-else /><span>{{ soundEnabled ? 'Sound on' : 'Sound off' }}</span></button>
+                            <div class="post-carousel" @touchstart.passive="swipeStart" @touchend.passive="swipeEnd(item,$event)">
+                                <template v-for="(slide,slideIndex) in slides(item)" :key="slide.url"><img v-if="slide.type==='image' && mediaIndex(item)===slideIndex" :src="slide.url" :alt="item.caption||'SportUniverse post image'"/><video v-else-if="slide.type==='video' && mediaIndex(item)===slideIndex" :ref="element => registerVideo(element as HTMLVideoElement,item.id)" class="feed-video" :src="slide.url" :muted="!soundEnabled" loop playsinline preload="metadata" @click="toggleVideo" @timeupdate="recordView(item,$event.currentTarget as HTMLVideoElement)"/></template>
+                                <template v-if="slides(item).length>1"><button class="carousel-arrow previous" @click="changeMedia(item,-1)"><ChevronLeft/></button><button class="carousel-arrow next" @click="changeMedia(item,1)"><ChevronRight/></button><div class="carousel-dots"><i v-for="(_,dot) in slides(item)" :class="{active:mediaIndex(item)===dot}"/></div></template>
+                            </div>
+                            <button v-if="item.url && slides(item)[mediaIndex(item)]?.type==='video'" class="video-sound-toggle" :aria-label="soundEnabled ? 'Mute video' : 'Turn on sound'" @click.stop="toggleSound(videoElements.get(item.id)!)"><Volume2 v-if="soundEnabled" /><VolumeX v-else /><span>{{ soundEnabled ? 'Sound on' : 'Sound off' }}</span></button>
                             <div class="featured-video-label"><strong>{{ item.caption || 'SportUniverse video' }}</strong><small>{{ index === 0 ? '00:15' : `00:${22 + index * 7}` }} · HD</small></div>
                             <button v-if="!item.url" class="featured-play" aria-label="Play video">▶</button>
                             <div class="featured-athlete"><div class="feed-creator-line"><Link :href="item.creator.slug ? `/@${item.creator.slug}` : '/explore'"><h2>{{ item.creator.name }}</h2></Link><button v-if="authenticated && item.creator.id !== (page.props.auth as any)?.user?.id && !item.viewer?.following_creator" :disabled="actionBusy === `follow:${item.creator.id}`" @click="followCreator(item)"><UserPlus :size="14" />{{ actionBusy === `follow:${item.creator.id}` ? 'Following…' : 'Follow' }}</button></div><small><Link v-if="item.creator.sport" :href="`/feed/sport/${encodeURIComponent(item.creator.sport)}`" class="metadata-link">{{ item.creator.sport }}</Link><template v-else>Sport</template> · <Link v-if="item.creator.position" :href="`/feed/position/${encodeURIComponent(item.creator.position)}`" class="metadata-link">{{ item.creator.position }}</Link><template v-else>Athlete</template> · <Link v-if="item.creator.city" :href="`/feed/location/${encodeURIComponent(item.creator.city)}`" class="metadata-link">{{ item.creator.city }}</Link><template v-else>South Africa</template></small><p>{{ item.caption }}</p><span /></div>
@@ -196,7 +219,7 @@ onUnmounted(() => { window.removeEventListener('scroll', onScroll); observer?.di
                         <div class="featured-actions">
                             <button class="view-count" disabled><span><Eye /></span><small>{{ compact(item.counts.views) }}</small></button>
                             <button class="feed-like-action" :class="{ active: item.viewer?.liked }" aria-label="Like post" @click="interact(item,'like')"><span><Heart :fill="item.viewer?.liked ? 'currentColor' : 'none'" /></span><small>{{ compact(item.counts.likes) }}</small></button>
-                            <button @click="openComments(item)"><span><MessageCircle /></span><small>{{ compact(item.counts.comments) }}</small></button>
+                            <button :disabled="!item.comments_enabled" :title="item.comments_enabled?'Comments':'Comments disabled'" @click="item.comments_enabled&&openComments(item)"><span><MessageCircle /></span><small>{{ item.comments_enabled ? compact(item.counts.comments) : 'Off' }}</small></button>
                             <button @click="sharePost = item"><span><Send /></span><small>{{ compact(item.counts.shares) }}</small></button>
                             <button @click="messageRequest(item)"><span class="request"><UserPlus /></span><small>Request</small></button>
                             <button class="mobile-overflow-action" :class="{ active: item.viewer?.saved }" @click="interact(item,'save')"><span><Bookmark /></span><small>{{ compact(item.counts.saves) }}</small></button>
@@ -238,8 +261,9 @@ onUnmounted(() => { window.removeEventListener('scroll', onScroll); observer?.di
             <div v-if="sharePost" class="action-sheet-overlay" @click.self="sharePost = null"><section class="feed-action-sheet"><header><h2>Share options</h2><button @click="sharePost = null"><X /></button></header><div class="sheet-grid"><button @click="share(sharePost,'repost')"><Repeat2 />Repost</button><button @click="share(sharePost,'whatsapp')"><MessageCircle />WhatsApp</button><button @click="share(sharePost,'copy_link')"><Bookmark />Copy link</button><button @click="share(sharePost,'status')"><Sparkles />Status</button><button @click="share(sharePost,'facebook')"><Share2 />Facebook</button><button @click="share(sharePost,'telegram')"><Send />Telegram</button></div></section></div>
         </Transition>
         <Transition name="gate">
-            <div v-if="controlsPost" class="action-sheet-overlay" @click.self="controlsPost = null"><section class="feed-action-sheet"><header><h2>Post controls</h2><button @click="controlsPost = null"><X /></button></header><div class="sheet-list"><button class="mobile-sheet-action" @click="interact(controlsPost,'save'); controlsPost = null"><Bookmark :fill="controlsPost.viewer?.saved ? 'currentColor' : 'none'" />{{ controlsPost.viewer?.saved ? 'Remove from saved' : 'Save' }} · {{ compact(controlsPost.counts.saves) }}</button><button @click="reportPost(controlsPost)"><Flag />Report</button><button @click="hidePost(controlsPost)"><X />Not interested</button><a v-if="controlsPost.url" :href="controlsPost.url" download><Download />Download</a><Link href="/sponsorship"><Megaphone />Promote</Link><button @click="castPost(controlsPost)"><Cast />Cast</button><button class="desktop-sheet-save" @click="interact(controlsPost,'save'); controlsPost = null"><Bookmark />{{ controlsPost.viewer?.saved ? 'Remove from saved' : 'Save' }}</button></div></section></div>
+            <div v-if="controlsPost" class="action-sheet-overlay" @click.self="controlsPost = null"><section class="feed-action-sheet"><header><h2>Post controls</h2><button @click="controlsPost = null"><X /></button></header><div class="sheet-list"><template v-if="controlsPost.creator.id === (page.props.auth as any)?.user?.id"><button @click="startEdit(controlsPost)"><Pencil />Edit post</button><button class="danger" @click="deletePost(controlsPost)"><Trash2 />Delete post</button></template><button class="mobile-sheet-action" @click="interact(controlsPost,'save'); controlsPost = null"><Bookmark :fill="controlsPost.viewer?.saved ? 'currentColor' : 'none'" />{{ controlsPost.viewer?.saved ? 'Remove from saved' : 'Save' }} · {{ compact(controlsPost.counts.saves) }}</button><button @click="reportPost(controlsPost)"><Flag />Report</button><button @click="hidePost(controlsPost)"><X />Not interested</button><a v-if="controlsPost.url" :href="controlsPost.url" download><Download />Download</a><Link href="/sponsorship"><Megaphone />Promote</Link><button @click="castPost(controlsPost)"><Cast />Cast</button><button class="desktop-sheet-save" @click="interact(controlsPost,'save'); controlsPost = null"><Bookmark />{{ controlsPost.viewer?.saved ? 'Remove from saved' : 'Save' }}</button></div></section></div>
         </Transition>
+        <Transition name="gate"><div v-if="editingPost" class="action-sheet-overlay" @click.self="editingPost=null"><form class="post-edit-sheet" @submit.prevent="saveEdit"><header><h2>Edit post</h2><button type="button" @click="editingPost=null"><X/></button></header><label>Caption<textarea v-model="editCaption" maxlength="2200"/></label><label>Hashtags<input v-model="editHashtags" placeholder="football talent training"/></label><label>Location<input v-model="editLocation" placeholder="City, venue or suburb"/></label><label>Visibility<select v-model="editVisibility"><option value="public">Everyone</option><option value="followers">Followers</option><option value="private">Only me</option></select></label><button class="su-btn su-btn-primary" :disabled="editBusy">{{editBusy?'Saving…':'Save changes'}}</button></form></div></Transition>
         <Transition name="gate">
             <div v-if="messaging || messagingLoading" class="comments-overlay" @click.self="messaging = null; messagingLoading = false"><section class="message-drawer"><header><div><h2>{{ messaging?.mode === 'conversation' ? messaging.recipient.name : 'Message request' }}</h2><span>{{ messaging?.mode === 'conversation' ? 'Conversation' : 'Introduce yourself before messaging' }}</span></div><button @click="messaging = null"><X /></button></header><div v-if="messagingLoading" class="message-loading">Opening messaging…</div><template v-else-if="messaging"><div v-if="messaging.mode === 'conversation'" class="drawer-messages"><div v-if="!messaging.conversation.messages.length" class="message-loading">You follow each other. Start the conversation.</div><div v-for="message in messaging.conversation.messages" :key="message.id" class="drawer-message" :class="{ mine: message.mine }"><small>{{ message.mine ? 'You' : message.sender }}</small><p>{{ message.body }}</p></div></div><div v-else class="request-intro"><div class="comment-avatar">{{ messaging.recipient.name.slice(0,2).toUpperCase() }}</div><h3>{{ messaging.recipient.name }}</h3><p v-if="!messaging.requestSent">You are not mutual connections yet. Your first message will be sent as a request.</p><p v-else class="request-success">Message request sent successfully.</p></div><p v-if="messagingError" class="form-message error">{{ messagingError }}</p><form v-if="!messaging.requestSent" class="drawer-message-composer" @submit.prevent="sendMessage"><textarea v-model="messageBody" class="su-input" :placeholder="messaging.mode === 'conversation' ? 'Type a message…' : 'Write your message request…'" maxlength="2000" /><button class="su-btn su-btn-primary" :disabled="!messageBody.trim()">{{ messaging.mode === 'conversation' ? 'Send' : 'Send request' }}</button></form></template></section></div>
         </Transition>

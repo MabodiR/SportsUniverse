@@ -6,6 +6,7 @@ use App\Domain\Feed\Models\Video;
 use App\Domain\Media\Models\Media;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Feed\StoreVideoRequest;
+use App\Http\Requests\Api\V1\Feed\UpdateVideoRequest;
 use App\Http\Resources\Api\V1\Feed\CommentResource;
 use App\Http\Resources\Api\V1\Feed\VideoResource;
 use Illuminate\Http\JsonResponse;
@@ -20,7 +21,7 @@ class VideoController extends Controller
 {
     public function mine(Request $request): AnonymousResourceCollection
     {
-        $videos = Video::where('user_id', $request->user()->id)->where('status', 'published')->latest('published_at')->with('user.profile', 'media', 'sport')->paginate(50);
+        $videos = Video::where('user_id', $request->user()->id)->where('status', 'published')->latest('published_at')->with('user.profile', 'media', 'images', 'sport')->paginate(50);
         $this->decorate($videos->getCollection(), $request);
 
         return VideoResource::collection($videos);
@@ -43,7 +44,7 @@ class VideoController extends Controller
 
     private function engagementCollection(Request $request, $query): AnonymousResourceCollection
     {
-        $videos = $query->where('status', 'published')->where('visibility', 'public')->latest('published_at')->with('user.profile', 'media', 'sport')->paginate(50);
+        $videos = $query->where('status', 'published')->where('visibility', 'public')->latest('published_at')->with('user.profile', 'media', 'images', 'sport')->paginate(50);
         $this->decorate($videos->getCollection(), $request);
 
         return VideoResource::collection($videos);
@@ -51,8 +52,8 @@ class VideoController extends Controller
 
     public function store(StoreVideoRequest $request): JsonResponse
     {
-        $media = Media::where('public_id', $request->validated('media_id'))->where('user_id', $request->user()->id)->first();
-        if (! $media || $media->kind !== 'video' || $media->processing_status !== 'ready' || $media->moderation_status !== 'approved') {
+        $media = $request->filled('media_id') ? Media::where('public_id', $request->validated('media_id'))->where('user_id', $request->user()->id)->first() : null;
+        if ($request->filled('media_id') && (! $media || $media->kind !== 'video' || $media->processing_status !== 'ready' || $media->moderation_status !== 'approved')) {
             throw ValidationException::withMessages(['media_id' => ['Use an owned, approved video that has finished processing.']]);
         }
         $imageIds = $request->validated('image_media_ids', []);
@@ -62,13 +63,40 @@ class VideoController extends Controller
         }
         $publish = $request->boolean('publish');
         $video = DB::transaction(function () use ($request, $media, $images, $publish) {
-            $video = Video::create(['public_id' => (string) Str::ulid(), 'user_id' => $request->user()->id, 'media_id' => $media->id, 'sport_id' => $request->validated('sport_id'), 'caption' => $request->validated('caption'), 'hashtags' => collect($request->validated('hashtags', []))->map(fn ($tag) => str($tag)->trim()->ltrim('#')->lower()->value())->unique()->values()->all(), 'visibility' => $request->validated('visibility', 'public'), 'status' => $publish ? 'published' : 'draft', 'published_at' => $publish ? now() : null]);
-            $coverId = $request->validated('cover_media_id');
+            $video = Video::create(['public_id' => (string) Str::ulid(), 'user_id' => $request->user()->id, 'media_id' => $media?->id, 'sport_id' => $request->validated('sport_id'), 'caption' => $request->validated('caption'), 'hashtags' => $this->hashtags($request->validated('hashtags', [])), 'location_name' => $request->validated('location_name'), 'latitude' => $request->validated('latitude'), 'longitude' => $request->validated('longitude'), 'comments_enabled' => $request->boolean('comments_enabled', true), 'visibility' => $request->validated('visibility', 'public'), 'status' => $publish ? 'published' : 'draft', 'published_at' => $publish ? now() : null]);
+            $coverId = $request->validated('cover_media_id') ?? $images->first()?->public_id;
             $video->images()->attach($images->values()->mapWithKeys(fn (Media $image, int $position) => [$image->id => ['position' => $position, 'is_cover' => $image->public_id === $coverId]])->all());
             return $video;
         });
 
         return response()->json(['message' => $publish ? 'Video published.' : 'Draft created.', 'data' => new VideoResource($this->load($video, $request))], 201);
+    }
+
+    public function update(UpdateVideoRequest $request, Video $video): VideoResource
+    {
+        Gate::authorize('update', $video);
+        $video->update([
+            'sport_id' => $request->validated('sport_id', $video->sport_id),
+            'caption' => $request->validated('caption', $video->caption),
+            'hashtags' => $request->has('hashtags') ? $this->hashtags($request->validated('hashtags', [])) : $video->hashtags,
+            'location_name' => $request->validated('location_name', $video->location_name),
+            'latitude' => $request->validated('latitude', $video->latitude),
+            'longitude' => $request->validated('longitude', $video->longitude),
+            'comments_enabled' => $request->has('comments_enabled') ? $request->boolean('comments_enabled') : $video->comments_enabled,
+            'visibility' => $request->validated('visibility', $video->visibility),
+        ]);
+        if ($request->filled('cover_media_id')) {
+            $cover = Media::where('public_id', $request->validated('cover_media_id'))->where('user_id', $request->user()->id)->firstOrFail();
+            abort_unless($video->images()->whereKey($cover->id)->exists(), 422);
+            DB::table('video_images')->where('video_id', $video->id)->update(['is_cover' => false]);
+            DB::table('video_images')->where('video_id', $video->id)->where('media_id', $cover->id)->update(['is_cover' => true]);
+        }
+        return new VideoResource($this->load($video, $request));
+    }
+
+    private function hashtags(array $hashtags): array
+    {
+        return collect($hashtags)->map(fn ($tag) => str($tag)->trim()->ltrim('#')->lower()->value())->filter()->unique()->values()->all();
     }
 
     public function show(Request $request, Video $video): VideoResource
@@ -105,7 +133,7 @@ class VideoController extends Controller
 
     public function saved(Request $request): AnonymousResourceCollection
     {
-        $videos = Video::query()->whereHas('savers', fn ($q) => $q->whereKey($request->user()->id))->where('status', 'published')->latest('published_at')->with('user.profile', 'media', 'sport')->paginate(20);
+        $videos = Video::query()->whereHas('savers', fn ($q) => $q->whereKey($request->user()->id))->where('status', 'published')->latest('published_at')->with('user.profile', 'media', 'images', 'sport')->paginate(20);
         $this->decorate($videos->getCollection(), $request);
 
         return VideoResource::collection($videos);

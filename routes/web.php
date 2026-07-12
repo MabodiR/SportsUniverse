@@ -11,6 +11,7 @@ use App\Http\Controllers\Web\ModulePageController;
 use App\Http\Controllers\Web\WebAuthController;
 use Illuminate\Support\Facades\Route;
 use App\Models\User;
+use App\Http\Controllers\Api\V1\Media\MediaController;
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [WebAuthController::class, 'loginPage'])->name('login');
@@ -26,6 +27,7 @@ Route::get('/feed/sport/{sport}', [FeedController::class, 'sport'])->name('feed.
 Route::get('/feed/position/{position}', [FeedController::class, 'position'])->name('feed.position');
 Route::get('/@{slug}', AthleteProfileController::class)->name('athletes.show');
 Route::get('/watch/{video}/stream', VideoStreamController::class)->name('videos.stream');
+Route::get('/media/{media}/display', [MediaController::class, 'download'])->name('media.public');
 Route::get('/sitemap.xml', function () {
     $urls = collect([
         ['loc' => url('/feed'), 'lastmod' => now()->toDateString(), 'frequency' => 'daily', 'priority' => '1.0'],

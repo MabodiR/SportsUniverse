@@ -42,6 +42,7 @@ class EngagementController extends Controller
     public function comment(StoreCommentRequest $request, Video $video, NotificationDispatcher $notifications): JsonResponse
     {
         Gate::authorize('view', $video);
+        abort_unless($video->comments_enabled, 403, 'Comments are disabled for this post.');
         $parent = null;
         if ($request->filled('parent_id')) {
             $parent = Comment::where('public_id', $request->validated('parent_id'))->where('video_id', $video->id)->first();
