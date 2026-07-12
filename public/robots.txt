@@ -1,2 +1,15 @@
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /management/
+Disallow: /messages
+Disallow: /message-requests
+Disallow: /notifications
+Disallow: /settings/
+Disallow: /profile/edit
+Disallow: /upload
+Disallow: /applications
+Disallow: /dashboard
+
+Sitemap: https://sportsuniverse.co.za/sitemap.xml

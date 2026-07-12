@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\Moderation\ReportController;
 use App\Http\Controllers\Web\ModulePageController;
 use App\Http\Controllers\Web\WebAuthController;
 use Illuminate\Support\Facades\Route;
+use App\Models\User;
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [WebAuthController::class, 'loginPage'])->name('login');
@@ -25,6 +26,12 @@ Route::get('/feed/sport/{sport}', [FeedController::class, 'sport'])->name('feed.
 Route::get('/feed/position/{position}', [FeedController::class, 'position'])->name('feed.position');
 Route::get('/@{slug}', AthleteProfileController::class)->name('athletes.show');
 Route::get('/watch/{video}/stream', VideoStreamController::class)->name('videos.stream');
+Route::get('/sitemap.xml', function () {
+    $urls = collect([
+        ['loc' => url('/feed'), 'lastmod' => now()->toDateString(), 'frequency' => 'daily', 'priority' => '1.0'],
+    ])->merge(User::query()->where('status', 'active')->whereHas('profile', fn ($profile) => $profile->where('is_public', true)->whereNotNull('slug'))->with('profile:id,user_id,slug,updated_at')->limit(5000)->get()->map(fn (User $user) => ['loc' => url('/@'.$user->profile->slug), 'lastmod' => $user->profile->updated_at?->toDateString(), 'frequency' => 'weekly', 'priority' => '0.8']));
+    return response()->view('sitemap', ['urls' => $urls])->header('Content-Type', 'application/xml; charset=UTF-8');
+})->name('sitemap');
 
 Route::get('/password/reset', ModulePageController::class)->defaults('module', 'password-reset')->name('password.request');
 Route::get('/auth/phone', ModulePageController::class)->defaults('module', 'phone-auth')->name('phone-auth');
