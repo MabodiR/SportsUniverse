@@ -21,8 +21,11 @@ class MessageController extends Controller
     public function index(Conversation $conversation): AnonymousResourceCollection
     {
         Gate::authorize('view', $conversation);
-
-        return MessageResource::collection($conversation->messages()->with('sender.profile', 'media')->latest()->cursorPaginate(30));
+        $page=$conversation->messages()->with('sender.profile', 'media')->latest()->cursorPaginate(30);
+        $otherRead=$conversation->participants()->where('users.id','!=',request()->user()->id)->first()?->pivot?->last_read_at;
+        $otherRead=$otherRead?\Illuminate\Support\Carbon::parse($otherRead):null;
+        $page->getCollection()->each(fn($message)=>$message->read_at=$message->sender_id===request()->user()->id&&$otherRead&&$message->created_at<=$otherRead?$otherRead:null);
+        return MessageResource::collection($page);
     }
 
     public function store(StoreMessageRequest $request, Conversation $conversation, NotificationDispatcher $notifications): JsonResponse
@@ -46,7 +49,7 @@ class MessageController extends Controller
         });
         $message->load('conversation', 'sender.profile', 'media');
         MessageSent::dispatch($message);
-        $conversation->participants()->where('users.id', '!=', $request->user()->id)->each(fn ($recipient) => $notifications->send($recipient, 'messages', ['event' => 'new_message', 'message_id' => $message->public_id, 'conversation_id' => $conversation->public_id, 'sender_id' => $request->user()->id, 'sender_name' => $request->user()->name, 'preview' => str($message->body)->limit(120)->value()]));
+        $conversation->participants()->where('users.id', '!=', $request->user()->id)->wherePivotNull('muted_at')->each(fn ($recipient) => $notifications->send($recipient, 'messages', ['event' => 'new_message', 'message_id' => $message->public_id, 'conversation_id' => $conversation->public_id, 'sender_id' => $request->user()->id, 'sender_name' => $request->user()->name, 'preview' => str($message->body ?: 'Sent an attachment')->limit(120)->value()]));
 
         return response()->json(['message' => 'Message sent.', 'data' => new MessageResource($message)], 201);
     }

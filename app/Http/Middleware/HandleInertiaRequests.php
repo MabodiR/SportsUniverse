@@ -34,6 +34,7 @@ class HandleInertiaRequests extends Middleware
             'auth' => ['user' => $request->user()?->loadMissing('roles', 'profile')->loadCount('following')],
             'flash' => ['success' => fn () => $request->session()->get('success')],
             'nav_counts' => $counts,
+            'realtime' => ['key'=>config('broadcasting.connections.reverb.key')],
         ];
     }
 }

@@ -1,111 +1,20 @@
 <script setup lang="ts">
-import { Head, usePage } from '@inertiajs/vue3';
-import { Search } from '@lucide/vue';
-import { computed, nextTick, onMounted, ref } from 'vue';
-import AppShell from '../../Layouts/AppShell.vue';
-
-const props = withDefaults(defineProps<{ initialTab?: 'messages' | 'requests' }>(), { initialTab: 'messages' });
-const page = usePage();
-const user = page.props.auth?.user as any;
-const conversations = ref<any[]>([]);
-const requests = ref<any[]>([]);
-const tab = ref<'messages' | 'requests'>(props.initialTab);
-const selectedRequest = ref<any>(null);
-const actionLoading = ref('');
-const active = ref<any>(null);
-const messages = ref<any[]>([]);
-const draft = ref('');
-const loading = ref(true);
-const sending = ref(false);
-const thread = ref<HTMLElement | null>(null);
-const csrf = () => (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '';
-const other = (conversation: any) => conversation?.participants?.find((person: any) => person.id !== user?.id) ?? conversation?.participants?.[0];
-const initials = (name = '') => name.split(/\s+/).map((word: string) => word[0]).join('').slice(0, 2).toUpperCase();
-const palette = ['blue', 'orange', 'green', 'pink'];
-const activePerson = computed(() => other(active.value));
-
-const api = async (url: string, options: RequestInit = {}) => {
-    const response = await fetch(url, { ...options, credentials: 'same-origin', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf(), 'Content-Type': 'application/json', ...(options.headers ?? {}) } });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.message ?? 'Unable to load messages.');
-    return payload;
-};
-const scrollBottom = async () => { await nextTick(); if (thread.value) thread.value.scrollTop = thread.value.scrollHeight; };
-const selectConversation = async (conversation: any) => {
-    active.value = conversation;
-    const payload = await api(`/api/v1/conversations/${conversation.id}/messages`);
-    messages.value = [...(payload.data ?? [])].reverse();
-    scrollBottom();
-};
-const load = async () => {
-    try {
-        const [conversationPayload, requestPayload] = await Promise.all([api('/api/v1/conversations'), api('/api/v1/message-requests?status=pending')]);
-        conversations.value = conversationPayload.data ?? []; requests.value = requestPayload.data ?? [];
-        if (tab.value === 'requests' && requests.value[0]) selectedRequest.value = requests.value[0];
-        if (conversations.value[0]) await selectConversation(conversations.value[0]);
-    }
-    finally { loading.value = false; }
-};
-const respond = async (request: any, action: 'accept' | 'decline') => {
-    actionLoading.value = `${request.id}:${action}`;
-    try {
-        await api(`/api/v1/message-requests/${request.id}/${action}`, { method: 'POST', body: '{}' });
-        requests.value = requests.value.filter(item => item.id !== request.id); selectedRequest.value = null;
-        if (action === 'accept') { const payload = await api('/api/v1/conversations'); conversations.value = payload.data ?? []; tab.value = 'messages'; if (conversations.value[0]) await selectConversation(conversations.value[0]); }
-    } finally { actionLoading.value = ''; }
-};
-const block = async (request: any) => {
-    actionLoading.value = `${request.id}:block`;
-    try {
-        await api(`/api/v1/profiles/${request.sender.id}/block`, { method: 'POST', body: JSON.stringify({ reason: 'Blocked from message requests' }) });
-        requests.value = requests.value.filter(item => item.id !== request.id); selectedRequest.value = null;
-    } finally { actionLoading.value = ''; }
-};
-const send = async () => {
-    if (!draft.value.trim() || !active.value || sending.value) return;
-    sending.value = true;
-    try { const payload = await api(`/api/v1/conversations/${active.value.id}/messages`, { method: 'POST', body: JSON.stringify({ body: draft.value.trim() }) }); messages.value.push(payload.data ?? payload); draft.value = ''; scrollBottom(); }
-    finally { sending.value = false; }
-};
-onMounted(load);
+import {Head} from '@inertiajs/vue3';import{Archive,BellOff,Flag,Paperclip,Search,Settings,Volume2,X}from'@lucide/vue';import{computed,nextTick,onMounted,onUnmounted,ref,watch}from'vue';import AppShell from'../../Layouts/AppShell.vue';
+const props=withDefaults(defineProps<{initialTab?:'messages'|'requests'}>(),{initialTab:'messages'}),user=(window as any).__user;
+const conversations=ref<any[]>([]),requests=ref<any[]>([]),tab=ref<'messages'|'requests'>(props.initialTab),active=ref<any>(),selectedRequest=ref<any>(),messages=ref<any[]>([]),draft=ref(''),attachment=ref<File|null>(null),loading=ref(true),sending=ref(false),typingName=ref(''),controls=ref(false),notice=ref(''),thread=ref<HTMLElement|null>(null);let typingTimer:any,channel:any;
+const csrf=()=>(document.querySelector('meta[name="csrf-token"]')as HTMLMetaElement)?.content??'',me=computed(()=>((document.querySelector('meta[name="user-id"]')as HTMLMetaElement)?.content)),other=(c:any)=>c?.participants?.find((p:any)=>String(p.id)!==me.value)||c?.participants?.[0],initials=(n='')=>n.split(/\s+/).map(v=>v[0]).join('').slice(0,2).toUpperCase();
+const api=async(url:string,options:RequestInit={})=>{const r=await fetch(url,{...options,credentials:'same-origin',headers:{Accept:'application/json','X-CSRF-TOKEN':csrf(),...(options.body instanceof FormData?{}:{'Content-Type':'application/json'}),...(options.headers??{})}}),body=r.status===204?{}:await r.json();if(!r.ok)throw new Error(body.message??'Request failed.');return body};
+const bottom=async()=>{await nextTick();if(thread.value)thread.value.scrollTop=thread.value.scrollHeight};
+const subscribe=(conversation:any)=>{if(channel&&active.value)window.Echo?.leave('conversations.'+active.value.id);channel=window.Echo?.private('conversations.'+conversation.id).listen('.message.sent',(event:any)=>{if(String(event.sender_id)===me.value)return;messages.value.push({...event,sender:{id:event.sender_id}});api('/api/v1/conversations/'+conversation.id+'/read',{method:'POST',body:'{}'});bottom()}).listen('.typing.updated',(event:any)=>{if(String(event.user_id)!==me.value){typingName.value=event.typing?event.name:'';clearTimeout(typingTimer);if(event.typing)typingTimer=setTimeout(()=>typingName.value='',2500)}}).listen('.conversation.read',(event:any)=>{if(String(event.user_id)!==me.value)messages.value.forEach(m=>{if(String(m.sender?.id)===me.value)m.read_at=event.read_at})})};
+const select=async(c:any)=>{active.value=c;messages.value=[...((await api('/api/v1/conversations/'+c.id+'/messages')).data??[])].reverse();await api('/api/v1/conversations/'+c.id+'/read',{method:'POST',body:'{}'});c.unread_count=0;subscribe(c);bottom()};
+const load=async()=>{const[c,r]=await Promise.all([api('/api/v1/conversations'),api('/api/v1/message-requests?status=pending')]);conversations.value=c.data??[];requests.value=r.data??[];if(props.initialTab==='requests')selectedRequest.value=requests.value[0];else if(conversations.value[0])await select(conversations.value[0]);loading.value=false};
+const upload=async(file:File)=>{const form=new FormData();form.append('file',file);form.append('kind',file.type.startsWith('video/')?'video':'image');form.append('collection','uploads');let media=(await api('/api/v1/media',{method:'POST',body:form})).data;for(let i=0;i<600&&['pending','processing'].includes(media.processing_status);i++){await new Promise(r=>setTimeout(r,1000));media=(await api('/api/v1/media/'+media.id)).data}if(media.processing_status!=='ready')throw new Error('Attachment processing failed.');return media.id};
+const sendTyping=(typing:boolean)=>{if(active.value)api('/api/v1/conversations/'+active.value.id+'/typing',{method:'POST',body:JSON.stringify({typing})}).catch(()=>undefined)};
+const send=async()=>{if((!draft.value.trim()&&!attachment.value)||!active.value||sending.value)return;sending.value=true;try{const mediaId=attachment.value?await upload(attachment.value):null,body=await api('/api/v1/conversations/'+active.value.id+'/messages',{method:'POST',body:JSON.stringify({body:draft.value.trim()||null,media_id:mediaId})});messages.value.push(body.data);draft.value='';attachment.value=null;sendTyping(false);bottom()}finally{sending.value=false}};
+watch(draft,()=>{sendTyping(!!draft.value);clearTimeout(typingTimer);typingTimer=setTimeout(()=>sendTyping(false),1400)});
+const act=async(action:'mute'|'archive'|'report')=>{if(action==='mute'){const r=await api('/api/v1/conversations/'+active.value.id+'/mute',{method:'POST',body:JSON.stringify({muted:!active.value.muted})});active.value.muted=r.data.muted;notice.value=r.data.muted?'Conversation muted':'Conversation unmuted'}else if(action==='archive'){await api('/api/v1/conversations/'+active.value.id+'/archive',{method:'POST',body:'{}'});conversations.value=conversations.value.filter(c=>c.id!==active.value.id);active.value=null;notice.value='Conversation archived'}else{await api('/api/v1/conversations/'+active.value.id+'/report',{method:'POST',body:JSON.stringify({reason:'other',details:'Reported from messaging'})});notice.value='Conversation reported'}controls.value=false};
+const respond=async(r:any,a:'accept'|'decline')=>{await api('/api/v1/message-requests/'+r.id+'/'+a,{method:'POST',body:'{}'});requests.value=requests.value.filter(i=>i.id!==r.id);selectedRequest.value=requests.value[0]};
+const enablePush=async()=>{const p=await Notification.requestPermission();if(p!=='granted'){notice.value='Notification permission denied';return}const key=(document.querySelector('meta[name="vapid-public-key"]')as HTMLMetaElement)?.content;if(key&&'serviceWorker'in navigator){const registration=await navigator.serviceWorker.ready,padding='='.repeat((4-key.length%4)%4),raw=atob((key+padding).replace(/-/g,'+').replace(/_/g,'/')),bytes=Uint8Array.from([...raw].map(c=>c.charCodeAt(0))),subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:bytes});await api('/api/v1/push-subscriptions',{method:'POST',body:JSON.stringify(subscription.toJSON())})}notice.value='Push notifications enabled'};
+onMounted(()=>{(window as any).__user=undefined;load()});onUnmounted(()=>{if(active.value)window.Echo?.leave('conversations.'+active.value.id);clearTimeout(typingTimer)});
 </script>
-
-<template>
-    <Head :title="props.initialTab === 'requests' ? 'Message requests' : 'Messages'" />
-    <AppShell>
-        <main class="messages-page">
-            <header class="messages-heading"><h1>{{ props.initialTab === 'requests' ? 'Message requests' : 'Messages' }}</h1><p>{{ props.initialTab === 'requests' ? 'Review who can start a private conversation with you.' : 'Chat-style communication between users, clubs and scouts.' }}</p></header>
-            <div class="messages-layout">
-                <aside class="conversation-panel">
-                    <div class="message-tabs"><button :class="{ active: tab === 'messages' }" @click="tab = 'messages'">Messages</button><button :class="{ active: tab === 'requests' }" @click="tab = 'requests'">Message requests <span v-if="requests.length">{{ requests.length }}</span></button></div>
-                    <h2>{{ tab === 'messages' ? 'Conversations' : 'Message requests' }}</h2>
-                    <p v-if="loading" class="messages-empty">Loading…</p>
-                    <p v-else-if="tab === 'messages' && !conversations.length" class="messages-empty">No conversations yet.</p>
-                    <p v-else-if="tab === 'requests' && !requests.length" class="messages-empty">No pending message requests.</p>
-                    <button v-for="(conversation, index) in (tab === 'messages' ? conversations : [])" :key="conversation.id" class="conversation-item" :class="{ active: active?.id === conversation.id }" @click="selectConversation(conversation)">
-                        <span class="conversation-avatar" :class="palette[index % palette.length]">{{ initials(other(conversation)?.name) }}</span>
-                        <span class="conversation-copy"><strong>{{ other(conversation)?.name ?? 'Conversation' }}</strong><small>{{ conversation.last_message?.body ?? 'Start a conversation' }}</small></span>
-                    </button>
-                    <button v-for="(request, index) in (tab === 'requests' ? requests : [])" :key="request.id" class="conversation-item request-item" :class="{ active: selectedRequest?.id === request.id }" @click="selectedRequest = request">
-                        <span class="conversation-avatar" :class="palette[index % palette.length]">{{ initials(request.sender?.name) }}</span>
-                        <span class="conversation-copy"><strong>{{ request.sender?.name }}</strong><small>{{ request.message }}</small></span><small class="view-label">View</small>
-                    </button>
-                </aside>
-                <section class="chat-panel">
-                    <template v-if="tab === 'requests' && selectedRequest">
-                        <header class="chat-header"><h2>{{ selectedRequest.sender?.name }}</h2><p>Message request</p></header>
-                        <div class="request-preview"><span class="conversation-avatar pink">{{ initials(selectedRequest.sender?.name) }}</span><h3>{{ selectedRequest.sender?.name }}</h3><p>{{ selectedRequest.message }}</p><div class="request-actions"><button class="approve" :disabled="actionLoading" @click="respond(selectedRequest, 'accept')">Approve</button><button :disabled="actionLoading" @click="respond(selectedRequest, 'decline')">Decline</button><button class="block" :disabled="actionLoading" @click="block(selectedRequest)">Block</button></div></div>
-                    </template>
-                    <template v-else-if="tab === 'messages' && active">
-                        <header class="chat-header"><h2>{{ activePerson?.name }}</h2><p>SportUniverse member <span>• Online now</span></p></header>
-                        <div ref="thread" class="message-thread">
-                            <div v-for="message in messages" :key="message.id" class="message-bubble" :class="{ mine: message.sender?.id === user?.id }">{{ message.body }}</div>
-                        </div>
-                        <form class="message-composer" @submit.prevent="send"><input v-model="draft" aria-label="Message" placeholder="Type message..." maxlength="2000" /><button :disabled="sending || !draft.trim()">{{ sending ? 'Sending…' : 'Send' }}</button></form>
-                    </template>
-                    <div v-else class="chat-placeholder"><Search :size="28" /><p>{{ tab === 'requests' ? 'Select a request to view it.' : 'Select a conversation to start messaging.' }}</p></div>
-                </section>
-            </div>
-        </main>
-    </AppShell>
-</template>
+<template><Head :title="props.initialTab==='requests'?'Message requests':'Messages'"/><AppShell><main class="messages-page"><header class="messages-heading"><div><h1>{{props.initialTab==='requests'?'Message requests':'Messages'}}</h1><p>Real-time conversations with athletes, clubs and scouts.</p></div><button class="push-enable" @click="enablePush"><Volume2/>Enable push</button></header><p v-if="notice" class="message-notice">{{notice}}</p><div class="messages-layout"><aside class="conversation-panel"><div class="message-tabs"><button :class="{active:tab==='messages'}" @click="tab='messages'">Messages</button><button :class="{active:tab==='requests'}" @click="tab='requests'">Requests <span v-if="requests.length">{{requests.length}}</span></button></div><p v-if="loading">Loading…</p><template v-else><button v-for="(c,i) in tab==='messages'?conversations:[]" class="conversation-item" :class="{active:active?.id===c.id}" @click="select(c)"><span class="conversation-avatar">{{initials(other(c)?.name)}}</span><span class="conversation-copy"><strong>{{other(c)?.name}}</strong><small>{{c.last_message?.body||'Attachment'}}</small></span><b v-if="c.unread_count">{{c.unread_count}}</b><BellOff v-if="c.muted"/></button><button v-for="r in tab==='requests'?requests:[]" class="conversation-item" @click="selectedRequest=r"><span class="conversation-avatar">{{initials(r.sender.name)}}</span><span class="conversation-copy"><strong>{{r.sender.name}}</strong><small>{{r.message}}</small></span></button></template></aside><section class="chat-panel"><template v-if="tab==='requests'&&selectedRequest"><header class="chat-header"><h2>{{selectedRequest.sender.name}}</h2><p>Message request</p></header><div class="request-preview"><span class="conversation-avatar">{{initials(selectedRequest.sender.name)}}</span><p>{{selectedRequest.message}}</p><div class="request-actions"><button class="approve" @click="respond(selectedRequest,'accept')">Approve</button><button @click="respond(selectedRequest,'decline')">Decline</button></div></div></template><template v-else-if="active"><header class="chat-header"><div><h2>{{other(active)?.name}}</h2><p>{{typingName?typingName+' is typing…':'Real-time conversation'}}</p></div><button @click="controls=!controls"><Settings/></button><div v-if="controls" class="conversation-controls"><button @click="act('mute')"><BellOff/>{{active.muted?'Unmute':'Mute'}}</button><button @click="act('archive')"><Archive/>Archive</button><button @click="act('report')"><Flag/>Report</button></div></header><div ref="thread" class="message-thread"><div v-for="message in messages" class="message-bubble" :class="{mine:String(message.sender?.id)===me}"><img v-if="message.media?.kind==='image'" :src="message.media.download_url"/><video v-if="message.media?.kind==='video'" :src="message.media.download_url" controls playsinline/><p v-if="message.body">{{message.body}}</p><small v-if="String(message.sender?.id)===me">{{message.read_at?'Read':'Sent'}}</small></div><p v-if="typingName" class="typing-indicator"><i/><i/><i/></p></div><form class="message-composer" @submit.prevent="send"><label><Paperclip/><input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" @change="attachment=($event.target as HTMLInputElement).files?.[0]??null"/></label><span v-if="attachment">{{attachment.name}}<button type="button" @click="attachment=null"><X/></button></span><input v-model="draft" placeholder="Type message…" maxlength="5000"/><button :disabled="sending||(!draft.trim()&&!attachment)">{{sending?'Sending…':'Send'}}</button></form></template><div v-else class="chat-placeholder"><Search/><p>Select a conversation.</p></div></section></div></main></AppShell></template>

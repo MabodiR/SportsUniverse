@@ -26,6 +26,6 @@ class MessageSent implements ShouldBroadcast
 
     public function broadcastWith(): array
     {
-        return ['id' => $this->message->public_id, 'conversation_id' => $this->message->conversation->public_id, 'sender_id' => $this->message->sender_id, 'body' => $this->message->body, 'created_at' => $this->message->created_at?->toAtomString()];
+        return ['id' => $this->message->public_id, 'conversation_id' => $this->message->conversation->public_id, 'sender_id' => $this->message->sender_id, 'body' => $this->message->body, 'media'=>$this->message->media?['id'=>$this->message->media->public_id,'kind'=>$this->message->media->kind,'mime_type'=>$this->message->media->mime_type,'download_url'=>route('media.download',$this->message->media)]:null,'created_at' => $this->message->created_at?->toAtomString()];
     }
 }

@@ -29,7 +29,8 @@ const adminItems = [
 const isAdmin = user?.roles?.some((role: any) => role.name === 'admin');
 const followingCount = ref(user?.following_count ?? 0);
 const navCounts = page.props.nav_counts as Record<string, number> ?? {};
-const badgeFor = (item: any) => ({ '/feed': navCounts.feed, '/following': navCounts.following, '/opportunities': navCounts.opportunities, '/messages': navCounts.messages, '/notifications': navCounts.notifications }[item.href] ?? 0);
+const realtimeCounts=ref({...navCounts});
+const badgeFor = (item: any) => ({ '/feed': realtimeCounts.value.feed, '/following': realtimeCounts.value.following, '/opportunities': realtimeCounts.value.opportunities, '/messages': realtimeCounts.value.messages, '/notifications': realtimeCounts.value.notifications }[item.href] ?? 0);
 const searchQuery = ref('');
 const menuOpen = ref(false);
 const searchResults = ref<any[]>([]);
@@ -52,8 +53,9 @@ watch(searchQuery, () => { clearTimeout(searchTimer); searchTimer = setTimeout(r
 const submitSearch = () => { if (!user) return router.visit('/login'); if (searchResults.value[0]) router.visit(`/@${searchResults.value[0].slug}`); else router.visit(`/explore?q=${encodeURIComponent(searchQuery.value.trim())}`); searchOpen.value = false; };
 const closeSearch = (event: MouseEvent) => { if (!(event.target as Element).closest('.global-search')) searchOpen.value = false; };
 const updateFollowingCount = (event: Event) => { followingCount.value = (event as CustomEvent<number>).detail; };
-onMounted(() => { window.addEventListener('following-count-changed', updateFollowingCount); document.addEventListener('click', closeSearch); });
-onUnmounted(() => { window.removeEventListener('following-count-changed', updateFollowingCount); document.removeEventListener('click', closeSearch); clearTimeout(searchTimer); searchController?.abort(); });
+const onRealtimeNotification=(event:Event)=>{const data=(event as CustomEvent<any>).detail;realtimeCounts.value.notifications=(realtimeCounts.value.notifications??0)+1;if(data.event==='new_message'||data.event==='message_request_received')realtimeCounts.value.messages=(realtimeCounts.value.messages??0)+1};
+onMounted(() => { window.addEventListener('following-count-changed', updateFollowingCount);window.addEventListener('sportuniverse:notification',onRealtimeNotification); document.addEventListener('click', closeSearch); });
+onUnmounted(() => { window.removeEventListener('following-count-changed', updateFollowingCount);window.removeEventListener('sportuniverse:notification',onRealtimeNotification); document.removeEventListener('click', closeSearch); clearTimeout(searchTimer); searchController?.abort(); });
 
 const logout = () => user ? router.post('/logout') : router.visit('/login');
 </script>

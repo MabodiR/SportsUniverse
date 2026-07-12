@@ -60,4 +60,11 @@ class NotificationModuleTest extends TestCase
         $id = $owner->notifications()->first()->id;
         $this->actingAs($outsider,'sanctum')->patchJson('/api/v1/notifications/'.$id.'/read')->assertNotFound();
     }
+
+    public function test_user_can_register_browser_push_subscription(): void
+    {
+        $user=User::factory()->create();
+        $this->actingAs($user,'sanctum')->postJson('/api/v1/push-subscriptions',['endpoint'=>'https://push.example.test/subscription','keys'=>['p256dh'=>'public-key','auth'=>'auth-token'],'content_encoding'=>'aes128gcm'])->assertCreated();
+        $this->assertDatabaseHas('push_subscriptions',['user_id'=>$user->id,'endpoint'=>'https://push.example.test/subscription']);
+    }
 }

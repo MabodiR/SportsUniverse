@@ -37,6 +37,8 @@
     <meta name="twitter:image" content="{{ $seoImage }}">
     @if(config('seo.twitter_handle'))<meta name="twitter:site" content="{{ config('seo.twitter_handle') }}">@endif
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    @auth<meta name="user-id" content="{{ auth()->id() }}">@endauth
+    @if(config('push.public_key'))<meta name="vapid-public-key" content="{{ config('push.public_key') }}">@endif
     <link rel="icon" href="/images/logo/favicon.ico" sizes="any">
     <link rel="icon" type="image/svg+xml" href="/images/logo/sportuniverse-icon.svg">
     <link rel="icon" type="image/png" sizes="32x32" href="/images/logo/favicon-32x32.png">

@@ -6,6 +6,7 @@ use App\Domain\Messaging\Events\MessageSent;
 use App\Domain\Messaging\Models\Conversation;
 use App\Domain\Messaging\Models\MessageRequest;
 use App\Models\User;
+use App\Domain\Media\Models\Media;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Str;
@@ -60,6 +61,23 @@ class MessagingModuleTest extends TestCase
         [$sender,$recipient] = $this->users();
         $this->actingAs($recipient, 'sanctum')->postJson('/api/v1/profiles/'.$sender->id.'/block')->assertOk();
         $this->actingAs($sender, 'sanctum')->postJson('/api/v1/message-requests', ['recipient_id' => $recipient->id, 'message' => 'Hello'])->assertUnprocessable()->assertJsonValidationErrors('recipient_id');
+    }
+
+    public function test_participant_can_send_picture_and_video_messages(): void
+    {
+        [$sender,$recipient]=$this->users();$conversation=$this->conversation($sender,$recipient);
+        foreach(['image','video'] as $kind){$media=Media::factory()->for($sender)->create(['kind'=>$kind]);$this->actingAs($sender,'sanctum')->postJson('/api/v1/conversations/'.$conversation->public_id.'/messages',['media_id'=>$media->public_id])->assertCreated()->assertJsonPath('data.media.kind',$kind);}
+    }
+
+    public function test_participant_can_mute_archive_report_and_mark_read(): void
+    {
+        [$sender,$recipient]=$this->users();$conversation=$this->conversation($sender,$recipient);
+        $this->actingAs($sender,'sanctum')->postJson('/api/v1/conversations/'.$conversation->public_id.'/mute',['muted'=>true])->assertOk()->assertJsonPath('data.muted',true);
+        $this->postJson('/api/v1/conversations/'.$conversation->public_id.'/read')->assertOk();
+        $this->postJson('/api/v1/conversations/'.$conversation->public_id.'/report',['reason'=>'spam'])->assertCreated();
+        $this->postJson('/api/v1/conversations/'.$conversation->public_id.'/archive')->assertOk();
+        $this->assertDatabaseHas('conversation_participants',['conversation_id'=>$conversation->id,'user_id'=>$sender->id]);
+        $this->assertDatabaseHas('reports',['reportable_type'=>$conversation->getMorphClass(),'reportable_id'=>$conversation->id]);
     }
 
     private function users(): array
