@@ -42,7 +42,7 @@ class FeedController extends Controller
         $videos = Video::query()->whereHas('savers', fn ($query) => $query->whereKey($request->user()->id))
             ->where('status', 'published')->where('visibility', 'public')
             ->latest('published_at')
-            ->with('user.profile', 'user.athleteProfile.sport', 'user.athleteProfile.taxonomyPosition', 'sport', 'media')
+            ->with('user.profile', 'user.athleteProfile.sport', 'user.athleteProfile.taxonomyPosition', 'sport', 'media', 'images')
             ->get();
 
         return Inertia::render('Saved/Index', [
@@ -65,7 +65,7 @@ class FeedController extends Controller
             }))
             ->when($position, fn ($query) => $query->whereHas('user.athleteProfile.taxonomyPosition', fn ($positionQuery) => $positionQuery->whereRaw('LOWER(name) = ?', [mb_strtolower($position)])))
             ->when($following, fn ($query) => $query->whereIn('user_id', $request->user()->following()->select('users.id')))
-            ->with('user.profile', 'user.athleteProfile.sport', 'user.athleteProfile.taxonomyPosition', 'sport', 'media')
+            ->with('user.profile', 'user.athleteProfile.sport', 'user.athleteProfile.taxonomyPosition', 'sport', 'media', 'images')
             ->when($request->user(), fn ($query, $user) => $query->withExists([
                 'likers as liked_by_viewer' => fn ($likes) => $likes->whereKey($user->id),
                 'savers as saved_by_viewer' => fn ($saves) => $saves->whereKey($user->id),
@@ -111,6 +111,8 @@ class FeedController extends Controller
             'id' => $video->public_id,
             'caption' => $video->caption,
             'url' => route('videos.stream', $video),
+            'images' => $video->images->map(fn ($image) => ['id' => $image->public_id, 'url' => route('media.download', $image), 'is_cover' => (bool) $image->pivot->is_cover])->values(),
+            'cover_url' => $video->images->first(fn ($image) => (bool) $image->pivot->is_cover) ? route('media.download', $video->images->first(fn ($image) => (bool) $image->pivot->is_cover)) : null,
             'hashtags' => $video->hashtags ?? [],
             'creator' => [
                 'id' => $video->user->id,

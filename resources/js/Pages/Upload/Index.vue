@@ -5,6 +5,9 @@ import { computed, onUnmounted, ref } from 'vue';
 import AppShell from '../../Layouts/AppShell.vue';
 
 const file = ref<File | null>(null);
+const images = ref<File[]>([]);
+const imagePreviews = ref<string[]>([]);
+const coverIndex = ref(0);
 const preview = ref('');
 const caption = ref('');
 const visibility = ref('Everyone');
@@ -28,33 +31,45 @@ const select = (selected?: File) => {
     if (preview.value) URL.revokeObjectURL(preview.value);
     file.value = selected; preview.value = URL.createObjectURL(selected); error.value = ''; notice.value = '';
 };
+const selectImages = (selected?: FileList | null) => {
+    imagePreviews.value.forEach(URL.revokeObjectURL);
+    images.value = Array.from(selected ?? []).slice(0, 2);
+    imagePreviews.value = images.value.map(URL.createObjectURL);
+    coverIndex.value = 0;
+    error.value = selected && selected.length > 2 ? 'Only the first two pictures were selected.' : '';
+};
 const drop = (event: DragEvent) => { dragging.value = false; select(event.dataTransfer?.files?.[0]); };
-const discard = () => { if (preview.value) URL.revokeObjectURL(preview.value); file.value = null; preview.value = ''; caption.value = ''; notice.value = ''; error.value = ''; };
+const discard = () => { if (preview.value) URL.revokeObjectURL(preview.value); imagePreviews.value.forEach(URL.revokeObjectURL); file.value = null; images.value = []; imagePreviews.value = []; preview.value = ''; caption.value = ''; notice.value = ''; error.value = ''; };
+const uploadMedia = async (uploadFile: File, kind: 'video' | 'image') => {
+    const form = new FormData(); form.append('file', uploadFile); form.append('kind', kind); form.append('collection', 'uploads');
+    const response = await fetch('/api/v1/media', { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf() }, body: form });
+    const payload = await responsePayload(response);
+    if (!response.ok) throw new Error(payload.message ?? Object.values(payload.errors ?? {}).flat().join(' '));
+    let processed = payload.data;
+    for (let attempt = 0; attempt < 90 && ['pending', 'processing'].includes(processed.processing_status); attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const statusResponse = await fetch(`/api/v1/media/${processed.id}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+        const statusPayload = await responsePayload(statusResponse); processed = statusPayload.data ?? statusPayload;
+    }
+    if (processed.processing_status !== 'ready') throw new Error(processed.processing_error || `${kind === 'video' ? 'Video' : 'Picture'} processing did not complete.`);
+    return processed;
+};
 const upload = async () => {
     if (!file.value) { error.value = 'Select a video to upload first.'; return; }
     saving.value = true; error.value = ''; notice.value = '';
-    const form = new FormData(); form.append('file', file.value); form.append('kind', 'video'); form.append('collection', 'uploads');
     try {
-        const response = await fetch('/api/v1/media', { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf() }, body: form });
-        const payload = await responsePayload(response);
-        if (!response.ok) throw new Error(payload.message ?? Object.values(payload.errors ?? {}).flat().join(' '));
-        const media = payload.data;
         notice.value = 'Upload complete. Processing your video…';
-        let processed = media;
-        for (let attempt = 0; attempt < 90 && ['pending', 'processing'].includes(processed.processing_status); attempt++) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            const statusResponse = await fetch(`/api/v1/media/${media.id}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
-            const statusPayload = await responsePayload(statusResponse); processed = statusPayload.data ?? statusPayload;
-        }
-        if (processed.processing_status !== 'ready') throw new Error(processed.processing_error || 'Video processing did not complete.');
-        const publishResponse = await fetch('/api/v1/videos', { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() }, body: JSON.stringify({ media_id: media.id, caption: caption.value, visibility: visibility.value === 'Everyone' ? 'public' : visibility.value === 'Followers' ? 'followers' : 'private', publish: true }) });
+        const media = await uploadMedia(file.value, 'video');
+        const uploadedImages = [];
+        for (const image of images.value) uploadedImages.push(await uploadMedia(image, 'image'));
+        const publishResponse = await fetch('/api/v1/videos', { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() }, body: JSON.stringify({ media_id: media.id, image_media_ids: uploadedImages.map(image => image.id), cover_media_id: uploadedImages[coverIndex.value]?.id, caption: caption.value, visibility: visibility.value === 'Everyone' ? 'public' : visibility.value === 'Followers' ? 'followers' : 'private', publish: true }) });
         const publishPayload = await responsePayload(publishResponse);
         if (!publishResponse.ok) throw new Error(publishPayload.message ?? Object.values(publishPayload.errors ?? {}).flat().join(' '));
         notice.value = 'Your video is live on SportUniverse.';
     } catch (e: any) { error.value = e.message ?? 'Upload failed.'; }
     finally { saving.value = false; }
 };
-onUnmounted(() => { if (preview.value) URL.revokeObjectURL(preview.value); });
+onUnmounted(() => { if (preview.value) URL.revokeObjectURL(preview.value); imagePreviews.value.forEach(URL.revokeObjectURL); });
 </script>
 
 <template>
@@ -73,6 +88,8 @@ onUnmounted(() => { if (preview.value) URL.revokeObjectURL(preview.value); });
                 </div>
                 <form class="upload-details" @submit.prevent="upload">
                     <h2>Video details</h2>
+                    <label><span class="upload-label">Pictures <small>Optional · up to 2</small></span><input class="upload-picture-input" type="file" accept="image/jpeg,image/png,image/webp" multiple @change="selectImages(($event.target as HTMLInputElement).files)" /></label>
+                    <div v-if="imagePreviews.length" class="upload-picture-grid"><button v-for="(image, index) in imagePreviews" :key="image" type="button" :class="{ selected: coverIndex === index }" @click="coverIndex = index"><img :src="image" alt="Selected post picture" /><span>{{ coverIndex === index ? 'Main picture' : 'Set as main' }}</span></button></div>
                     <label><span class="upload-label">Caption <small>{{ caption.length }} / 2200</small></span><textarea v-model="caption" maxlength="2200" placeholder="Tell viewers about your video..." /></label>
                     <label><span class="upload-label">Who can watch this video</span><select v-model="visibility"><option>Everyone</option><option>Followers</option><option>Only me</option></select></label>
                     <div><span class="upload-label">Allow users to</span><label class="upload-check"><input v-model="comments" type="checkbox" /> Comments</label></div>

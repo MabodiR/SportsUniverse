@@ -163,6 +163,7 @@ onMounted(() => {
         const video = entry.target as HTMLVideoElement;
         if (entry.isIntersecting && entry.intersectionRatio >= .65) {
             videoElements.forEach(other => { if (other !== video) other.pause(); });
+            if (video.poster && video.currentTime === 0) return;
             video.play().catch(() => undefined);
         } else video.pause();
     }), { threshold: [.25, .65, .9] });
@@ -186,7 +187,7 @@ onUnmounted(() => { window.removeEventListener('scroll', onScroll); observer?.di
                 <div class="feed-stream">
                     <div v-for="(item, index) in feed" :id="item.id" :key="item.id" class="featured-video-wrap">
                         <article class="featured-video-card" :class="`feed-card-${(index % 3) + 1}`">
-                            <video v-if="item.url" :ref="element => registerVideo(element as HTMLVideoElement, item.id)" class="feed-video" :src="item.url" :muted="!soundEnabled" loop playsinline preload="metadata" @click="toggleVideo" @timeupdate="recordView(item, $event.currentTarget as HTMLVideoElement)" />
+                            <video v-if="item.url" :ref="element => registerVideo(element as HTMLVideoElement, item.id)" class="feed-video" :src="item.url" :poster="item.cover_url || undefined" :muted="!soundEnabled" loop playsinline preload="metadata" @click="toggleVideo" @timeupdate="recordView(item, $event.currentTarget as HTMLVideoElement)" />
                             <button v-if="item.url" class="video-sound-toggle" :aria-label="soundEnabled ? 'Mute video' : 'Turn on sound'" @click.stop="toggleSound(videoElements.get(item.id)!)"><Volume2 v-if="soundEnabled" /><VolumeX v-else /><span>{{ soundEnabled ? 'Sound on' : 'Sound off' }}</span></button>
                             <div class="featured-video-label"><strong>{{ item.caption || 'SportUniverse video' }}</strong><small>{{ index === 0 ? '00:15' : `00:${22 + index * 7}` }} · HD</small></div>
                             <button v-if="!item.url" class="featured-play" aria-label="Play video">▶</button>

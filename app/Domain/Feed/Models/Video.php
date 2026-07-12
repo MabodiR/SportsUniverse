@@ -44,6 +44,11 @@ class Video extends Model
         return $this->belongsTo(Media::class);
     }
 
+    public function images(): BelongsToMany
+    {
+        return $this->belongsToMany(Media::class, 'video_images')->withPivot(['position', 'is_cover'])->orderByPivot('position');
+    }
+
     public function sport(): BelongsTo
     {
         return $this->belongsTo(Sport::class);

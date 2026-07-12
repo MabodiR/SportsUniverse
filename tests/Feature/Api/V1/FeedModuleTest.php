@@ -28,6 +28,24 @@ class FeedModuleTest extends TestCase
         $this->actingAs($user, 'sanctum')->postJson('/api/v1/videos', ['media_id' => $media->public_id, 'publish' => true])->assertUnprocessable()->assertJsonValidationErrors('media_id');
     }
 
+    public function test_video_post_can_include_two_images_and_select_a_cover(): void
+    {
+        $user = User::factory()->create();
+        $videoMedia = Media::factory()->for($user)->create(['kind' => 'video']);
+        $images = Media::factory()->count(2)->for($user)->create(['kind' => 'image']);
+
+        $response = $this->actingAs($user, 'sanctum')->postJson('/api/v1/videos', [
+            'media_id' => $videoMedia->public_id,
+            'image_media_ids' => $images->pluck('public_id')->all(),
+            'cover_media_id' => $images->last()->public_id,
+            'publish' => true,
+        ]);
+
+        $response->assertCreated()->assertJsonCount(2, 'data.images');
+        $video = Video::firstOrFail();
+        $this->assertDatabaseHas('video_images', ['video_id' => $video->id, 'media_id' => $images->last()->id, 'is_cover' => true]);
+    }
+
     public function test_following_feed_only_contains_followed_creators(): void
     {
         $viewer = User::factory()->create();
