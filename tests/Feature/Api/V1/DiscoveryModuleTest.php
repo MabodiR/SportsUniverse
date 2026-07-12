@@ -3,6 +3,7 @@
 namespace Tests\Feature\Api\V1;
 
 use App\Domain\Discovery\Support\ProfileDocument;
+use App\Domain\Opportunities\Models\Opportunity;
 use App\Domain\Sports\Models\Sport;
 use App\Models\User;
 use Database\Seeders\SportSeeder;
@@ -47,6 +48,27 @@ class DiscoveryModuleTest extends TestCase
         $viewer = $this->member('Viewer', 'fan');
         $this->member('Hidden Talent', 'athlete', ['is_public' => false]);
         $this->actingAs($viewer, 'sanctum')->getJson('/api/v1/search/profiles?q=Hidden')->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    public function test_search_finds_profiles_by_location_age_and_opportunity_content(): void
+    {
+        $viewer = $this->member('Viewer', 'fan');
+        $athlete = $this->member('Searchable Athlete', 'athlete', [
+            'date_of_birth' => today()->subYears(21)->subMonth(),
+            'city' => 'Pretoria',
+            'locality' => 'Mamelodi',
+        ]);
+        Opportunity::factory()->for($athlete, 'poster')->create([
+            'title' => 'Elite Goalkeeper Trial',
+            'description' => 'A development opportunity for emerging keepers.',
+            'status' => 'published',
+        ]);
+
+        foreach (['Pretoria', 'Mamelodi', '21', 'Goalkeeper', 'development opportunity'] as $term) {
+            $this->actingAs($viewer, 'sanctum')->getJson('/api/v1/search/profiles?q='.urlencode($term))
+                ->assertOk()
+                ->assertJsonPath('data.0.name', $athlete->name);
+        }
     }
 
     public function test_profile_document_contains_rankable_taxonomy_fields(): void

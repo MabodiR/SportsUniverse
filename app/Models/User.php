@@ -6,6 +6,7 @@ namespace App\Models;
 use App\Domain\Feed\Models\Video;
 use App\Domain\Media\Models\Media;
 use App\Domain\Notifications\Models\NotificationPreference;
+use App\Domain\Opportunities\Models\Opportunity;
 use App\Domain\Profiles\Models\AthleteProfile;
 use App\Domain\Profiles\Models\FanProfile;
 use App\Domain\Profiles\Models\OrganisationProfile;
@@ -75,6 +76,11 @@ class User extends Authenticatable implements FilamentUser
     public function videos(): HasMany
     {
         return $this->hasMany(Video::class);
+    }
+
+    public function postedOpportunities(): HasMany
+    {
+        return $this->hasMany(Opportunity::class, 'posted_by_id');
     }
 
     public function following(): BelongsToMany
