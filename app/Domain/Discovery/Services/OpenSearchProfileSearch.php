@@ -40,7 +40,13 @@ class OpenSearchProfileSearch implements ProfileIndexer, ProfileSearchEngine
             $this->delete($user);
 
             return;
-        }$this->manager->client()->index(['index' => config('discovery.index'), 'id' => (string) $user->id, 'body' => $this->documents->make($user), 'refresh' => false]);
+        }
+
+        try {
+            $this->manager->client()->index(['index' => config('discovery.index'), 'id' => (string) $user->id, 'body' => $this->documents->make($user), 'refresh' => false]);
+        } catch (\Throwable $exception) {
+            logger()->warning('OpenSearch profile indexing failed.', ['user_id' => $user->id, 'exception' => $exception->getMessage()]);
+        }
     }
 
     public function delete(User $user): void
@@ -48,6 +54,8 @@ class OpenSearchProfileSearch implements ProfileIndexer, ProfileSearchEngine
         try {
             $this->manager->client()->delete(['index' => config('discovery.index'), 'id' => (string) $user->id]);
         } catch (Missing404Exception) {
+        } catch (\Throwable $exception) {
+            logger()->warning('OpenSearch profile delete failed.', ['user_id' => $user->id, 'exception' => $exception->getMessage()]);
         }
     }
 }

@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'opensearch' => [
+        'enabled' => env('OPENSEARCH_ENABLED', true),
+        'host' => env('OPENSEARCH_HOST', 'http://127.0.0.1:9200'),
+    ],
+
 ];

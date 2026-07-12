@@ -48,6 +48,9 @@ jobs:
           php artisan config:clear
           php artisan route:clear
           php artisan view:clear
+        env:
+          DISCOVERY_DRIVER: database
+          OPENSEARCH_HOSTS: ""
 
       - name: Deploy to FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0

@@ -34,8 +34,17 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         RateLimiter::for('uploads', fn (Request $request) => Limit::perMinute(20)->by($request->user()?->id ?: $request->ip()));
+
+        $shouldIndexProfiles = ! app()->environment('testing')
+            && config('discovery.driver') === 'opensearch'
+            && ! empty(config('discovery.hosts'));
+
         foreach ([UserProfile::class, AthleteProfile::class, ProfessionalProfile::class, OrganisationProfile::class] as $model) {
-            $model::saved(fn ($profile) => IndexUserProfile::dispatch($profile->user_id)->afterCommit());
+            $model::saved(function ($profile) use ($shouldIndexProfiles): void {
+                if ($shouldIndexProfiles) {
+                    IndexUserProfile::dispatch($profile->user_id)->afterCommit();
+                }
+            });
         }
     }
 }
