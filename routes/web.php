@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Web\FeedController;
 use App\Http\Controllers\Web\AthleteProfileController;
+use App\Http\Controllers\Web\ClubPageController;
 use App\Http\Controllers\Web\VideoStreamController;
 use App\Http\Controllers\Web\MessagingContextController;
 use App\Http\Controllers\Api\V1\Feed\EngagementController;
@@ -26,6 +27,7 @@ Route::get('/feed/location/{location}', [FeedController::class, 'location'])->na
 Route::get('/feed/sport/{sport}', [FeedController::class, 'sport'])->name('feed.sport');
 Route::get('/feed/position/{position}', [FeedController::class, 'position'])->name('feed.position');
 Route::get('/@{slug}', AthleteProfileController::class)->name('athletes.show');
+Route::get('/clubs/{slug}', ClubPageController::class)->name('clubs.show');
 Route::get('/watch/{video}/stream', VideoStreamController::class)->name('videos.stream');
 Route::get('/media/{media}/display', [MediaController::class, 'download'])->name('media.public');
 Route::get('/sitemap.xml', function () {
@@ -74,6 +76,7 @@ Route::middleware('auth')->group(function () {
         '/uploads/status' => 'upload-status',
         '/videos/watch' => 'video',
         '/explore' => 'explore',
+        '/club-tools' => 'club-tools',
         '/comments' => 'comments',
         '/saved' => 'saved',
         '/messages' => 'messages',

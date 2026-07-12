@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { Bell, Bookmark, BriefcaseBusiness, Compass, FileBarChart, Flag, FolderKanban, Home, LogOut, Menu, MessageCircle, Search, Settings, Shield, Tags, Upload, UserRound, Users, X } from '@lucide/vue';
+import { Bell, Bookmark, BriefcaseBusiness, ClipboardList, Compass, FileBarChart, Flag, FolderKanban, Home, LogOut, Menu, MessageCircle, Search, Settings, Shield, Tags, Upload, UserRound, Users, X } from '@lucide/vue';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import BrandLogo from '../Components/BrandLogo.vue';
 
@@ -12,6 +12,7 @@ const userItems = [
     { label: 'Discover Talent', href: '/explore', icon: Compass },
     { label: 'Upload', href: '/upload', icon: Upload },
     { label: 'Opportunities', href: '/opportunities', icon: BriefcaseBusiness },
+    { label: 'Club & Scout Tools', href: '/club-tools', icon: ClipboardList, clubOnly: true },
     { label: 'Messages', href: '/messages', icon: MessageCircle },
     { label: 'Notifications', href: '/notifications', icon: Bell },
     { label: 'Saved', href: '/saved', icon: Bookmark },
@@ -27,6 +28,7 @@ const adminItems = [
     { label: 'Settings', href: '/management/settings', icon: Settings },
 ];
 const isAdmin = user?.roles?.some((role: any) => role.name === 'admin');
+const canUseClubTools = user?.roles?.some((role: any) => ['club', 'academy', 'scout', 'agent', 'admin'].includes(role.name));
 const followingCount = ref(user?.following_count ?? 0);
 const navCounts = page.props.nav_counts as Record<string, number> ?? {};
 const realtimeCounts=ref({...navCounts});
@@ -67,7 +69,7 @@ const logout = () => user ? router.post('/logout') : router.visit('/login');
             <div class="mobile-sidebar-head"><Link class="mobile-sidebar-brand" href="/feed" aria-label="SportUniverse home" @click="menuOpen = false"><img :src="'/images/logo/sportuniverse-logo-horizontal-dark.png'" alt="SportUniverse" /></Link><button aria-label="Close navigation" @click="menuOpen = false"><X /></button></div>
             <Link class="desktop-sidebar-brand" href="/feed"><BrandLogo /></Link>
             <nav class="nav-list" aria-label="Primary navigation">
-                <Link v-for="item in userItems" :key="item.label" :href="item.href" class="nav-item" :class="{ active: page.url === item.href }" @click="menuOpen = false">
+                <Link v-for="item in userItems.filter(item => !item.clubOnly || canUseClubTools)" :key="item.label" :href="item.href" class="nav-item" :class="{ active: page.url === item.href }" @click="menuOpen = false">
                     <component :is="item.icon" class="nav-icon" />
                     <span>{{ item.label }}</span>
                     <small v-if="badgeFor(item)" class="nav-count">{{ badgeFor(item) > 99 ? '99+' : badgeFor(item) }}</small>

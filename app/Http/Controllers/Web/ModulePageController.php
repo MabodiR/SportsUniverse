@@ -42,6 +42,10 @@ class ModulePageController extends Controller
             return Inertia::render('Explore/Index');
         }
 
+        if ($key === 'club-tools') {
+            return Inertia::render('Club/Workspace');
+        }
+
         if ($key === 'notifications') {
             return Inertia::render('Notifications/Index');
         }
