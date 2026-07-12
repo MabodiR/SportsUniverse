@@ -195,7 +195,7 @@ onUnmounted(() => { window.removeEventListener('scroll', onScroll); observer?.di
                         </article>
                         <div class="featured-actions">
                             <button class="view-count" disabled><span><Eye /></span><small>{{ compact(item.counts.views) }}</small></button>
-                            <button class="mobile-overflow-action" :class="{ active: item.viewer?.liked }" @click="interact(item,'like')"><span><Heart /></span><small>{{ compact(item.counts.likes) }}</small></button>
+                            <button class="feed-like-action" :class="{ active: item.viewer?.liked }" aria-label="Like post" @click="interact(item,'like')"><span><Heart :fill="item.viewer?.liked ? 'currentColor' : 'none'" /></span><small>{{ compact(item.counts.likes) }}</small></button>
                             <button @click="openComments(item)"><span><MessageCircle /></span><small>{{ compact(item.counts.comments) }}</small></button>
                             <button @click="sharePost = item"><span><Send /></span><small>{{ compact(item.counts.shares) }}</small></button>
                             <button @click="messageRequest(item)"><span class="request"><UserPlus /></span><small>Request</small></button>
