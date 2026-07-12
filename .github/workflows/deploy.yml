@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,48 +15,32 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     environment: production
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: "8.5"
-          extensions: mbstring, xml, bcmath, curl, intl, gd, zip, sqlite3, redis
-          coverage: none
+      - name: Verify server toolchain
+        run: |
+          php --version
+          composer --version
+          node --version
+          npm --version
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-          cache: npm
-
-      - name: Install production PHP dependencies
-        run: composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
+      - name: Install production dependencies
+        run: |
+          composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
+          npm ci --include=optional --no-audit --no-fund
 
       - name: Build frontend
-        run: |
-          npm ci --include=optional
-          npm run build
-
-      - name: Configure SSH
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
-          SSH_HOST: ${{ secrets.AWS_SSH_HOST }}
-        run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          NODE_OPTIONS: --max-old-space-size=2048
+        run: npm run build
 
-      - name: Upload application
-        env:
-          SSH_HOST: ${{ secrets.AWS_SSH_HOST }}
-          SSH_USER: ${{ secrets.AWS_SSH_USER }}
+      - name: Deploy application locally
         run: |
           rsync -az --delete \
             --exclude='.env' \
@@ -68,23 +53,17 @@ jobs:
             --exclude='storage/framework/' \
             --exclude='storage/logs/' \
             --exclude='tests/' \
-            -e 'ssh -i ~/.ssh/deploy_key' \
-            ./ "$SSH_USER@$SSH_HOST:/var/www/sportuniverse/"
+            ./ /var/www/sportuniverse/
 
       - name: Finalize deployment
-        env:
-          SSH_HOST: ${{ secrets.AWS_SSH_HOST }}
-          SSH_USER: ${{ secrets.AWS_SSH_USER }}
         run: |
-          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" '
-            set -e
-            cd /var/www/sportuniverse
-            sudo chown -R www-data:www-data storage bootstrap/cache
-            sudo chown www-data:www-data database/database.sqlite
-            sudo -u www-data php artisan migrate --force
-            sudo -u www-data php artisan storage:link || true
-            sudo -u www-data php artisan optimize
-            sudo systemctl restart sportuniverse-queue.service sportuniverse-reverb.service
-            sudo systemctl reload php8.5-fpm.service nginx.service
-            curl --fail --silent --show-error http://127.0.0.1/up
-          '
+          cd /var/www/sportuniverse
+          sudo chown -R www-data:www-data storage bootstrap/cache
+          sudo chown www-data:www-data database/database.sqlite
+          sudo -u www-data php artisan migrate --force
+          sudo -u www-data php artisan storage:link || true
+          sudo -u www-data php artisan optimize
+          sudo systemctl restart sportuniverse-queue.service sportuniverse-reverb.service
+          sudo systemctl reload php8.5-fpm.service nginx.service
+          curl --fail --silent --show-error http://127.0.0.1/up > /dev/null
+          curl --fail --silent --show-error http://127.0.0.1/feed > /dev/null
