@@ -1,0 +1,17 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Shared-hosting fallback when the domain document root cannot be pointed
+    # directly at Laravel's public directory.
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+<IfModule !mod_rewrite.c>
+    RedirectMatch 302 ^/$ /public/
+</IfModule>
+
+# Never expose application or environment files from the repository root.
+<FilesMatch "^(\.env|artisan|composer\.(json|lock)|package(-lock)?\.json|phpunit\.xml)$">
+    Require all denied
+</FilesMatch>
