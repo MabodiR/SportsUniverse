@@ -33,7 +33,9 @@ jobs:
       - name: Install NPM dependencies and build
         run: |
           rm -rf node_modules package-lock.json
-          npm install --include=optional
+          npm install --force
+          npm cache clean --force
+          npm install --legacy-peer-deps
           npm run build
 
       - name: Prepare environment

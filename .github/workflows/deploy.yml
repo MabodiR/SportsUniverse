@@ -24,7 +24,7 @@ jobs:
         run: |
           composer install --no-dev --optimize-autoloader
           rm -rf node_modules package-lock.json
-          npm install --include=optional
+          npm install
           npm run build
 
       - name: Deploy to FTP
