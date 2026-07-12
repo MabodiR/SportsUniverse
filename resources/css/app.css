@@ -470,7 +470,8 @@ html,body { background: #fff; color: #111827; color-scheme: light; }
 .for-you-layout { display: grid; grid-template-columns: minmax(430px,620px) 280px; gap: 3rem; justify-content: center; align-items: start; }
 .feed-stream { display: grid; gap: 2rem; scroll-snap-type: y proximity; }
 .featured-video-wrap { display: flex; align-items: center; justify-content: center; gap: 1rem; }
-.feed-stream .featured-video-wrap { min-height: calc(100vh - 110px); scroll-margin-top: 72px; scroll-snap-align: start; }
+.feed-stream .featured-video-wrap { min-height: calc(100vh - 110px); align-items: flex-start; scroll-margin-top: 72px; scroll-snap-align: start; }
+.feed-stream .featured-actions { align-self: center; }
 .featured-video-card { position: relative; width: min(100%,500px); aspect-ratio: 4/5.15; overflow: hidden; color: #fff; border-radius: 18px; background: linear-gradient(155deg,#511229,#2c0918); box-shadow: 0 18px 38px rgba(42,15,27,.22); }
 .featured-video-card.feed-card-2 { background: linear-gradient(155deg,#17366f,#0d2147); }
 .featured-video-card.feed-card-3 { background: linear-gradient(155deg,#14543e,#092f22); }

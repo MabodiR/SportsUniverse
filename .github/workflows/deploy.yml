@@ -1,4 +1,4 @@
-name: Deploy
+name: Deploy to AWS
 
 on:
   push:
@@ -8,9 +8,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: production
 
     steps:
       - name: Checkout repository
@@ -19,8 +24,8 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.3"
-          extensions: mbstring, intl, pdo_mysql
+          php-version: "8.5"
+          extensions: mbstring, xml, bcmath, curl, intl, gd, zip, sqlite3, redis
           coverage: none
 
       - name: Setup Node.js
@@ -29,43 +34,57 @@ jobs:
           node-version: "22"
           cache: npm
 
-      - name: Install PHP dependencies
-        run: |
-          composer install \
-            --no-dev \
-            --prefer-dist \
-            --no-interaction \
-            --optimize-autoloader
-
-      - name: Install Node dependencies
-        run: npm ci --include=optional
+      - name: Install production PHP dependencies
+        run: composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
 
       - name: Build frontend
-        run: npm run build
-
-      - name: Prepare Laravel for production
         run: |
-          php artisan config:clear
-          php artisan route:clear
-          php artisan view:clear
-        env:
-          DISCOVERY_DRIVER: database
-          OPENSEARCH_HOSTS: ""
+          npm ci --include=optional
+          npm run build
 
-      - name: Deploy to FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
-        with:
-          server: ${{ secrets.FTP_HOST }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./
-          server-dir: ${{ secrets.FTP_SERVER_DIR }}
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
-            **/.github/**
-            **/.env
-            **/.env.*
-            **/storage/logs/**
-            **/tests/**
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.AWS_SSH_HOST }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload application
+        env:
+          SSH_HOST: ${{ secrets.AWS_SSH_HOST }}
+          SSH_USER: ${{ secrets.AWS_SSH_USER }}
+        run: |
+          rsync -az --delete \
+            --exclude='.env' \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='database/*.sqlite*' \
+            --exclude='mobile-app/' \
+            --exclude='node_modules/' \
+            --exclude='storage/app/' \
+            --exclude='storage/framework/' \
+            --exclude='storage/logs/' \
+            --exclude='tests/' \
+            -e 'ssh -i ~/.ssh/deploy_key' \
+            ./ "$SSH_USER@$SSH_HOST:/var/www/sportuniverse/"
+
+      - name: Finalize deployment
+        env:
+          SSH_HOST: ${{ secrets.AWS_SSH_HOST }}
+          SSH_USER: ${{ secrets.AWS_SSH_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" '
+            set -e
+            cd /var/www/sportuniverse
+            sudo chown -R www-data:www-data storage bootstrap/cache
+            sudo chown www-data:www-data database/database.sqlite
+            sudo -u www-data php artisan migrate --force
+            sudo -u www-data php artisan storage:link || true
+            sudo -u www-data php artisan optimize
+            sudo systemctl restart sportuniverse-queue.service sportuniverse-reverb.service
+            sudo systemctl reload php8.5-fpm.service nginx.service
+            curl --fail --silent --show-error http://127.0.0.1/up
+          '
