@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { Bell, Bookmark, BriefcaseBusiness, ClipboardList, Compass, FileBarChart, Flag, FolderKanban, Home, LogOut, Menu, MessageCircle, Search, Settings, Shield, Tags, Upload, UserRound, Users, X } from '@lucide/vue';
+import { Bell, Bookmark, BriefcaseBusiness, ClipboardList, Compass, Download, FileBarChart, Flag, FolderKanban, Home, LogOut, Menu, MessageCircle, Search, Settings, Shield, Tags, Upload, UserRound, Users, X } from '@lucide/vue';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import BrandLogo from '../Components/BrandLogo.vue';
 
@@ -35,6 +35,7 @@ const realtimeCounts=ref({...navCounts});
 const badgeFor = (item: any) => ({ '/feed': realtimeCounts.value.feed, '/following': realtimeCounts.value.following, '/opportunities': realtimeCounts.value.opportunities, '/messages': realtimeCounts.value.messages, '/notifications': realtimeCounts.value.notifications }[item.href] ?? 0);
 const searchQuery = ref('');
 const menuOpen = ref(false);
+const installPrompt = ref<any>(null);
 const searchResults = ref<any[]>([]);
 const searchOpen = ref(false);
 const searchLoading = ref(false);
@@ -56,8 +57,9 @@ const submitSearch = () => { if (!user) return router.visit('/login'); if (searc
 const closeSearch = (event: MouseEvent) => { if (!(event.target as Element).closest('.global-search')) searchOpen.value = false; };
 const updateFollowingCount = (event: Event) => { followingCount.value = (event as CustomEvent<number>).detail; };
 const onRealtimeNotification=(event:Event)=>{const data=(event as CustomEvent<any>).detail;realtimeCounts.value.notifications=(realtimeCounts.value.notifications??0)+1;if(data.event==='new_message'||data.event==='message_request_received')realtimeCounts.value.messages=(realtimeCounts.value.messages??0)+1};
-onMounted(() => { window.addEventListener('following-count-changed', updateFollowingCount);window.addEventListener('sportuniverse:notification',onRealtimeNotification); document.addEventListener('click', closeSearch); });
-onUnmounted(() => { window.removeEventListener('following-count-changed', updateFollowingCount);window.removeEventListener('sportuniverse:notification',onRealtimeNotification); document.removeEventListener('click', closeSearch); clearTimeout(searchTimer); searchController?.abort(); });
+const captureInstall=(event:Event)=>{event.preventDefault();installPrompt.value=event};const installApp=async()=>{await installPrompt.value?.prompt();installPrompt.value=null};
+onMounted(() => { window.addEventListener('following-count-changed', updateFollowingCount);window.addEventListener('sportuniverse:notification',onRealtimeNotification);window.addEventListener('beforeinstallprompt',captureInstall); document.addEventListener('click', closeSearch); });
+onUnmounted(() => { window.removeEventListener('following-count-changed', updateFollowingCount);window.removeEventListener('sportuniverse:notification',onRealtimeNotification);window.removeEventListener('beforeinstallprompt',captureInstall); document.removeEventListener('click', closeSearch); clearTimeout(searchTimer); searchController?.abort(); });
 
 const logout = () => user ? router.post('/logout') : router.visit('/login');
 </script>
@@ -102,10 +104,18 @@ const logout = () => user ? router.post('/logout') : router.visit('/login');
                     </div>
                 </form>
                 <span class="top-spacer" />
+                <button v-if="installPrompt" class="install-app-button" type="button" @click="installApp"><Download/><span>Install</span></button>
                 <template v-if="!user"><Link href="/login" class="su-btn su-btn-ghost" style="min-height:40px">Sign in</Link><Link href="/register" class="su-btn su-btn-primary" style="min-height:40px">Join now</Link></template>
                 <Link :href="user ? '/notifications' : '/login'" class="icon-button" aria-label="Notifications"><Bell :size="19" /></Link>
             </header>
             <slot />
         </main>
+        <nav v-if="user" class="mobile-bottom-nav" aria-label="Mobile navigation">
+            <Link href="/feed" :class="{ active: page.url.startsWith('/feed') }"><Home/><span>Home</span></Link>
+            <Link href="/explore" :class="{ active: page.url.startsWith('/explore') }"><Search/><span>Discover</span></Link>
+            <Link href="/upload?camera=1" class="mobile-create" :class="{ active: page.url.startsWith('/upload') }"><Upload/><span>Create</span></Link>
+            <Link href="/messages" :class="{ active: page.url.startsWith('/messages') }"><MessageCircle/><i v-if="realtimeCounts.messages">{{ realtimeCounts.messages > 9 ? '9+' : realtimeCounts.messages }}</i><span>Inbox</span></Link>
+            <Link href="/profile" :class="{ active: page.url.startsWith('/profile') }"><UserRound/><span>Profile</span></Link>
+        </nav>
     </div>
 </template>

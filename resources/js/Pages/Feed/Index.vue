@@ -94,6 +94,7 @@ const share = async (item: any, channel = 'copy_link') => {
     else if (channel === 'facebook') window.open(`https://www.facebook.com/sharer/sharer.php?u=${encoded}`, '_blank');
     else if (channel === 'telegram') window.open(`https://t.me/share/url?url=${encoded}&text=${text}`, '_blank');
     else if (channel === 'repost') await navigator.share?.({ title: item.creator.name, text: item.caption, url }).catch(() => undefined);
+    else if (navigator.share) await navigator.share({ title: item.creator.name, text: item.caption, url }).catch(() => undefined);
     else await navigator.clipboard.writeText(url).catch(() => undefined);
     sharePost.value = null;
 };

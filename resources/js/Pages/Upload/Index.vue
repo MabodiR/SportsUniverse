@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
-import { CheckCircle2, CloudUpload, FileVideo, Info, X } from '@lucide/vue';
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { Camera, CheckCircle2, CloudUpload, FileVideo, ImagePlus, Info, X } from '@lucide/vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import AppShell from '../../Layouts/AppShell.vue';
 
 const file = ref<File | null>(null);
@@ -22,6 +22,13 @@ const notice = ref('');
 const error = ref('');
 const dragging = ref(false);
 const input = ref<HTMLInputElement | null>(null);
+const cameraInput = ref<HTMLInputElement | null>(null);
+const photoInput = ref<HTMLInputElement | null>(null);
+const DRAFT_KEY = 'current-upload';
+const openDrafts = () => new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open('sportuniverse-uploads', 1); request.onupgradeneeded = () => request.result.createObjectStore('drafts'); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+const saveDraft = async () => { const db = await openDrafts(); const transaction = db.transaction('drafts', 'readwrite'); transaction.objectStore('drafts').put({ video: file.value, images: images.value, caption: caption.value, hashtags: hashtags.value, sportId: sportId.value, locationName: locationName.value, coverIndex: coverIndex.value, savedAt: Date.now() }, DRAFT_KEY); };
+const clearDraft = async () => { const db = await openDrafts(); db.transaction('drafts', 'readwrite').objectStore('drafts').delete(DRAFT_KEY); };
+const restoreDraft = async () => { const db = await openDrafts(); const request = db.transaction('drafts').objectStore('drafts').get(DRAFT_KEY); request.onsuccess = () => { const draft = request.result; if (!draft) return; if (draft.video) select(draft.video, false); if (draft.images?.length) selectImages(draft.images, false); caption.value=draft.caption??'';hashtags.value=draft.hashtags??'';sportId.value=draft.sportId??'';locationName.value=draft.locationName??'';coverIndex.value=draft.coverIndex??0;notice.value='Recovered your unfinished upload.'; }; };
 const csrf = () => (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '';
 const responsePayload = async (response: Response) => {
     const type = response.headers.get('content-type') ?? '';
@@ -30,21 +37,21 @@ const responsePayload = async (response: Response) => {
     throw new Error(response.status === 413 ? 'This video is larger than the server upload limit.' : `The server could not complete the upload (${response.status}). ${body ? 'Please try again.' : ''}`.trim());
 };
 const fileSize = computed(() => file.value ? `${(file.value.size / 1024 / 1024).toFixed(1)} MB` : '');
-const select = (selected?: File) => {
+const select = (selected?: File, persist = true) => {
     if (!selected) return;
     if (!['video/mp4', 'video/quicktime', 'video/webm'].includes(selected.type)) { error.value = 'Choose an MP4, MOV, or WebM video.'; return; }
     if (preview.value) URL.revokeObjectURL(preview.value);
-    file.value = selected; preview.value = URL.createObjectURL(selected); error.value = ''; notice.value = '';
+    file.value = selected; preview.value = URL.createObjectURL(selected); error.value = ''; notice.value = ''; if (persist) saveDraft();
 };
-const selectImages = (selected?: FileList | null) => {
+const selectImages = (selected?: FileList | File[] | null, persist = true) => {
     imagePreviews.value.forEach(URL.revokeObjectURL);
     images.value = Array.from(selected ?? []).slice(0, 10);
     imagePreviews.value = images.value.map(URL.createObjectURL);
     coverIndex.value = 0;
-    error.value = selected && selected.length > 10 ? 'Only the first 10 pictures were selected.' : '';
+    error.value = selected && selected.length > 10 ? 'Only the first 10 pictures were selected.' : ''; if (persist) saveDraft();
 };
 const drop = (event: DragEvent) => { dragging.value = false; select(event.dataTransfer?.files?.[0]); };
-const discard = () => { if (preview.value) URL.revokeObjectURL(preview.value); imagePreviews.value.forEach(URL.revokeObjectURL); file.value = null; images.value = []; imagePreviews.value = []; preview.value = ''; caption.value = ''; notice.value = ''; error.value = ''; };
+const discard = () => { if (preview.value) URL.revokeObjectURL(preview.value); imagePreviews.value.forEach(URL.revokeObjectURL); file.value = null; images.value = []; imagePreviews.value = []; preview.value = ''; caption.value = ''; notice.value = ''; error.value = ''; clearDraft(); };
 const uploadMedia = async (uploadFile: File, kind: 'video' | 'image', index: number, total: number) => {
     const form = new FormData(); form.append('file', uploadFile); form.append('kind', kind); form.append('collection', 'uploads');
     const processedUpload = await new Promise<any>((resolve, reject) => {
@@ -65,7 +72,8 @@ const uploadMedia = async (uploadFile: File, kind: 'video' | 'image', index: num
 };
 const upload = async () => {
     if (!file.value && !images.value.length) { error.value = 'Select a video or at least one picture.'; return; }
-    saving.value = true; error.value = ''; notice.value = '';
+    if (!navigator.onLine) { await saveDraft(); notice.value = 'Saved on this device. Upload will resume when you are online.'; navigator.serviceWorker?.ready.then((registration:any)=>registration.sync?.register('sportuniverse-upload')); return; }
+    saving.value = true; error.value = ''; notice.value = ''; await saveDraft();
     try {
         const total = images.value.length + (file.value ? 1 : 0); let cursor = 0;
         notice.value = 'Uploading and processing your media…';
@@ -75,12 +83,15 @@ const upload = async () => {
         const publishResponse = await fetch('/api/v1/videos', { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() }, body: JSON.stringify({ media_id: media?.id, image_media_ids: uploadedImages.map(image => image.id), cover_media_id: uploadedImages[coverIndex.value]?.id, caption: caption.value, hashtags: hashtags.value.split(/[\s,]+/).map(tag => tag.replace(/^#/, '')).filter(Boolean), sport_id: sportId.value || null, location_name: locationName.value || null, comments_enabled: comments.value, visibility: visibility.value === 'Everyone' ? 'public' : visibility.value === 'Followers' ? 'followers' : 'private', publish: true }) });
         const publishPayload = await responsePayload(publishResponse);
         if (!publishResponse.ok) throw new Error(publishPayload.message ?? Object.values(publishPayload.errors ?? {}).flat().join(' '));
-        progress.value = 100; notice.value = 'Your post is live on SportUniverse.';
-    } catch (e: any) { error.value = e.message ?? 'Upload failed.'; }
+        progress.value = 100; notice.value = 'Your post is live on SportUniverse.'; await clearDraft();
+    } catch (e: any) { error.value = `${e.message ?? 'Upload failed.'} Your draft is saved and can be retried.`; navigator.serviceWorker?.ready.then((registration:any)=>registration.sync?.register('sportuniverse-upload')); }
     finally { saving.value = false; }
 };
-onMounted(async () => { const response = await fetch('/api/v1/sports', { headers: { Accept: 'application/json' } }); sports.value = (await response.json()).data ?? []; });
-onUnmounted(() => { if (preview.value) URL.revokeObjectURL(preview.value); imagePreviews.value.forEach(URL.revokeObjectURL); });
+const resume = () => { if ((file.value || images.value.length) && !saving.value && navigator.onLine) { notice.value='Connection restored. Tap Post to resume your saved upload.'; } };
+const serviceMessage = (event:MessageEvent) => { if(event.data?.type==='RESUME_UPLOAD') resume(); };
+let draftTimer:ReturnType<typeof setTimeout>;watch([caption,hashtags,sportId,locationName,coverIndex],()=>{if(file.value||images.value.length){clearTimeout(draftTimer);draftTimer=setTimeout(saveDraft,350)}});
+onMounted(async () => { await restoreDraft(); const response = await fetch('/api/v1/sports', { headers: { Accept: 'application/json' } }); sports.value = (await response.json()).data ?? []; window.addEventListener('online',resume);navigator.serviceWorker?.addEventListener('message',serviceMessage);if(new URLSearchParams(location.search).has('camera'))setTimeout(()=>cameraInput.value?.click(),250); });
+onUnmounted(() => { if (preview.value) URL.revokeObjectURL(preview.value); imagePreviews.value.forEach(URL.revokeObjectURL);window.removeEventListener('online',resume);navigator.serviceWorker?.removeEventListener('message',serviceMessage);clearTimeout(draftTimer); });
 </script>
 
 <template>
@@ -94,6 +105,9 @@ onUnmounted(() => { if (preview.value) URL.revokeObjectURL(preview.value); image
                         <span class="upload-cloud"><CloudUpload :size="38" /></span><h2>Select video to upload</h2><p>Or drag and drop a file</p>
                         <div class="upload-requirements"><span>MP4, MOV or WebM</span><span>720×1280 resolution or higher</span><span>Up to the configured upload limit</span></div>
                         <button type="button">Select file</button><input ref="input" hidden type="file" accept="video/mp4,video/quicktime,video/webm" @change="select(($event.target as HTMLInputElement).files?.[0])" />
+                        <div class="camera-actions"><button type="button" @click.stop="cameraInput?.click()"><Camera/>Record video</button><button type="button" @click.stop="photoInput?.click()"><ImagePlus/>Take photos</button></div>
+                        <input ref="cameraInput" hidden type="file" accept="video/*" capture="environment" @change="select(($event.target as HTMLInputElement).files?.[0])" />
+                        <input ref="photoInput" hidden type="file" accept="image/*" capture="environment" multiple @change="selectImages(($event.target as HTMLInputElement).files)" />
                     </div>
                     <div v-else class="upload-preview"><video :src="preview" controls /><div class="selected-file"><FileVideo :size="20" /><span><strong>{{ file.name }}</strong><small>{{ fileSize }}</small></span><button aria-label="Remove video" @click="discard"><X :size="17" /></button></div></div>
                 </div>
