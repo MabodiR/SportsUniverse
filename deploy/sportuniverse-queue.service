@@ -6,7 +6,7 @@ After=network.target redis-server.service
 User=www-data
 Group=www-data
 WorkingDirectory=/var/www/sportuniverse
-ExecStart=/usr/bin/php artisan queue:work redis --sleep=3 --tries=3 --timeout=300 --max-time=3600
+ExecStart=/usr/bin/php artisan queue:work redis --queue=media,default --sleep=3 --tries=3 --timeout=900 --max-time=3600
 Restart=always
 RestartSec=5
 
