@@ -621,7 +621,10 @@ html,body { background: #fff; color: #111827; color-scheme: light; }
     .mobile-nav-backdrop{position:fixed;z-index:70;inset:0;display:block;border:0;background:rgba(6,14,25,.55);backdrop-filter:blur(2px)}
     .desktop-sidebar-brand{display:none}
     .mobile-sidebar-head{display:flex;align-items:center;justify-content:space-between}
-    .mobile-sidebar-head>a{display:block;max-width:185px}
+    .mobile-sidebar-brand{display:flex;min-width:0;gap:.65rem;align-items:center;color:#fff;text-decoration:none}
+    .mobile-sidebar-brand .brand-icon-image{width:44px;height:44px}
+    .mobile-sidebar-brand strong{font-size:1rem;letter-spacing:-.03em;white-space:nowrap}
+    .mobile-sidebar-brand strong span{color:#22b8e6}
     .mobile-sidebar-head button,.mobile-menu-button{display:grid;width:42px;height:42px;flex:0 0 42px;place-items:center;border:0;border-radius:11px;cursor:pointer}
     .mobile-sidebar-head button{color:#fff;background:rgba(255,255,255,.08)}
     .mobile-sidebar-head svg,.mobile-menu-button svg{width:20px}
