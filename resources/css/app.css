@@ -629,11 +629,12 @@ html,body { background: #fff; color: #111827; color-scheme: light; }
     .mobile-sidebar-head button,.mobile-menu-button{display:grid;width:42px;height:42px;flex:0 0 42px;place-items:center;border:0;border-radius:11px;cursor:pointer}
     .mobile-sidebar-head button{color:#fff;background:rgba(255,255,255,.08)}
     .mobile-sidebar-head svg,.mobile-menu-button svg{width:20px}
-    .nav-list{display:grid;width:100%;gap:.3rem;margin:1.25rem 0}
-    .nav-list .nav-item,.nav-list .nav-item:nth-of-type(n+6){display:flex;width:100%;min-height:46px;padding:.72rem .8rem}
+    .nav-list{display:grid;width:100%;gap:0;margin:1.25rem 0}
+    .nav-list .nav-item,.nav-list .nav-item:nth-of-type(n+6){display:flex;width:100%;min-height:48px;align-items:center;justify-content:flex-start;padding:.75rem .15rem;text-align:left;border-bottom:1px solid rgba(255,255,255,.13);border-radius:0;background:transparent}
+    .nav-list .nav-item:hover{padding-left:.4rem;background:linear-gradient(90deg,rgba(36,105,245,.16),transparent 78%)}
     .nav-item span{display:inline}
-    .nav-item.active{box-shadow:inset 3px 0 var(--blue)}
-    .sidebar-logout{display:flex;width:100%;min-height:46px;margin-top:auto}
+    .nav-list .nav-item.active{color:#fff;border-bottom-color:#4b8cff;box-shadow:inset 0 -2px #2469f5;background:linear-gradient(90deg,rgba(36,105,245,.2),transparent 82%)}
+    .sidebar-logout{display:flex;width:100%;min-height:46px;margin-top:auto;justify-content:flex-start;padding-inline:.15rem;text-align:left;border-bottom:1px solid rgba(230,70,162,.45);border-radius:0}
     .nav-section-label{display:block}
     .topbar{z-index:40;display:grid;min-height:132px;grid-template-columns:42px minmax(0,1fr) 42px;gap:.55rem;padding:.5rem .75rem;background:rgba(244,246,250,.94)}
     .mobile-menu-button{color:#26364a;background:#fff;box-shadow:0 3px 12px rgba(20,36,55,.08)}
