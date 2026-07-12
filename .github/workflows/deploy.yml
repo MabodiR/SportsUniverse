@@ -49,9 +49,9 @@ jobs:
             --exclude='database/*.sqlite*' \
             --exclude='mobile-app/' \
             --exclude='node_modules/' \
-            --exclude='storage/app/' \
-            --exclude='storage/framework/' \
-            --exclude='storage/logs/' \
+            --exclude='bootstrap/cache/' \
+            --exclude='public/storage' \
+            --exclude='storage/' \
             --exclude='tests/' \
             ./ /var/www/sportuniverse/
 
