@@ -26,6 +26,10 @@ class ModulePageController extends Controller
             return Inertia::render('Upload/Index');
         }
 
+        if ($key === 'sponsorship') {
+            return Inertia::render('Promote/Index');
+        }
+
         if ($key === 'profile') {
             return Inertia::render('Profile/Index');
         }
