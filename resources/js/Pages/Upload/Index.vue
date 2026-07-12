@@ -15,6 +15,12 @@ const error = ref('');
 const dragging = ref(false);
 const input = ref<HTMLInputElement | null>(null);
 const csrf = () => (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '';
+const responsePayload = async (response: Response) => {
+    const type = response.headers.get('content-type') ?? '';
+    if (type.includes('application/json')) return response.json();
+    const body = await response.text();
+    throw new Error(response.status === 413 ? 'This video is larger than the server upload limit.' : `The server could not complete the upload (${response.status}). ${body ? 'Please try again.' : ''}`.trim());
+};
 const fileSize = computed(() => file.value ? `${(file.value.size / 1024 / 1024).toFixed(1)} MB` : '');
 const select = (selected?: File) => {
     if (!selected) return;
@@ -30,7 +36,7 @@ const upload = async () => {
     const form = new FormData(); form.append('file', file.value); form.append('kind', 'video'); form.append('collection', 'uploads');
     try {
         const response = await fetch('/api/v1/media', { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf() }, body: form });
-        const payload = await response.json();
+        const payload = await responsePayload(response);
         if (!response.ok) throw new Error(payload.message ?? Object.values(payload.errors ?? {}).flat().join(' '));
         const media = payload.data;
         notice.value = 'Upload complete. Processing your video…';
@@ -38,11 +44,11 @@ const upload = async () => {
         for (let attempt = 0; attempt < 90 && ['pending', 'processing'].includes(processed.processing_status); attempt++) {
             await new Promise(resolve => setTimeout(resolve, 2000));
             const statusResponse = await fetch(`/api/v1/media/${media.id}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
-            const statusPayload = await statusResponse.json(); processed = statusPayload.data ?? statusPayload;
+            const statusPayload = await responsePayload(statusResponse); processed = statusPayload.data ?? statusPayload;
         }
         if (processed.processing_status !== 'ready') throw new Error(processed.processing_error || 'Video processing did not complete.');
         const publishResponse = await fetch('/api/v1/videos', { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() }, body: JSON.stringify({ media_id: media.id, caption: caption.value, visibility: visibility.value === 'Everyone' ? 'public' : visibility.value === 'Followers' ? 'followers' : 'private', publish: true }) });
-        const publishPayload = await publishResponse.json();
+        const publishPayload = await responsePayload(publishResponse);
         if (!publishResponse.ok) throw new Error(publishPayload.message ?? Object.values(publishPayload.errors ?? {}).flat().join(' '));
         notice.value = 'Your video is live on SportUniverse.';
     } catch (e: any) { error.value = e.message ?? 'Upload failed.'; }

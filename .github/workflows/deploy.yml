@@ -66,6 +66,10 @@ jobs:
           sudo -u www-data php artisan storage:link || true
           sudo -u www-data php artisan optimize
           sudo install -m 644 deploy/sportuniverse-queue.service /etc/systemd/system/sportuniverse-queue.service
+          sudo install -m 644 deploy/php-upload.ini /etc/php/8.5/fpm/conf.d/99-sportuniverse-upload.ini
+          sudo install -m 644 deploy/php-upload.ini /etc/php/8.5/cli/conf.d/99-sportuniverse-upload.ini
+          sudo install -m 644 deploy/nginx.conf /etc/nginx/sites-available/sportuniverse
+          sudo nginx -t
           sudo systemctl daemon-reload
           sudo systemctl restart sportuniverse-queue.service sportuniverse-reverb.service
           sudo systemctl reload php8.5-fpm.service nginx.service
