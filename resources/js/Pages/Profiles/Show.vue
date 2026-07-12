@@ -4,7 +4,7 @@ import { CheckCircle2, Eye, Grid3X3, Heart, MessageCircle, Play, UserPlus, X } f
 import { computed, onMounted, ref } from 'vue';
 import AppShell from '../../Layouts/AppShell.vue';
 
-const props = defineProps<{ athlete: any; videos: any[] }>();
+const props = defineProps<{ athlete: any; videos: any[]; seo: {title:string;description:string;image:string} }>();
 const currentUser = computed(() => (usePage().props.auth as any)?.user);
 const following = ref(props.athlete.is_following);
 const followersCount = ref(props.athlete.followers);
@@ -43,7 +43,7 @@ onMounted(() => {
 </script>
 
 <template>
-    <Head :title="`@${athlete.slug}`" />
+    <Head><title>{{seo.title}}</title><meta name="description" :content="seo.description"/><meta property="og:title" :content="seo.title"/><meta property="og:description" :content="seo.description"/><meta property="og:image" :content="seo.image"/><meta name="twitter:title" :content="seo.title"/><meta name="twitter:description" :content="seo.description"/><meta name="twitter:image" :content="seo.image"/></Head>
     <AppShell>
         <main class="public-profile-page">
             <section class="public-profile-header">

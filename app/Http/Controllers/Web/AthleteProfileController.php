@@ -44,6 +44,8 @@ class AthleteProfileController extends Controller
                 'url' => $video->media ? route('videos.stream', $video) : null,
             ]);
 
+        $seoTitle = $user->name.' — '.implode(' · ', array_filter([$user->athleteProfile?->sport?->name, $user->athleteProfile?->taxonomyPosition?->name, $user->profile->city])).' | SportUniverse';
+        $seoDescription = str($user->profile->bio ?: 'View '.$user->name."'s sports profile, highlights and achievements on SportUniverse.")->squish()->limit(160)->value();
         return Inertia::render('Profiles/Show', [
             'athlete' => [
                 'id' => $user->id,
@@ -70,6 +72,7 @@ class AthleteProfileController extends Controller
                 'is_following' => auth()->check() && auth()->user()->following()->whereKey($user->id)->exists(),
             ],
             'videos' => $videos,
-        ]);
+            'seo' => ['title'=>$seoTitle,'description'=>$seoDescription,'image'=>$user->profile->profile_image_path ? url($user->profile->profile_image_path) : url(config('seo.image'))],
+        ])->withViewData('seo',['title'=>$seoTitle,'description'=>$seoDescription,'image'=>$user->profile->profile_image_path ? url($user->profile->profile_image_path) : url(config('seo.image')),'type'=>'profile']);
     }
 }

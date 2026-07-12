@@ -82,6 +82,24 @@ class DiscoveryModuleTest extends TestCase
         $this->assertSame(88, $document['completeness']);
     }
 
+    public function test_unified_discovery_returns_categorized_results_and_trends(): void
+    {
+        $viewer=$this->member('Discovery Viewer','fan',['city'=>'Soweto']);
+        $athlete=$this->member('Soweto Striker','athlete',['city'=>'Soweto','bio'=>'Fast football talent']);
+        \App\Domain\Feed\Models\Video::factory()->for($athlete)->create(['caption'=>'Football training','hashtags'=>['football','training'],'published_at'=>now()]);
+        $response=$this->actingAs($viewer,'sanctum')->getJson('/api/v1/search/all?q=football')->assertOk();
+        $response->assertJsonPath('data.athletes.0.name','Soweto Striker')->assertJsonPath('data.videos.0.caption','Football training')->assertJsonPath('discovery.trending_hashtags.0.tag','football');
+    }
+
+    public function test_user_can_save_reuse_and_delete_searches(): void
+    {
+        $viewer=$this->member('Search Saver','fan');
+        $saved=$this->actingAs($viewer,'sanctum')->postJson('/api/v1/saved-searches',['name'=>'Local football','query'=>'football','filters'=>['city'=>'Soweto']])->assertCreated();
+        $this->getJson('/api/v1/saved-searches')->assertOk()->assertJsonPath('data.0.name','Local football')->assertJsonPath('data.0.filters.city','Soweto');
+        $this->deleteJson('/api/v1/saved-searches/'.$saved->json('data.id'))->assertNoContent();
+        $this->assertDatabaseCount('saved_searches',0);
+    }
+
     private function member(string $name, string $role, array $profile = []): User
     {
         $user = User::factory()->create(['name' => $name]);

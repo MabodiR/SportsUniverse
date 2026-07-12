@@ -3,9 +3,9 @@
 <head>
     @php
         $seoUrl = url()->current();
-        $seoTitle = config('seo.title');
-        $seoDescription = config('seo.description');
-        $seoImage = url(config('seo.image'));
+        $seoTitle = $seo['title'] ?? config('seo.title');
+        $seoDescription = $seo['description'] ?? config('seo.description');
+        $seoImage = $seo['image'] ?? url(config('seo.image'));
         $noIndex = auth()->check() || request()->routeIs('login', 'register', 'password.*', 'phone-auth', 'social-auth', 'verification.*');
     @endphp
     <meta charset="utf-8">
@@ -24,7 +24,7 @@
     <link rel="canonical" href="{{ $seoUrl }}">
     <link rel="alternate" hreflang="en-ZA" href="{{ $seoUrl }}">
     <meta property="og:locale" content="en_ZA">
-    <meta property="og:type" content="website">
+    <meta property="og:type" content="{{ $seo['type'] ?? 'website' }}">
     <meta property="og:site_name" content="SportUniverse">
     <meta property="og:title" content="{{ $seoTitle }}">
     <meta property="og:description" content="{{ $seoDescription }}">
