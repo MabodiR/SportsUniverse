@@ -62,7 +62,7 @@ const logout = () => user ? router.post('/logout') : router.visit('/login');
     <div class="su-app app-shell">
         <button v-if="menuOpen" class="mobile-nav-backdrop" aria-label="Close navigation" @click="menuOpen = false" />
         <aside class="sidebar" :class="{ 'mobile-open': menuOpen }">
-            <div class="mobile-sidebar-head"><Link class="mobile-sidebar-brand" href="/feed" aria-label="SportUniverse home" @click="menuOpen = false"><BrandLogo /></Link><button aria-label="Close navigation" @click="menuOpen = false"><X /></button></div>
+            <div class="mobile-sidebar-head"><Link class="mobile-sidebar-brand" href="/feed" aria-label="SportUniverse home" @click="menuOpen = false"><img :src="'/images/logo/sportuniverse-logo-horizontal-dark.png'" alt="SportUniverse" /></Link><button aria-label="Close navigation" @click="menuOpen = false"><X /></button></div>
             <Link class="desktop-sidebar-brand" href="/feed"><BrandLogo /></Link>
             <nav class="nav-list" aria-label="Primary navigation">
                 <Link v-for="item in userItems" :key="item.label" :href="item.href" class="nav-item" :class="{ active: page.url === item.href }" @click="menuOpen = false">
