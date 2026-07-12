@@ -86,7 +86,7 @@ const logout = () => user ? router.post('/logout') : router.visit('/login');
         <main class="shell-main">
             <header class="topbar">
                 <button class="mobile-menu-button" aria-label="Open navigation" @click="menuOpen = true"><Menu /></button>
-                <Link class="mobile-topbar-brand" href="/feed"><BrandLogo /></Link>
+                <Link class="mobile-topbar-brand" href="/feed" aria-label="SportUniverse home"><BrandLogo compact /></Link>
                 <form class="search global-search" role="search" @submit.prevent="submitSearch">
                     <Search />
                     <input v-model="searchQuery" class="su-input" placeholder="Search players, clubs, trials, coaches..." aria-label="Search SportUniverse" autocomplete="off" @focus="searchOpen = !!searchQuery" @keydown.esc="searchOpen = false" />
