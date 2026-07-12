@@ -1,0 +1,9 @@
+[Unit]
+Description=Run SportUniverse Laravel scheduler
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/sportuniverse
+ExecStart=/usr/bin/php artisan schedule:run

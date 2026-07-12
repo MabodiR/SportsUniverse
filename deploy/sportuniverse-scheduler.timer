@@ -1,0 +1,10 @@
+[Unit]
+Description=Run SportUniverse scheduler every minute
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+Persistent=true
+Unit=sportuniverse-scheduler.service
+
+[Install]
+WantedBy=timers.target
