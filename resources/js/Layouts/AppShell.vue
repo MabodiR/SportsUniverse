@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { Bell, Bookmark, BriefcaseBusiness, Compass, FileBarChart, Flag, FolderKanban, Home, LogOut, MessageCircle, Search, Settings, Shield, Tags, Upload, UserRound, Users } from '@lucide/vue';
+import { Bell, Bookmark, BriefcaseBusiness, Compass, FileBarChart, Flag, FolderKanban, Home, LogOut, Menu, MessageCircle, Search, Settings, Shield, Tags, Upload, UserRound, Users, X } from '@lucide/vue';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import BrandLogo from '../Components/BrandLogo.vue';
 
@@ -31,6 +31,7 @@ const followingCount = ref(user?.following_count ?? 0);
 const navCounts = page.props.nav_counts as Record<string, number> ?? {};
 const badgeFor = (item: any) => ({ '/feed': navCounts.feed, '/following': navCounts.following, '/opportunities': navCounts.opportunities, '/messages': navCounts.messages, '/notifications': navCounts.notifications }[item.href] ?? 0);
 const searchQuery = ref('');
+const menuOpen = ref(false);
 const searchResults = ref<any[]>([]);
 const searchOpen = ref(false);
 const searchLoading = ref(false);
@@ -59,10 +60,12 @@ const logout = () => user ? router.post('/logout') : router.visit('/login');
 
 <template>
     <div class="su-app app-shell">
-        <aside class="sidebar">
-            <Link href="/feed"><BrandLogo /></Link>
+        <button v-if="menuOpen" class="mobile-nav-backdrop" aria-label="Close navigation" @click="menuOpen = false" />
+        <aside class="sidebar" :class="{ 'mobile-open': menuOpen }">
+            <div class="mobile-sidebar-head"><Link href="/feed" @click="menuOpen = false"><BrandLogo /></Link><button aria-label="Close navigation" @click="menuOpen = false"><X /></button></div>
+            <Link class="desktop-sidebar-brand" href="/feed"><BrandLogo /></Link>
             <nav class="nav-list" aria-label="Primary navigation">
-                <Link v-for="item in userItems" :key="item.label" :href="item.href" class="nav-item" :class="{ active: page.url === item.href }">
+                <Link v-for="item in userItems" :key="item.label" :href="item.href" class="nav-item" :class="{ active: page.url === item.href }" @click="menuOpen = false">
                     <component :is="item.icon" class="nav-icon" />
                     <span>{{ item.label }}</span>
                     <small v-if="badgeFor(item)" class="nav-count">{{ badgeFor(item) > 99 ? '99+' : badgeFor(item) }}</small>
@@ -82,6 +85,8 @@ const logout = () => user ? router.post('/logout') : router.visit('/login');
         </aside>
         <main class="shell-main">
             <header class="topbar">
+                <button class="mobile-menu-button" aria-label="Open navigation" @click="menuOpen = true"><Menu /></button>
+                <Link class="mobile-topbar-brand" href="/feed"><BrandLogo /></Link>
                 <form class="search global-search" role="search" @submit.prevent="submitSearch">
                     <Search />
                     <input v-model="searchQuery" class="su-input" placeholder="Search players, clubs, trials, coaches..." aria-label="Search SportUniverse" autocomplete="off" @focus="searchOpen = !!searchQuery" @keydown.esc="searchOpen = false" />
