@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Bookmark, Cast, Download, Ellipsis, Eye, Flag, Heart, LockKeyhole, MessageCircle, Megaphone, Repeat2, Send, Share2, Sparkles, UserPlus, Users, X } from '@lucide/vue';
+import { Bookmark, Cast, Download, Ellipsis, Eye, Flag, Heart, LockKeyhole, MessageCircle, Megaphone, Repeat2, Send, Share2, Sparkles, UserPlus, Users, Volume2, VolumeX, X } from '@lucide/vue';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import AppShell from '../../Layouts/AppShell.vue';
 
@@ -9,6 +9,7 @@ const page = usePage();
 const authenticated = computed(() => Boolean((page.props.auth as any)?.user));
 const gateVisible = ref(false);
 const videoElements = new Map<string, HTMLVideoElement>();
+const soundEnabled = ref(false);
 const recordedViews = new Set<string>();
 let observer: IntersectionObserver | null = null;
 const demos = [
@@ -141,7 +142,16 @@ const closeGate = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 const requireAuth = () => { if (!authenticated.value) showGate(); };
-const registerVideo = (element: HTMLVideoElement | null, id: string) => { if (element) videoElements.set(id, element); };
+const registerVideo = (element: HTMLVideoElement | null, id: string) => {
+    if (!element) return;
+    element.muted = !soundEnabled.value;
+    videoElements.set(id, element);
+};
+const toggleSound = async (video: HTMLVideoElement) => {
+    soundEnabled.value = !soundEnabled.value;
+    videoElements.forEach(element => { element.muted = !soundEnabled.value; });
+    if (soundEnabled.value && video.paused) await video.play().catch(() => undefined);
+};
 const toggleVideo = (event: Event) => {
     const video = event.currentTarget as HTMLVideoElement;
     video.paused ? video.play().catch(() => undefined) : video.pause();
@@ -176,7 +186,8 @@ onUnmounted(() => { window.removeEventListener('scroll', onScroll); observer?.di
                 <div class="feed-stream">
                     <div v-for="(item, index) in feed" :id="item.id" :key="item.id" class="featured-video-wrap">
                         <article class="featured-video-card" :class="`feed-card-${(index % 3) + 1}`">
-                            <video v-if="item.url" :ref="element => registerVideo(element as HTMLVideoElement, item.id)" class="feed-video" :src="item.url" muted loop playsinline preload="metadata" @click="toggleVideo" @timeupdate="recordView(item, $event.currentTarget as HTMLVideoElement)" />
+                            <video v-if="item.url" :ref="element => registerVideo(element as HTMLVideoElement, item.id)" class="feed-video" :src="item.url" :muted="!soundEnabled" loop playsinline preload="metadata" @click="toggleVideo" @timeupdate="recordView(item, $event.currentTarget as HTMLVideoElement)" />
+                            <button v-if="item.url" class="video-sound-toggle" :aria-label="soundEnabled ? 'Mute video' : 'Turn on sound'" @click.stop="toggleSound(videoElements.get(item.id)!)"><Volume2 v-if="soundEnabled" /><VolumeX v-else /><span>{{ soundEnabled ? 'Sound on' : 'Sound off' }}</span></button>
                             <div class="featured-video-label"><strong>{{ item.caption || 'SportUniverse video' }}</strong><small>{{ index === 0 ? '00:15' : `00:${22 + index * 7}` }} · HD</small></div>
                             <button v-if="!item.url" class="featured-play" aria-label="Play video">▶</button>
                             <div class="featured-athlete"><div class="feed-creator-line"><Link :href="item.creator.slug ? `/@${item.creator.slug}` : '/explore'"><h2>{{ item.creator.name }}</h2></Link><button v-if="authenticated && item.creator.id !== (page.props.auth as any)?.user?.id && !item.viewer?.following_creator" :disabled="actionBusy === `follow:${item.creator.id}`" @click="followCreator(item)"><UserPlus :size="14" />{{ actionBusy === `follow:${item.creator.id}` ? 'Following…' : 'Follow' }}</button></div><small><Link v-if="item.creator.sport" :href="`/feed/sport/${encodeURIComponent(item.creator.sport)}`" class="metadata-link">{{ item.creator.sport }}</Link><template v-else>Sport</template> · <Link v-if="item.creator.position" :href="`/feed/position/${encodeURIComponent(item.creator.position)}`" class="metadata-link">{{ item.creator.position }}</Link><template v-else>Athlete</template> · <Link v-if="item.creator.city" :href="`/feed/location/${encodeURIComponent(item.creator.city)}`" class="metadata-link">{{ item.creator.city }}</Link><template v-else>South Africa</template></small><p>{{ item.caption }}</p><span /></div>
