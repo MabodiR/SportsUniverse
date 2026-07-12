@@ -1,0 +1,16 @@
+<svg width="1800" height="520" viewBox="0 0 1800 520" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="1800" height="520" rx="40" fill="#05070B"/>
+<g transform="translate(65 45) scale(0.42)">
+<circle cx="512" cy="512" r="250" fill="#0D1B2A" stroke="#22C7F2" stroke-width="14"/>
+<path d="M157 512C260 382 764 382 867 512" stroke="#22C7F2" stroke-width="18" stroke-linecap="round"/>
+<path d="M512 152C640 268 640 756 512 872" stroke="#E646A2" stroke-width="18" stroke-linecap="round"/>
+<circle cx="820" cy="365" r="34" fill="#E646A2"/>
+<circle cx="206" cy="665" r="26" fill="#22C7F2"/>
+<circle cx="760" cy="690" r="24" fill="#FFB020"/>
+<text x="512" y="585" text-anchor="middle" font-size="210" font-weight="800" font-family="Arial, Helvetica, sans-serif" fill="white">SU</text>
+</g>
+<text x="550" y="255" font-size="128" font-weight="800" font-family="Arial, Helvetica, sans-serif" fill="white">Sport</text>
+<text x="905" y="255" font-size="128" font-weight="800" font-family="Arial, Helvetica, sans-serif" fill="#22C7F2">Universe</text>
+<text x="550" y="340" font-size="42" font-weight="600" font-family="Arial, Helvetica, sans-serif" fill="#A7B0C0">Talent. Opportunity. Community.</text>
+<rect x="550" y="365" width="560" height="15" rx="8" fill="#E646A2"/>
+</svg>

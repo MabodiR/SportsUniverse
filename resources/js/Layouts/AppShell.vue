@@ -1,0 +1,102 @@
+<script setup lang="ts">
+import { Link, router, usePage } from '@inertiajs/vue3';
+import { Bell, Bookmark, BriefcaseBusiness, Compass, FileBarChart, Flag, FolderKanban, Home, LogOut, MessageCircle, Search, Settings, Shield, Tags, Upload, UserRound, Users } from '@lucide/vue';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
+import BrandLogo from '../Components/BrandLogo.vue';
+
+const page = usePage();
+const user = page.props.auth?.user as any;
+const userItems = [
+    { label: 'For You', href: '/feed', icon: Home },
+    { label: 'Following', href: '/following', icon: Users },
+    { label: 'Discover Talent', href: '/explore', icon: Compass },
+    { label: 'Upload', href: '/upload', icon: Upload },
+    { label: 'Opportunities', href: '/opportunities', icon: BriefcaseBusiness },
+    { label: 'Messages', href: '/messages', icon: MessageCircle },
+    { label: 'Notifications', href: '/notifications', icon: Bell },
+    { label: 'Saved', href: '/saved', icon: Bookmark },
+    { label: 'Profile', href: '/profile', icon: UserRound },
+];
+const adminItems = [
+    { label: 'Dashboard', href: '/admin', icon: Shield },
+    { label: 'Users', href: '/admin/users', icon: Users },
+    { label: 'Moderation', href: '/management/comments', icon: Flag },
+    { label: 'Reports', href: '/management/reports', icon: FileBarChart },
+    { label: 'Campaigns', href: '/management/campaigns', icon: FolderKanban },
+    { label: 'Taxonomy', href: '/management/taxonomy', icon: Tags },
+    { label: 'Settings', href: '/management/settings', icon: Settings },
+];
+const isAdmin = user?.roles?.some((role: any) => role.name === 'admin');
+const followingCount = ref(user?.following_count ?? 0);
+const navCounts = page.props.nav_counts as Record<string, number> ?? {};
+const badgeFor = (item: any) => ({ '/feed': navCounts.feed, '/following': navCounts.following, '/opportunities': navCounts.opportunities, '/messages': navCounts.messages, '/notifications': navCounts.notifications }[item.href] ?? 0);
+const searchQuery = ref('');
+const searchResults = ref<any[]>([]);
+const searchOpen = ref(false);
+const searchLoading = ref(false);
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
+let searchController: AbortController | undefined;
+const runSearch = async () => {
+    const query = searchQuery.value.trim();
+    if (!query || !user) { searchResults.value = []; searchOpen.value = !!query; return; }
+    searchController?.abort(); searchController = new AbortController(); searchLoading.value = true; searchOpen.value = true;
+    try {
+        const response = await fetch(`/api/v1/search/profiles?q=${encodeURIComponent(query)}&per_page=8`, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal: searchController.signal });
+        if (!response.ok) throw new Error('Search failed');
+        const payload = await response.json(); searchResults.value = payload.data ?? [];
+    } catch (error: any) { if (error.name !== 'AbortError') searchResults.value = []; }
+    finally { searchLoading.value = false; }
+};
+watch(searchQuery, () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 250); });
+const submitSearch = () => { if (!user) return router.visit('/login'); if (searchResults.value[0]) router.visit(`/@${searchResults.value[0].slug}`); else router.visit(`/explore?q=${encodeURIComponent(searchQuery.value.trim())}`); searchOpen.value = false; };
+const closeSearch = (event: MouseEvent) => { if (!(event.target as Element).closest('.global-search')) searchOpen.value = false; };
+const updateFollowingCount = (event: Event) => { followingCount.value = (event as CustomEvent<number>).detail; };
+onMounted(() => { window.addEventListener('following-count-changed', updateFollowingCount); document.addEventListener('click', closeSearch); });
+onUnmounted(() => { window.removeEventListener('following-count-changed', updateFollowingCount); document.removeEventListener('click', closeSearch); clearTimeout(searchTimer); searchController?.abort(); });
+
+const logout = () => user ? router.post('/logout') : router.visit('/login');
+</script>
+
+<template>
+    <div class="su-app app-shell">
+        <aside class="sidebar">
+            <Link href="/feed"><BrandLogo /></Link>
+            <nav class="nav-list" aria-label="Primary navigation">
+                <Link v-for="item in userItems" :key="item.label" :href="item.href" class="nav-item" :class="{ active: page.url === item.href }">
+                    <component :is="item.icon" class="nav-icon" />
+                    <span>{{ item.label }}</span>
+                    <small v-if="badgeFor(item)" class="nav-count">{{ badgeFor(item) > 99 ? '99+' : badgeFor(item) }}</small>
+                </Link>
+                <template v-if="isAdmin">
+                    <div class="nav-section-label">Admin</div>
+                    <Link v-for="item in adminItems" :key="item.label" :href="item.href" class="nav-item" :class="{ active: page.url === item.href }">
+                        <component :is="item.icon" class="nav-icon" />
+                        <span>{{ item.label }}</span>
+                    </Link>
+                </template>
+            </nav>
+            <button class="sidebar-logout nav-item" type="button" @click="logout">
+                <LogOut :size="16" />
+                <span>{{ user ? 'Logout' : 'Sign in' }}</span>
+            </button>
+        </aside>
+        <main class="shell-main">
+            <header class="topbar">
+                <form class="search global-search" role="search" @submit.prevent="submitSearch">
+                    <Search />
+                    <input v-model="searchQuery" class="su-input" placeholder="Search players, clubs, trials, coaches..." aria-label="Search SportUniverse" autocomplete="off" @focus="searchOpen = !!searchQuery" @keydown.esc="searchOpen = false" />
+                    <div v-if="searchOpen" class="global-search-results">
+                        <p v-if="searchLoading" class="global-search-status">Searching…</p>
+                        <template v-else-if="searchResults.length"><Link v-for="result in searchResults" :key="result.id" :href="`/@${result.slug}`" class="global-search-result" @click="searchOpen = false"><span class="search-result-avatar"><img v-if="result.images?.profile" :src="result.images.profile" alt="" /><span v-else>{{ result.name?.slice(0,2).toUpperCase() }}</span></span><span><strong>{{ result.name }}</strong><small>{{ [result.athlete?.sport?.name, result.athlete?.position?.name, result.location?.city].filter(Boolean).join(' • ') || result.roles?.join(', ') }}</small></span></Link></template>
+                        <p v-else class="global-search-status">No matching profiles found.</p>
+                        <button v-if="searchQuery.trim()" type="submit" class="global-search-all">View all results for “{{ searchQuery.trim() }}”</button>
+                    </div>
+                </form>
+                <span class="top-spacer" />
+                <template v-if="!user"><Link href="/login" class="su-btn su-btn-ghost" style="min-height:40px">Sign in</Link><Link href="/register" class="su-btn su-btn-primary" style="min-height:40px">Join now</Link></template>
+                <Link :href="user ? '/notifications' : '/login'" class="icon-button" aria-label="Notifications"><Bell :size="19" /></Link>
+            </header>
+            <slot />
+        </main>
+    </div>
+</template>
