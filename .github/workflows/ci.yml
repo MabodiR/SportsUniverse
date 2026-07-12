@@ -2,49 +2,70 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
+
+permissions:
+  contents: read
 
 jobs:
   build-test:
     runs-on: ubuntu-latest
+
     env:
       APP_ENV: testing
+      APP_DEBUG: false
       DB_CONNECTION: sqlite
       DB_DATABASE: database/database.sqlite
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      MAIL_MAILER: array
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
-          extensions: mbstring, xml, bcmath, openssl, pdo_mysql, tokenizer, fileinfo, gd, zip
+          php-version: "8.3"
+          extensions: mbstring, xml, bcmath, openssl, pdo_mysql, pdo_sqlite, sqlite3, tokenizer, fileinfo, gd, zip
+          coverage: none
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
-          node-version: '18'
-
-      - name: Install Composer dependencies
-        run: composer install --no-interaction --prefer-dist
-
-      - name: Install NPM dependencies and build
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install --force
-          npm cache clean --force
-          npm install --legacy-peer-deps
-          npm run build
+          node-version: "22"
+          cache: npm
 
       - name: Prepare environment
         run: |
-          cp .env.example .env || true
-          php artisan key:generate --force
+          cp .env.example .env
           mkdir -p database
           touch database/database.sqlite
-          php artisan migrate --force
 
-      - name: Run PHPUnit
-        run: vendor/bin/phpunit --colors=always --testdox
+      - name: Install Composer dependencies
+        run: |
+          composer install \
+            --no-interaction \
+            --prefer-dist \
+            --no-progress
+
+      - name: Generate application key
+        run: php artisan key:generate --force
+
+      - name: Install NPM dependencies
+        run: npm ci --include=optional
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Run database migrations
+        run: php artisan migrate --force
+
+      - name: Run PHPUnit tests
+        run: php artisan test --colors=always
