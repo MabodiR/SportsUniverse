@@ -16,8 +16,10 @@ class ModulePageController extends Controller
 
         abort_unless(isset($pages[$key]), 404);
 
-        if ($key === 'messages') {
-            return Inertia::render('Messages/Index');
+        if (in_array($key, ['messages', 'message-requests'], true)) {
+            return Inertia::render('Messages/Index', [
+                'initialTab' => $key === 'message-requests' ? 'requests' : 'messages',
+            ]);
         }
 
         if ($key === 'upload') {

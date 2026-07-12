@@ -4,11 +4,12 @@ import { Search } from '@lucide/vue';
 import { computed, nextTick, onMounted, ref } from 'vue';
 import AppShell from '../../Layouts/AppShell.vue';
 
+const props = withDefaults(defineProps<{ initialTab?: 'messages' | 'requests' }>(), { initialTab: 'messages' });
 const page = usePage();
 const user = page.props.auth?.user as any;
 const conversations = ref<any[]>([]);
 const requests = ref<any[]>([]);
-const tab = ref<'messages' | 'requests'>('messages');
+const tab = ref<'messages' | 'requests'>(props.initialTab);
 const selectedRequest = ref<any>(null);
 const actionLoading = ref('');
 const active = ref<any>(null);
@@ -40,6 +41,7 @@ const load = async () => {
     try {
         const [conversationPayload, requestPayload] = await Promise.all([api('/api/v1/conversations'), api('/api/v1/message-requests?status=pending')]);
         conversations.value = conversationPayload.data ?? []; requests.value = requestPayload.data ?? [];
+        if (tab.value === 'requests' && requests.value[0]) selectedRequest.value = requests.value[0];
         if (conversations.value[0]) await selectConversation(conversations.value[0]);
     }
     finally { loading.value = false; }
@@ -69,10 +71,10 @@ onMounted(load);
 </script>
 
 <template>
-    <Head title="Messages" />
+    <Head :title="props.initialTab === 'requests' ? 'Message requests' : 'Messages'" />
     <AppShell>
         <main class="messages-page">
-            <header class="messages-heading"><h1>Messages</h1><p>Chat-style communication between users, clubs and scouts.</p></header>
+            <header class="messages-heading"><h1>{{ props.initialTab === 'requests' ? 'Message requests' : 'Messages' }}</h1><p>{{ props.initialTab === 'requests' ? 'Review who can start a private conversation with you.' : 'Chat-style communication between users, clubs and scouts.' }}</p></header>
             <div class="messages-layout">
                 <aside class="conversation-panel">
                     <div class="message-tabs"><button :class="{ active: tab === 'messages' }" @click="tab = 'messages'">Messages</button><button :class="{ active: tab === 'requests' }" @click="tab = 'requests'">Message requests <span v-if="requests.length">{{ requests.length }}</span></button></div>
