@@ -32,7 +32,8 @@ jobs:
 
       - name: Install NPM dependencies and build
         run: |
-          npm ci
+          rm -rf node_modules package-lock.json
+          npm install --include=optional
           npm run build
 
       - name: Prepare environment
