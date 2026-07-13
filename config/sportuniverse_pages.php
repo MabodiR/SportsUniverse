@@ -3,6 +3,7 @@
 $page = fn (string $group, string $title, string $description, string $accent, array $metrics, array $sections, array $steps = []) => compact('group', 'title', 'description', 'accent', 'metrics', 'sections', 'steps');
 
 return [
+    'live' => $page('Live', 'Live on SportUniverse', 'Watch athletes, clubs and sporting communities in real time.', 'pink', [], [], ['Preview', 'Go live', 'Connect']),
     'club-tools' => $page('Club and scouting', 'Talent workspace', 'Shortlist, assess and invite athletes with your club staff.', 'blue', [], [], ['Discover', 'Evaluate', 'Invite']),
     'dashboard' => $page('Overview', 'Dashboard', 'Your SportUniverse activity, opportunities and profile performance at a glance.', 'blue', ['Profile views' => '2.4K', 'Messages' => '18', 'Opportunities' => '7'], ['Recent activity' => ['A scout viewed your profile', 'New message from Gauteng Strikers', 'Video processing completed'], 'Recommended next steps' => ['Complete your athlete statistics', 'Upload a new highlight', 'Review matching opportunities']], ['Review', 'Act', 'Grow']),
     'sponsorship' => $page('Partnerships', 'Sponsorship', 'Find and manage brand partnerships designed for sporting talent.', 'pink', ['Active deals' => '2', 'New matches' => '5', 'This month' => 'R12K'], ['Partnership opportunities' => ['Performance apparel ambassador', 'Community sport campaign', 'Nutrition content partnership'], 'Your proposals' => ['Draft proposal', 'Under brand review', 'Partnership accepted']], ['Discover', 'Propose', 'Partner']),

@@ -13,3 +13,4 @@ Route::prefix('v1')->group(base_path('routes/api/v1/notifications.php'));
 Route::prefix('v1')->group(base_path('routes/api/v1/moderation.php'));
 Route::prefix('v1')->group(base_path('routes/api/v1/analytics.php'));
 Route::prefix('v1')->group(base_path('routes/api/v1/club.php'));
+Route::prefix('v1')->group(base_path('routes/api/v1/live.php'));

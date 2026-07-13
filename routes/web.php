@@ -77,6 +77,7 @@ Route::middleware('auth')->group(function () {
         '/videos/watch' => 'video',
         '/explore' => 'explore',
         '/club-tools' => 'club-tools',
+        '/live' => 'live',
         '/comments' => 'comments',
         '/saved' => 'saved',
         '/messages' => 'messages',
@@ -98,6 +99,7 @@ Route::middleware('auth')->group(function () {
     foreach ($pages as $uri => $module) {
         Route::get($uri, ModulePageController::class)->defaults('module', $module)->name("workspace.$module");
     }
+    Route::get('/live/{stream}', ModulePageController::class)->defaults('module', 'live')->name('live.show');
 });
 Route::get('/posts/{video}/comments', [\App\Http\Controllers\Api\V1\Feed\VideoController::class, 'comments'])->name('web.posts.comments');
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { Bell, Bookmark, BriefcaseBusiness, ClipboardList, Compass, Download, FileBarChart, Flag, FolderKanban, Home, LogOut, Menu, MessageCircle, Search, Settings, Shield, Tags, Upload, UserRound, Users, X } from '@lucide/vue';
+import { Bell, Bookmark, BriefcaseBusiness, ClipboardList, Compass, Download, FileBarChart, Flag, FolderKanban, Home, LogOut, Menu, MessageCircle, Radio, Search, Settings, Shield, Tags, Upload, UserRound, Users, X } from '@lucide/vue';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import BrandLogo from '../Components/BrandLogo.vue';
 
@@ -11,6 +11,7 @@ const userItems = [
     { label: 'Following', href: '/following', icon: Users },
     { label: 'Discover Talent', href: '/explore', icon: Compass },
     { label: 'Upload', href: '/upload', icon: Upload },
+    { label: 'Live', href: '/live', icon: Radio },
     { label: 'Opportunities', href: '/opportunities', icon: BriefcaseBusiness },
     { label: 'Club & Scout Tools', href: '/club-tools', icon: ClipboardList, clubOnly: true },
     { label: 'Messages', href: '/messages', icon: MessageCircle },

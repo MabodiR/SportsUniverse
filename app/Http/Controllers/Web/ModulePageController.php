@@ -46,6 +46,10 @@ class ModulePageController extends Controller
             return Inertia::render('Club/Workspace');
         }
 
+        if ($key === 'live') {
+            return Inertia::render('Live/Index', ['initialStream' => $request->route('stream')]);
+        }
+
         if ($key === 'notifications') {
             return Inertia::render('Notifications/Index');
         }
