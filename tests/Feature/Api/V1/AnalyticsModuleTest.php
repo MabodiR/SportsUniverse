@@ -43,6 +43,7 @@ class AnalyticsModuleTest extends TestCase
     {
         $athlete = $this->member('athlete', 'analytics-athlete');
         $viewer = $this->member('fan', 'analytics-viewer');
+        $viewer->profile()->update(['city' => 'Soweto']);
         $video = Video::factory()->for($athlete)->create(['views_count' => 4, 'likes_count' => 2, 'comments_count' => 1, 'shares_count' => 1]);
         DB::table('video_views')->insert(['video_id' => $video->id, 'user_id' => $viewer->id, 'watched_ms' => 1000, 'completed' => true, 'viewed_on' => today()->toDateString(), 'created_at' => now(), 'updated_at' => now()]);
         DB::table('video_likes')->insert(['video_id' => $video->id, 'user_id' => $viewer->id, 'created_at' => now()]);
@@ -51,7 +52,8 @@ class AnalyticsModuleTest extends TestCase
         $job->handle();
         $this->assertDatabaseCount('analytics_daily_metrics', 10);
         $this->assertDatabaseHas('analytics_daily_metrics', ['dimension_type' => 'user', 'dimension_id' => $athlete->id, 'metric' => 'video_views', 'value' => 1]);
-        $this->actingAs($athlete, 'sanctum')->getJson('/api/v1/analytics/me?days=30')->assertOk()->assertJsonPath('data.totals.video_views', 4)->assertJsonPath('data.totals.likes', 2);
+        DB::table('profile_views')->insert(['profile_user_id' => $athlete->id, 'viewer_id' => $viewer->id, 'source' => 'profile', 'viewed_on' => today(), 'created_at' => now(), 'updated_at' => now()]);
+        $this->actingAs($athlete, 'sanctum')->getJson('/api/v1/analytics/me?days=30')->assertOk()->assertJsonPath('data.totals.video_views', 4)->assertJsonPath('data.totals.likes', 2)->assertJsonPath('data.period.views', 2)->assertJsonPath('data.period.engagement_rate', 100)->assertJsonPath('data.locations.0.city', 'Soweto')->assertJsonPath('data.top_videos.0.id', $video->public_id);
     }
 
     public function test_admin_analytics_is_protected(): void

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Domain\Feed\Models\Video;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -50,13 +51,23 @@ class ModulePageController extends Controller
             return Inertia::render('Live/Index', ['initialStream' => $request->route('stream')]);
         }
 
+        if ($key === 'analytics') {
+            return Inertia::render('Analytics/Index');
+        }
+
         if ($key === 'notifications') {
             return Inertia::render('Notifications/Index');
         }
 
-        if ($key === 'opportunities') return Inertia::render('Opportunities/Index');
-        if ($key === 'opportunity-create') return Inertia::render('Opportunities/Create');
-        if ($key === 'saved') return Inertia::render('Saved/Index', ['videos' => $request->user()->belongsToMany(\App\Domain\Feed\Models\Video::class, 'saved_videos')->get()]);
+        if ($key === 'opportunities') {
+            return Inertia::render('Opportunities/Index');
+        }
+        if ($key === 'opportunity-create') {
+            return Inertia::render('Opportunities/Create');
+        }
+        if ($key === 'saved') {
+            return Inertia::render('Saved/Index', ['videos' => $request->user()->belongsToMany(Video::class, 'saved_videos')->get()]);
+        }
 
         if ($key === 'saved') {
             return app(FeedController::class)->saved($request);

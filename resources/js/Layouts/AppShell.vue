@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { Bell, Bookmark, BriefcaseBusiness, ClipboardList, Compass, Download, FileBarChart, Flag, FolderKanban, Home, LogOut, Menu, MessageCircle, Radio, Search, Settings, Shield, Tags, Upload, UserRound, Users, X } from '@lucide/vue';
+import { BarChart3, Bell, Bookmark, BriefcaseBusiness, ChevronDown, ClipboardList, Compass, Download, FileBarChart, Flag, FolderKanban, Home, LogOut, Menu, MessageCircle, Radio, Search, Settings, Shield, Smartphone, Sparkles, Tags, Upload, UserRound, Users, X } from '@lucide/vue';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import BrandLogo from '../Components/BrandLogo.vue';
 
@@ -16,8 +16,14 @@ const userItems = [
     { label: 'Club & Scout Tools', href: '/club-tools', icon: ClipboardList, clubOnly: true },
     { label: 'Messages', href: '/messages', icon: MessageCircle },
     { label: 'Notifications', href: '/notifications', icon: Bell },
-    { label: 'Saved', href: '/saved', icon: Bookmark },
     { label: 'Profile', href: '/profile', icon: UserRound },
+];
+const moreItems = [
+    { label: 'Metrics & Analytics', href: '/analytics', icon: BarChart3 },
+    { label: 'Saved posts', href: '/saved', icon: Bookmark },
+    { label: 'Promote', href: '/sponsorship', icon: Sparkles },
+    { label: 'Devices & sessions', href: '/settings/devices', icon: Smartphone },
+    { label: 'Profile settings', href: '/profile/edit', icon: Settings },
 ];
 const adminItems = [
     { label: 'Dashboard', href: '/admin', icon: Shield },
@@ -36,6 +42,7 @@ const realtimeCounts=ref({...navCounts});
 const badgeFor = (item: any) => ({ '/feed': realtimeCounts.value.feed, '/following': realtimeCounts.value.following, '/opportunities': realtimeCounts.value.opportunities, '/messages': realtimeCounts.value.messages, '/notifications': realtimeCounts.value.notifications }[item.href] ?? 0);
 const searchQuery = ref('');
 const menuOpen = ref(false);
+const moreOpen = ref(page.url.startsWith('/analytics') || page.url.startsWith('/settings') || page.url === '/saved' || page.url === '/sponsorship');
 const installPrompt = ref<any>(null);
 const searchResults = ref<any[]>([]);
 const searchOpen = ref(false);
@@ -77,6 +84,8 @@ const logout = () => user ? router.post('/logout') : router.visit('/login');
                     <span>{{ item.label }}</span>
                     <small v-if="badgeFor(item)" class="nav-count">{{ badgeFor(item) > 99 ? '99+' : badgeFor(item) }}</small>
                 </Link>
+                <button class="nav-item more-toggle" :class="{ active: moreOpen }" type="button" :aria-expanded="moreOpen" @click="moreOpen = !moreOpen"><Menu class="nav-icon"/><span>More</span><ChevronDown class="more-chevron" :class="{ open: moreOpen }"/></button>
+                <div v-if="moreOpen" class="more-menu"><Link v-for="item in moreItems" :key="item.href" :href="item.href" class="more-menu-item" :class="{ active: page.url.startsWith(item.href) }" @click="menuOpen=false"><component :is="item.icon"/><span>{{ item.label }}</span></Link></div>
                 <template v-if="isAdmin">
                     <div class="nav-section-label">Admin</div>
                     <Link v-for="item in adminItems" :key="item.label" :href="item.href" class="nav-item" :class="{ active: page.url === item.href }">

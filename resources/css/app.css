@@ -291,6 +291,7 @@ html,body { background: #fff; color: #111827; color-scheme: light; }
 .nav-count { min-width: 20px; margin-left: auto; padding: .16rem .35rem; color: #dce7f2; text-align: center; border-radius: 999px; background: rgba(255,255,255,.12); font-size: .55rem; }
 .nav-section-label { margin: .8rem .72rem .15rem; color: #718497; font-size: .59rem; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
 .sidebar-logout { width: 100%; margin-top: auto; color: #f0a1bf; border: 0; background: transparent; cursor: pointer; }
+.more-toggle{width:100%;border:0;cursor:pointer}.more-chevron{width:15px!important;margin-left:auto;transition:transform .2s}.more-chevron.open{transform:rotate(180deg)}.more-menu{display:grid;margin:.15rem 0 .5rem 1.25rem;padding-left:.6rem;border-left:1px solid rgba(255,255,255,.16)}.more-menu-item{display:flex;min-height:38px;align-items:center;gap:.6rem;padding:.45rem;color:#aebdcb;border-radius:8px;font-size:.66rem;text-decoration:none}.more-menu-item svg{width:15px}.more-menu-item:hover,.more-menu-item.active{color:white;background:rgba(255,255,255,.08)}
 .sidebar-logout:hover { color: #fff; background: rgba(230,70,162,.18); }
 .sidebar-footer-copy { display: grid; gap: .2rem; margin-top: auto; padding: .75rem; color: #e9eff5; font-size: .62rem; }
 .sidebar-footer-copy small { color: #7e91a2; font-size: .55rem; }
@@ -641,6 +642,7 @@ html,body { background: #fff; color: #111827; color-scheme: light; }
     .mobile-sidebar-head svg,.mobile-menu-button svg{width:20px}
     .sidebar .nav-list{display:grid;width:auto;min-width:100%;align-self:stretch;justify-content:stretch;justify-items:stretch;gap:0;margin:1.25rem 0}
     .sidebar .nav-list .nav-item,.sidebar .nav-list .nav-item:nth-of-type(n+6){display:flex;width:100%;min-width:100%;min-height:48px;align-items:center;justify-self:stretch;justify-content:flex-start;padding:.75rem .15rem;text-align:left;border-bottom:1px solid rgba(255,255,255,.13);border-radius:0;background:transparent}
+    .sidebar .more-menu{width:100%;margin:0;padding:0;border-left:0}.sidebar .more-menu-item{min-height:44px;padding-left:2.1rem;border-bottom:1px solid rgba(255,255,255,.08);border-radius:0}
     .nav-list .nav-item:hover{padding-left:.4rem;background:linear-gradient(90deg,rgba(36,105,245,.16),transparent 78%)}
     .nav-item span{display:inline}
     .nav-list .nav-item.active{color:#fff;border-bottom-color:#4b8cff;box-shadow:inset 0 -2px #2469f5;background:linear-gradient(90deg,rgba(36,105,245,.2),transparent 82%)}
