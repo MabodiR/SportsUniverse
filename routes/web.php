@@ -1,18 +1,21 @@
 <?php
 
-use App\Http\Controllers\Web\FeedController;
-use App\Http\Controllers\Web\AthleteProfileController;
-use App\Http\Controllers\Web\ClubPageController;
-use App\Http\Controllers\Web\VideoStreamController;
-use App\Http\Controllers\Web\MessagingContextController;
+use App\Http\Controllers\Api\V1\Auth\SessionController;
 use App\Http\Controllers\Api\V1\Feed\EngagementController;
+use App\Http\Controllers\Api\V1\Feed\VideoController;
+use App\Http\Controllers\Api\V1\Media\MediaController;
+use App\Http\Controllers\Api\V1\Messaging\MessageController;
 use App\Http\Controllers\Api\V1\Messaging\MessageRequestController;
 use App\Http\Controllers\Api\V1\Moderation\ReportController;
+use App\Http\Controllers\Web\AthleteProfileController;
+use App\Http\Controllers\Web\ClubPageController;
+use App\Http\Controllers\Web\FeedController;
+use App\Http\Controllers\Web\MessagingContextController;
 use App\Http\Controllers\Web\ModulePageController;
+use App\Http\Controllers\Web\VideoStreamController;
 use App\Http\Controllers\Web\WebAuthController;
-use Illuminate\Support\Facades\Route;
 use App\Models\User;
-use App\Http\Controllers\Api\V1\Media\MediaController;
+use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [WebAuthController::class, 'loginPage'])->name('login');
@@ -34,6 +37,7 @@ Route::get('/sitemap.xml', function () {
     $urls = collect([
         ['loc' => url('/feed'), 'lastmod' => now()->toDateString(), 'frequency' => 'daily', 'priority' => '1.0'],
     ])->merge(User::query()->where('status', 'active')->whereHas('profile', fn ($profile) => $profile->where('is_public', true)->whereNotNull('slug'))->with('profile:id,user_id,slug,updated_at')->limit(5000)->get()->map(fn (User $user) => ['loc' => url('/@'.$user->profile->slug), 'lastmod' => $user->profile->updated_at?->toDateString(), 'frequency' => 'weekly', 'priority' => '0.8']));
+
     return response()->view('sitemap', ['urls' => $urls])->header('Content-Type', 'application/xml; charset=UTF-8');
 })->name('sitemap');
 
@@ -43,6 +47,9 @@ Route::get('/auth/social', ModulePageController::class)->defaults('module', 'soc
 Route::get('/verify-account', ModulePageController::class)->defaults('module', 'verification')->name('verification.notice');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/api/v1/auth/sessions', [SessionController::class, 'index']);
+    Route::delete('/api/v1/auth/sessions/others', [SessionController::class, 'destroyOthers']);
+    Route::delete('/api/v1/auth/sessions/{session}', [SessionController::class, 'destroy']);
     Route::post('/logout', [WebAuthController::class, 'logout'])->name('logout');
     Route::post('/athletes/{user}/follow', [EngagementController::class, 'follow'])->name('web.athletes.follow');
     Route::delete('/athletes/{user}/follow', [EngagementController::class, 'unfollow'])->name('web.athletes.unfollow');
@@ -53,7 +60,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/comments/{comment}/like', [EngagementController::class, 'likeComment'])->name('web.comments.like');
     Route::post('/athlete-message-requests', [MessageRequestController::class, 'store'])->name('web.message-requests.store');
     Route::get('/athletes/{user}/messaging-context', MessagingContextController::class)->name('web.messaging.context');
-    Route::post('/conversations/{conversation}/messages', [\App\Http\Controllers\Api\V1\Messaging\MessageController::class, 'store'])->name('web.conversations.messages.store');
+    Route::post('/conversations/{conversation}/messages', [MessageController::class, 'store'])->name('web.conversations.messages.store');
     Route::post('/post-reports', [ReportController::class, 'store'])->name('web.reports.store');
     Route::get('/following', [FeedController::class, 'following'])->name('following');
 
@@ -101,6 +108,6 @@ Route::middleware('auth')->group(function () {
     }
     Route::get('/live/{stream}', ModulePageController::class)->defaults('module', 'live')->name('live.show');
 });
-Route::get('/posts/{video}/comments', [\App\Http\Controllers\Api\V1\Feed\VideoController::class, 'comments'])->name('web.posts.comments');
+Route::get('/posts/{video}/comments', [VideoController::class, 'comments'])->name('web.posts.comments');
 
 Route::fallback(fn () => auth()->check() ? redirect('/feed') : redirect('/login'));

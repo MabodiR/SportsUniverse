@@ -55,6 +55,10 @@ class ModulePageController extends Controller
             return Inertia::render('Analytics/Index');
         }
 
+        if ($key === 'devices') {
+            return Inertia::render('Settings/Devices');
+        }
+
         if ($key === 'notifications') {
             return Inertia::render('Notifications/Index');
         }
