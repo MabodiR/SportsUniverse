@@ -10,6 +10,13 @@ use Illuminate\Support\Facades\DB;
 
 class BlockController extends Controller
 {
+    public function index(Request $request): JsonResponse
+    {
+        $users = User::query()->join('user_blocks', 'users.id', '=', 'user_blocks.blocked_id')->leftJoin('user_profiles', 'user_profiles.user_id', '=', 'users.id')->where('user_blocks.blocker_id', $request->user()->id)->orderByDesc('user_blocks.created_at')->get(['users.id', 'users.name', 'user_profiles.slug', 'user_profiles.profile_image_path', 'user_blocks.created_at as blocked_at']);
+
+        return response()->json(['data' => $users]);
+    }
+
     public function store(Request $request, User $user): JsonResponse
     {
         abort_if($request->user()->is($user), 422, 'You cannot block yourself.');

@@ -16,4 +16,9 @@ class MediaPolicy
     {
         return $user->id === $media->user_id || $user->hasRole('admin');
     }
+
+    public function update(User $user, Media $media): bool
+    {
+        return $user->id === $media->user_id || $user->hasRole('admin');
+    }
 }

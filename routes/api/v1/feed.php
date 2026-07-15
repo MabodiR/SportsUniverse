@@ -11,6 +11,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('feed/saved', [VideoController::class, 'saved']);
     Route::post('videos', [VideoController::class, 'store']);
     Route::patch('videos/{video}', [VideoController::class, 'update']);
+    Route::post('videos/{video}/publish', [VideoController::class, 'publish']);
     Route::get('videos/mine', [VideoController::class, 'mine']);
     Route::get('videos/mine/reposts', [VideoController::class, 'reposts']);
     Route::get('videos/mine/favourites', [VideoController::class, 'favourites']);
@@ -19,6 +20,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('videos/{video}', [VideoController::class, 'destroy']);
     Route::get('videos/{video}/comments', [VideoController::class, 'comments']);
     Route::post('videos/{video}/comments', [EngagementController::class, 'comment']);
+    Route::post('comments/{comment}/like', [EngagementController::class, 'likeComment']);
     Route::post('videos/{video}/like', [EngagementController::class, 'like']);
     Route::post('videos/{video}/save', [EngagementController::class, 'save']);
     Route::post('videos/{video}/share', [EngagementController::class, 'share']);

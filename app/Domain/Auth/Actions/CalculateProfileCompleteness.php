@@ -8,12 +8,18 @@ class CalculateProfileCompleteness
 {
     public function execute(User $user): int
     {
-        $user->load('profile', 'athleteProfile', 'fanProfile', 'roles');
+        $user->load('profile', 'athleteProfile', 'fanProfile', 'professionalProfile', 'organisationProfile', 'roles');
         $score = 20;
         if ($user->roles->isNotEmpty()) {
             $score += 15;
         }
-        $roleDetails = $user->hasRole('athlete') ? $user->athleteProfile : ($user->hasRole('fan') ? $user->fanProfile : null);
+        $roleDetails = match (true) {
+            $user->hasRole('athlete') => $user->athleteProfile,
+            $user->hasRole('fan') => $user->fanProfile,
+            $user->hasAnyRole(['coach', 'referee', 'linesman', 'scout', 'agent']) => $user->professionalProfile,
+            $user->hasAnyRole(['club', 'academy', 'business', 'sponsor']) => $user->organisationProfile,
+            default => null,
+        };
         if ($roleDetails && collect($roleDetails->getAttributes())->except(['id', 'user_id', 'created_at', 'updated_at'])->filter()->isNotEmpty()) {
             $score += 20;
         }

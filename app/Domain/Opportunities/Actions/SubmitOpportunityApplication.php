@@ -34,6 +34,7 @@ return DB::transaction(function () use ($user, $opportunity, $data, $media) {
             if ($locked->status !== 'published' || ($locked->deadline && $locked->deadline->isPast())) {
                 throw ValidationException::withMessages(['opportunity' => ['This opportunity is no longer accepting applications.']]);
             }$application = $locked->applications()->create(['public_id' => (string) Str::ulid(), 'user_id' => $user->id, 'resume_media_id' => $media?->id, 'cover_letter' => $data['cover_letter'] ?? null, 'status' => 'submitted']);
+            $application->statusHistory()->create(['changed_by_id' => $user->id, 'status' => 'submitted']);
             $locked->increment('applications_count');
 
             return $application;

@@ -22,7 +22,7 @@ class StoreMediaUpload
             $stored = Storage::disk($disk)->putFileAs(dirname($path), $file, basename($path), ['visibility' => 'private']);
             if (! $stored) {
                 throw new \RuntimeException('The upload could not be stored.');
-            }$media = Media::create(['public_id' => $publicId, 'user_id' => $user->id, 'kind' => $kind, 'collection' => $collection, 'disk' => $disk, 'path' => $path, 'original_name' => $file->getClientOriginalName(), 'mime_type' => $file->getMimeType() ?: 'application/octet-stream', 'size_bytes' => $file->getSize(), 'checksum_sha256' => hash_file('sha256', $file->getRealPath()), 'processing_status' => 'pending', 'moderation_status' => config('media.requires_moderation') ? 'pending' : 'approved']);
+            }$media = Media::create(['public_id' => $publicId, 'user_id' => $user->id, 'kind' => $kind, 'collection' => $collection, 'disk' => $disk, 'path' => $path, 'original_name' => $file->getClientOriginalName(), 'mime_type' => $file->getMimeType() ?: 'application/octet-stream', 'size_bytes' => $file->getSize(), 'processing_status' => 'pending', 'moderation_status' => config('media.requires_moderation') ? 'pending' : 'approved']);
             ProcessMedia::dispatch($media)->afterCommit();
 
             return $media;

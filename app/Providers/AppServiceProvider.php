@@ -14,7 +14,9 @@ use App\Domain\Profiles\Models\UserProfile;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use SocialiteProviders\Manager\SocialiteWasCalled;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -33,6 +35,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Event::listen(function (SocialiteWasCalled $event): void {
+            $event->extendSocialite('apple', \SocialiteProviders\Apple\Provider::class);
+            $event->extendSocialite('microsoft', \SocialiteProviders\Microsoft\Provider::class);
+        });
+
         RateLimiter::for('uploads', fn (Request $request) => Limit::perMinute(20)->by($request->user()?->id ?: $request->ip()));
 
         $shouldIndexProfiles = ! app()->environment('testing')

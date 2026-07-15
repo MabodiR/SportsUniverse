@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { BarChart3, Bell, Bookmark, BriefcaseBusiness, ChevronDown, ClipboardList, Compass, Download, FileBarChart, Flag, FolderKanban, Home, LogOut, Menu, MessageCircle, Radio, Search, Settings, Shield, Smartphone, Sparkles, Tags, Upload, UserRound, Users, X } from '@lucide/vue';
+import { BarChart3, Bell, Bookmark, BriefcaseBusiness, ChevronDown, ClipboardList, Compass, Download, FileBarChart, Flag, FolderKanban, Heart, Home, LogOut, Menu, MessageCircle, Radio, Search, Settings, Shield, Smartphone, Sparkles, Tags, Upload, UserRound, Users, X } from '@lucide/vue';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import BrandLogo from '../Components/BrandLogo.vue';
 
@@ -10,6 +10,7 @@ const userItems = [
     { label: 'For You', href: '/feed', icon: Home },
     { label: 'Following', href: '/following', icon: Users },
     { label: 'Discover Talent', href: '/explore', icon: Compass },
+    { label: 'Women in Sports', href: '/women-in-sports', icon: Heart },
     { label: 'Upload', href: '/upload', icon: Upload },
     { label: 'Live', href: '/live', icon: Radio },
     { label: 'Opportunities', href: '/opportunities', icon: BriefcaseBusiness },
@@ -99,7 +100,7 @@ const logout = () => user ? router.post('/logout') : router.visit('/login');
                 <span>{{ user ? 'Logout' : 'Sign in' }}</span>
             </button>
         </aside>
-        <main class="shell-main">
+        <div id="main-content" class="shell-main" role="main" tabindex="-1">
             <header class="topbar">
                 <button class="mobile-menu-button" aria-label="Open navigation" @click="menuOpen = true"><Menu /></button>
                 <Link class="mobile-topbar-brand" href="/feed" aria-label="SportUniverse home"><img :src="'/images/logo/sportuniverse-logo-horizontal-transparent-black.png'" alt="SportUniverse" /></Link>
@@ -116,10 +117,11 @@ const logout = () => user ? router.post('/logout') : router.visit('/login');
                 <span class="top-spacer" />
                 <button v-if="installPrompt" class="install-app-button" type="button" @click="installApp"><Download/><span>Install</span></button>
                 <template v-if="!user"><Link href="/login" class="su-btn su-btn-ghost" style="min-height:40px">Sign in</Link><Link href="/register" class="su-btn su-btn-primary" style="min-height:40px">Join now</Link></template>
+                <Link href="/mobile-app" class="icon-button mobile-app-link" aria-label="Get the SportUniverse mobile app" title="Get the mobile app"><Smartphone :size="18" /></Link>
                 <Link :href="user ? '/notifications' : '/login'" class="icon-button" aria-label="Notifications"><Bell :size="19" /></Link>
             </header>
             <slot />
-        </main>
+        </div>
         <nav v-if="user" class="mobile-bottom-nav" aria-label="Mobile navigation">
             <Link href="/feed" :class="{ active: page.url.startsWith('/feed') }"><Home/><span>Home</span></Link>
             <Link href="/explore" :class="{ active: page.url.startsWith('/explore') }"><Search/><span>Discover</span></Link>

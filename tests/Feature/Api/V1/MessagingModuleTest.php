@@ -63,6 +63,16 @@ class MessagingModuleTest extends TestCase
         $this->actingAs($sender, 'sanctum')->postJson('/api/v1/message-requests', ['recipient_id' => $recipient->id, 'message' => 'Hello'])->assertUnprocessable()->assertJsonValidationErrors('recipient_id');
     }
 
+    public function test_user_can_list_and_unblock_blocked_users(): void
+    {
+        [$viewer, $blocked] = $this->users();
+        $blocked->profile()->create(['slug' => 'blocked-member']);
+        $this->actingAs($viewer, 'sanctum')->postJson('/api/v1/profiles/'.$blocked->id.'/block')->assertOk();
+        $this->getJson('/api/v1/blocked-users')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $blocked->id);
+        $this->deleteJson('/api/v1/profiles/'.$blocked->id.'/block')->assertOk();
+        $this->getJson('/api/v1/blocked-users')->assertOk()->assertJsonCount(0, 'data');
+    }
+
     public function test_participant_can_send_picture_and_video_messages(): void
     {
         [$sender,$recipient]=$this->users();$conversation=$this->conversation($sender,$recipient);
@@ -76,6 +86,9 @@ class MessagingModuleTest extends TestCase
         $this->postJson('/api/v1/conversations/'.$conversation->public_id.'/read')->assertOk();
         $this->postJson('/api/v1/conversations/'.$conversation->public_id.'/report',['reason'=>'spam'])->assertCreated();
         $this->postJson('/api/v1/conversations/'.$conversation->public_id.'/archive')->assertOk();
+        $this->getJson('/api/v1/conversations')->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson('/api/v1/conversations?archived=1')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.archived', true);
+        $this->deleteJson('/api/v1/conversations/'.$conversation->public_id.'/archive')->assertOk();
         $this->assertDatabaseHas('conversation_participants',['conversation_id'=>$conversation->id,'user_id'=>$sender->id]);
         $this->assertDatabaseHas('reports',['reportable_type'=>$conversation->getMorphClass(),'reportable_id'=>$conversation->id]);
     }

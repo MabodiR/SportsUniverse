@@ -7,9 +7,12 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register'])->middleware('throttle:6,1');
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
+    Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:6,1');
+    Route::post('social/exchange', [AuthController::class, 'socialExchange'])->middleware('throttle:10,1');
 });
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('me', [AuthController::class, 'me']);
+    Route::put('auth/password', [AuthController::class, 'updatePassword'])->middleware('throttle:6,1');
     Route::post('auth/logout', [AuthController::class, 'logout']);
     Route::prefix('onboarding')->group(function () {
         Route::put('role', [OnboardingController::class, 'role']);

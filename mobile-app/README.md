@@ -45,6 +45,22 @@ npm run android
 npm run ios
 ```
 
+The live video feature uses native WebRTC and requires an Expo development build; it does not run in Expo Go:
+
+```bash
+npx expo run:ios
+# or
+npx expo run:android
+```
+
+Copy `.env.example` to `.env`, use the computer's LAN IP for both the API and Reverb host, and make sure the Laravel server and Reverb are reachable from the device. Start Reverb once with:
+
+```bash
+php artisan reverb:start --debug
+```
+
+Do not start a second Reverb process on port 8080. For local HTTP/WebSocket development, use `http` and `ws`; unsupported SSL requests mean the client is attempting `https`/`wss` against the local non-TLS server.
+
 For store-ready builds:
 
 ```bash

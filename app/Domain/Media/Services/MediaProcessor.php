@@ -10,9 +10,28 @@ class MediaProcessor
 {
     public function process(Media $media): array
     {
-        return match ($media->kind) {
+        $attributes = match ($media->kind) {
             'video' => $this->video($media),'image' => $this->image($media),default => []
         };
+
+        return [...$attributes, 'checksum_sha256' => $this->checksum($media)];
+    }
+
+    private function checksum(Media $media): string
+    {
+        $stream = Storage::disk($media->disk)->readStream($media->path);
+        if (! is_resource($stream)) {
+            throw new \RuntimeException('Media source is unavailable.');
+        }
+
+        try {
+            $context = hash_init('sha256');
+            hash_update_stream($context, $stream);
+
+            return hash_final($context);
+        } finally {
+            fclose($stream);
+        }
     }
 
     private function video(Media $media): array

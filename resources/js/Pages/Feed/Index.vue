@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Bookmark, Cast, ChevronLeft, ChevronRight, Download, Ellipsis, Eye, Flag, Heart, LockKeyhole, MessageCircle, Megaphone, Pencil, Repeat2, Send, Share2, Sparkles, Trash2, UserPlus, Users, Volume2, VolumeX, X } from '@lucide/vue';
+import { Bookmark, Cast, ChevronLeft, ChevronRight, Download, Ellipsis, Eye, Flag, Heart, LockKeyhole, MessageCircle, Megaphone, Pencil, Radio, Repeat2, Send, Share2, Sparkles, Trash2, UserPlus, Users, Volume2, VolumeX, X } from '@lucide/vue';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import AppShell from '../../Layouts/AppShell.vue';
 
@@ -10,6 +10,7 @@ const authenticated = computed(() => Boolean((page.props.auth as any)?.user));
 const gateVisible = ref(false);
 const videoElements = new Map<string, HTMLVideoElement>();
 const soundEnabled = ref(false);
+const liveStreams = ref<any[]>([]);
 const activeMedia = ref<Record<string, number>>({});
 let touchX = 0;
 const recordedViews = new Set<string>();
@@ -179,6 +180,7 @@ const toggleVideo = (event: Event) => {
 };
 
 onMounted(() => {
+    fetch('/api/v1/live', { headers: { Accept: 'application/json' } }).then(response => response.json()).then(payload => { liveStreams.value = payload.data ?? []; }).catch(() => undefined);
     window.addEventListener('scroll', onScroll, { passive: true });
     observer = new IntersectionObserver((entries) => entries.forEach(entry => {
         const video = entry.target as HTMLVideoElement;
@@ -198,6 +200,7 @@ onUnmounted(() => { window.removeEventListener('scroll', onScroll); observer?.di
     <AppShell>
         <div class="for-you-page">
             <header class="for-you-heading"><div><h1>{{ mode === 'following' ? 'Following' : sportFilter ? `${sportFilter} videos` : positionFilter ? `${positionFilter} highlights` : location ? `Sports in ${location}` : 'For You Sports Feed' }}</h1><p>{{ mode === 'following' ? 'New posts from athletes and accounts you follow.' : sportFilter ? `Athlete posts and highlights tagged ${sportFilter}.` : positionFilter ? `Videos shared by athletes playing ${positionFilter}.` : location ? `Videos posted by athletes in ${location}.` : 'Discover athlete highlights selected for you.' }}</p></div></header>
+            <section v-if="liveStreams.length" class="feed-live-now"><header><div><span><Radio/> LIVE NOW</span><h2>People broadcasting now</h2></div><Link href="/live">See everyone</Link></header><div><Link v-for="stream in liveStreams.slice(0,6)" :key="stream.id" :href="`/live/${stream.id}`"><span class="feed-live-avatar"><img v-if="stream.image" :src="stream.image" alt=""/><Radio v-else/><b>LIVE</b></span><strong>{{stream.host_name}}</strong><small>{{stream.title}}</small></Link></div></section>
             <section v-if="mode === 'following' && !feed.length" class="following-empty">
                 <div class="following-empty-copy"><Users :size="34" /><h2>Start following accounts</h2><p>Follow athletes you like and their latest posts will appear here.</p></div>
                 <div class="top-accounts"><h2>Top accounts</h2><article v-for="person in suggestions" :key="person.id"><Link :href="person.slug ? `/@${person.slug}` : '/explore'" class="top-account-avatar">{{ person.name.slice(0,2).toUpperCase() }}</Link><div><Link :href="person.slug ? `/@${person.slug}` : '/explore'"><strong>{{ person.name }}</strong></Link><p>{{ person.sport }} · {{ compact(person.followers) }} followers</p></div><button class="su-btn su-btn-primary" :disabled="actionBusy === `follow:${person.id}`" @click="followSuggestion(person)">{{ actionBusy === `follow:${person.id}` ? 'Following…' : 'Follow' }}</button></article></div>

@@ -39,8 +39,16 @@ class ModulePageController extends Controller
             return Inertia::render('Profile/Edit');
         }
 
+        if (in_array($key, ['statistics', 'achievements'], true)) {
+            abort_unless($request->user()->hasRole('athlete'), 403);
+            return Inertia::render('Profile/Career', ['initialTab' => $key]);
+        }
+
         if ($key === 'explore') {
             return Inertia::render('Explore/Index');
+        }
+        if ($key === 'women-in-sports') {
+            return Inertia::render('Women/Index');
         }
 
         if ($key === 'club-tools') {
@@ -65,6 +73,12 @@ class ModulePageController extends Controller
 
         if ($key === 'opportunities') {
             return Inertia::render('Opportunities/Index');
+        }
+        if (in_array($key, ['applications', 'application-tracking'], true)) {
+            return Inertia::render('Applications/Index');
+        }
+        if (in_array($key, ['gallery', 'upload-status'], true)) {
+            return Inertia::render('Media/Library');
         }
         if ($key === 'opportunity-create') {
             return Inertia::render('Opportunities/Create');

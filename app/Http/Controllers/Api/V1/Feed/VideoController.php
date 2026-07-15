@@ -21,7 +21,8 @@ class VideoController extends Controller
 {
     public function mine(Request $request): AnonymousResourceCollection
     {
-        $videos = Video::where('user_id', $request->user()->id)->where('status', 'published')->latest('published_at')->with('user.profile', 'media', 'images', 'sport')->paginate(50);
+        $status = $request->validate(['status' => ['nullable', 'in:published,draft']])['status'] ?? null;
+        $videos = Video::where('user_id', $request->user()->id)->when($status, fn ($query) => $query->where('status', $status))->latest('updated_at')->with('user.profile', 'media', 'images', 'sport')->paginate(20);
         $this->decorate($videos->getCollection(), $request);
 
         return VideoResource::collection($videos);
@@ -91,6 +92,15 @@ class VideoController extends Controller
             DB::table('video_images')->where('video_id', $video->id)->update(['is_cover' => false]);
             DB::table('video_images')->where('video_id', $video->id)->where('media_id', $cover->id)->update(['is_cover' => true]);
         }
+        return new VideoResource($this->load($video, $request));
+    }
+
+    public function publish(Request $request, Video $video): VideoResource
+    {
+        Gate::authorize('update', $video);
+        abort_unless($video->status === 'draft', 422, 'This post is already published.');
+        $video->update(['status' => 'published', 'published_at' => now()]);
+
         return new VideoResource($this->load($video, $request));
     }
 

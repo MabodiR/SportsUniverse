@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import { CheckCircle2, Eye, Grid3X3, Heart, MessageCircle, Play, UserPlus, X } from '@lucide/vue';
+import { Bookmark, CheckCircle2, Eye, Grid3X3, Heart, MessageCircle, Play, UserPlus, X } from '@lucide/vue';
 import { computed, onMounted, ref } from 'vue';
 import AppShell from '../../Layouts/AppShell.vue';
 
 const props = defineProps<{ athlete: any; videos: any[]; seo: {title:string;description:string;image:string} }>();
 const currentUser = computed(() => (usePage().props.auth as any)?.user);
 const following = ref(props.athlete.is_following);
+const saved = ref(props.athlete.is_saved);
 const followersCount = ref(props.athlete.followers);
 const busy = ref(false);
 const followError = ref('');
@@ -31,6 +32,11 @@ const follow = async () => {
     }
     busy.value = false;
 };
+const saveProfile = async () => {
+    if (!currentUser.value) { window.location.href = '/login'; return; }
+    const response = await fetch(`/api/v1/saved-profiles/${props.athlete.id}`, { method: saved.value ? 'DELETE' : 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() }, body: '{}' });
+    if (response.ok) saved.value = !saved.value;
+};
 const recordVideoView = async (video: HTMLVideoElement) => {
     if (!currentUser.value || !activeVideo.value || viewedVideos.has(activeVideo.value.id) || video.currentTime < 3) return;
     viewedVideos.add(activeVideo.value.id);
@@ -51,11 +57,17 @@ onMounted(() => {
                 <div class="public-profile-info">
                     <div class="public-avatar">{{ athlete.name.slice(0,2).toUpperCase() }}</div>
                     <div class="profile-identity"><h1>{{ athlete.name }} <CheckCircle2 /></h1><strong>@{{ athlete.slug }}</strong><p>{{ athlete.sport || 'Athlete' }}<template v-if="athlete.position"> · {{ athlete.position }}</template><template v-if="athlete.city"> · {{ athlete.city }}</template></p></div>
-                    <div class="profile-actions"><button class="su-btn su-btn-primary" :disabled="busy" @click="follow"><UserPlus :size="16" /> {{ busy ? 'Updating…' : following ? 'Following' : 'Follow' }}</button><Link href="/message-requests" class="su-btn su-btn-ghost"><MessageCircle :size="16" /> Message</Link><small v-if="followError" class="follow-error">{{ followError }}</small></div>
+                    <div class="profile-actions"><button class="su-btn su-btn-primary" :disabled="busy" @click="follow"><UserPlus :size="16" /> {{ busy ? 'Updating…' : following ? 'Following' : 'Follow' }}</button><button class="su-btn su-btn-ghost" @click="saveProfile"><Bookmark :size="16" :fill="saved?'currentColor':'none'" /> {{ saved ? 'Saved' : 'Save' }}</button><Link href="/message-requests" class="su-btn su-btn-ghost"><MessageCircle :size="16" /> Message</Link><small v-if="followError" class="follow-error">{{ followError }}</small></div>
                 </div>
                 <div class="public-stats"><div><strong>{{ compact(athlete.following) }}</strong><span>Following</span></div><div><strong>{{ compact(followersCount) }}</strong><span>Followers</span></div><div><strong>{{ compact(videos.reduce((sum, video) => sum + video.likes, 0)) }}</strong><span>Likes</span></div><div><strong>{{ athlete.videos_count }}</strong><span>Videos</span></div><div><strong>{{ compact(athlete.profile_views) }}</strong><span>Profile views</span></div></div>
                 <p class="public-bio">{{ athlete.bio || 'Sporting talent, progress and highlights.' }}</p>
                 <div class="athlete-detail-chips"><span v-if="athlete.club">{{ athlete.club }}</span><span v-if="athlete.level">{{ athlete.level }}</span><span v-if="athlete.dominant_side">{{ athlete.dominant_side }} side</span><span v-if="athlete.height_cm">{{ athlete.height_cm }} cm</span><span v-if="athlete.weight_kg">{{ athlete.weight_kg }} kg</span><span v-if="athlete.available" class="available">Open to opportunities</span></div>
+            </section>
+
+            <section v-if="athlete.statistics?.length || athlete.achievements?.length || athlete.career_history?.length" class="public-career">
+                <div v-if="athlete.statistics?.length"><h2>Performance statistics</h2><div class="public-stat-grid"><article v-for="item in athlete.statistics" :key="`${item.season}-${item.name}`"><strong>{{ Number(item.value).toLocaleString() }} {{ item.unit }}</strong><span>{{ item.name }}</span><small>{{ item.season }}<template v-if="item.competition"> · {{ item.competition }}</template></small></article></div></div>
+                <div v-if="athlete.achievements?.length"><h2>Achievements</h2><article v-for="item in athlete.achievements" :key="`${item.title}-${item.achieved_on}`"><strong>{{ item.title }}</strong><span>{{ [item.issuer, item.achieved_on?.slice(0, 4)].filter(Boolean).join(' · ') }}</span><p v-if="item.description">{{ item.description }}</p></article></div>
+                <div v-if="athlete.career_history?.length"><h2>Career history</h2><article v-for="item in athlete.career_history" :key="`${item.team_name}-${item.started_on}`"><strong>{{ item.team_name }}</strong><span>{{ [item.role, item.level].filter(Boolean).join(' · ') }}</span><small>{{ item.started_on?.slice(0, 4) || 'Start unknown' }} — {{ item.is_current ? 'Present' : item.ended_on?.slice(0, 4) || 'End unknown' }}</small></article></div>
             </section>
 
             <div class="profile-tabs"><button class="active"><Grid3X3 :size="17" /> Videos</button><button><Heart :size="17" /> Liked</button></div>

@@ -14,6 +14,6 @@ class RoleRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['role' => ['required', Rule::in(['athlete', 'fan', 'coach', 'scout', 'agent', 'club', 'academy', 'business', 'sponsor'])]];
+        return ['role' => ['required', Rule::in(['athlete', 'fan', 'coach', 'referee', 'linesman', 'scout', 'agent', 'club', 'academy', 'business', 'sponsor'])]];
     }
 }

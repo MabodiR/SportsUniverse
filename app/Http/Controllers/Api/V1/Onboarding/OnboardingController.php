@@ -16,8 +16,16 @@ class OnboardingController extends Controller
 {
     public function role(RoleRequest $request, CalculateProfileCompleteness $calculator): JsonResponse
     {
-        $request->user()->syncRoles([$request->validated('role')]);
-        $calculator->execute($request->user());
+        $role = $request->validated('role');
+        $user = $request->user();
+        $user->syncRoles([$role]);
+        if (in_array($role, ['coach', 'referee', 'linesman', 'scout', 'agent'], true)) {
+            $user->professionalProfile()->firstOrCreate([], ['professional_type' => $role]);
+        }
+        if (in_array($role, ['club', 'academy', 'business', 'sponsor'], true)) {
+            $user->organisationProfile()->firstOrCreate([], ['organisation_name' => $user->name, 'organisation_type' => $role]);
+        }
+        $calculator->execute($user);
 
         return $this->result($request);
     }

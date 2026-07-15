@@ -4,6 +4,7 @@ namespace Tests\Feature\Api\V1;
 
 use App\Domain\Media\Jobs\ProcessMedia;
 use App\Domain\Media\Models\Media;
+use App\Domain\Feed\Models\Video;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -30,7 +31,8 @@ class MediaModuleTest extends TestCase
         $response->assertAccepted()->assertJsonPath('data.processing_status', 'pending')->assertJsonPath('data.moderation_status', 'approved');
         $media = Media::firstOrFail();
         Storage::disk('local')->assertExists($media->path);
-        Queue::assertPushed(ProcessMedia::class, fn ($job) => $job->media->is($media));
+        $this->assertNull($media->checksum_sha256);
+        Queue::assertPushedOn('media', ProcessMedia::class, fn ($job) => $job->media->is($media));
     }
 
     public function test_file_type_must_match_declared_kind(): void
@@ -57,5 +59,28 @@ class MediaModuleTest extends TestCase
         $viewer = User::factory()->create();
         $media = Media::factory()->for($owner)->create(['moderation_status' => 'pending']);
         $this->actingAs($viewer, 'sanctum')->getJson('/api/v1/media/'.$media->public_id)->assertForbidden();
+    }
+
+    public function test_owner_can_classify_and_describe_library_file(): void
+    {
+        $user = User::factory()->create();
+        $media = Media::factory()->for($user)->create(['kind' => 'document', 'collection' => 'uploads']);
+
+        $this->actingAs($user, 'sanctum')->patchJson('/api/v1/media/'.$media->public_id, [
+            'title' => '2026 Football CV',
+            'description' => 'Current playing résumé.',
+            'collection' => 'resumes',
+        ])->assertOk()->assertJsonPath('data.title', '2026 Football CV')->assertJsonPath('data.collection', 'resumes');
+    }
+
+    public function test_media_attached_to_a_post_cannot_be_deleted(): void
+    {
+        $user = User::factory()->create();
+        $media = Media::factory()->for($user)->create();
+        Video::factory()->for($user)->create(['media_id' => $media->id]);
+
+        $this->actingAs($user, 'sanctum')->deleteJson('/api/v1/media/'.$media->public_id)
+            ->assertConflict()->assertJsonPath('message', 'This file is currently attached to a post, message, or application and cannot be deleted.');
+        $this->assertDatabaseHas('media', ['id' => $media->id]);
     }
 }

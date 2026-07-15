@@ -15,7 +15,7 @@ class StoreMediaRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['kind' => ['required', Rule::in(['image', 'video', 'document'])], 'collection' => ['nullable', 'string', 'max:40', Rule::in(['profile', 'cover', 'gallery', 'highlights', 'certificates', 'uploads'])], 'file' => ['required', File::default()->max($this->maxKilobytes())]];
+        return ['kind' => ['required', Rule::in(['image', 'video', 'document'])], 'collection' => ['nullable', 'string', 'max:40', Rule::in(['profile', 'cover', 'gallery', 'highlights', 'certificates', 'resumes', 'medical', 'identity', 'contracts', 'uploads'])], 'file' => ['required', File::default()->max($this->maxKilobytes())]];
     }
 
     public function after(): array

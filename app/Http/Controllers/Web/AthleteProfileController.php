@@ -16,7 +16,7 @@ class AthleteProfileController extends Controller
     {
         $user = User::query()
             ->whereHas('profile', fn ($query) => $query->where('slug', $slug))
-            ->with(['profile', 'athleteProfile.sport', 'athleteProfile.taxonomyPosition'])
+            ->with(['profile', 'athleteProfile.sport', 'athleteProfile.taxonomyPosition', 'careerEntries', 'achievements', 'athleteStatistics'])
             ->withCount(['followers', 'following', 'videos' => fn ($query) => $query->where('status', 'published')])
             ->firstOrFail();
 
@@ -70,6 +70,20 @@ class AthleteProfileController extends Controller
                 'videos_count' => $user->videos_count,
                 'profile_views' => $user->profile->views_count,
                 'is_following' => auth()->check() && auth()->user()->following()->whereKey($user->id)->exists(),
+                'is_saved' => auth()->check() && auth()->user()->savedProfiles()->whereKey($user->id)->exists(),
+                'career_history' => $user->careerEntries->sortByDesc('started_on')->values()->map(fn ($entry) => [
+                    'team_name' => $entry->team_name, 'role' => $entry->role, 'level' => $entry->level,
+                    'started_on' => $entry->started_on?->toDateString(), 'ended_on' => $entry->ended_on?->toDateString(),
+                    'is_current' => $entry->is_current, 'description' => $entry->description,
+                ]),
+                'achievements' => $user->achievements->sortByDesc('achieved_on')->values()->map(fn ($achievement) => [
+                    'title' => $achievement->title, 'issuer' => $achievement->issuer,
+                    'achieved_on' => $achievement->achieved_on?->toDateString(), 'description' => $achievement->description,
+                ]),
+                'statistics' => $user->athleteStatistics->sortByDesc('season')->values()->map(fn ($statistic) => [
+                    'season' => $statistic->season, 'competition' => $statistic->competition,
+                    'name' => $statistic->name, 'value' => $statistic->value, 'unit' => $statistic->unit,
+                ]),
             ],
             'videos' => $videos,
             'seo' => ['title'=>$seoTitle,'description'=>$seoDescription,'image'=>$user->profile->profile_image_path ? url($user->profile->profile_image_path) : url(config('seo.image'))],

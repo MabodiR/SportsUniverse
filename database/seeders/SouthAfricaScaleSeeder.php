@@ -24,7 +24,7 @@ class SouthAfricaScaleSeeder extends Seeder
         ];
         $institutions = ['Kaizer Chiefs Youth Development','Orlando Pirates Academy','Mamelodi Sundowns Academy','University of Pretoria','University of Johannesburg','University of the Witwatersrand','University of Limpopo','University of Venda','Walter Sisulu University','University of Fort Hare','Nelson Mandela University','Stellenbosch University','University of the Free State','North-West University','Durban University of Technology','Tshwane University of Technology','Mangosuthu University of Technology','Sol Plaatje University','TuksSport High School','SAFA Transnet Football School of Excellence','Grey College','Paarl Gimnasium','Dale College','Selborne College','Jeppe High School for Boys'];
         $bios = ['Committed athlete working to improve every day and represent the community with pride.','Focused on discipline, teamwork and creating opportunities through sport.','Developing talent through consistent training, local competition and education.','Passionate about sport, youth development and building strong community connections.'];
-        $roles = ['athlete','athlete','athlete','athlete','fan','coach','scout','agent','club','academy','business','sponsor'];
+        $roles = ['athlete','athlete','athlete','athlete','fan','coach','referee','linesman','scout','agent','club','academy','business','sponsor'];
         foreach (array_unique($roles) as $role) Role::findOrCreate($role, 'web');
         $roleIds = Role::whereIn('name', array_unique($roles))->pluck('id','name');
         $sports = DB::table('sports')->get(); $positions = DB::table('positions')->get()->groupBy('sport_id');

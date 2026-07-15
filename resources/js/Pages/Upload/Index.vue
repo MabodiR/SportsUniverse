@@ -40,12 +40,16 @@ const fileSize = computed(() => file.value ? `${(file.value.size / 1024 / 1024).
 const select = (selected?: File, persist = true) => {
     if (!selected) return;
     if (!['video/mp4', 'video/quicktime', 'video/webm'].includes(selected.type)) { error.value = 'Choose an MP4, MOV, or WebM video.'; return; }
+    if (selected.size > 512 * 1024 * 1024) { error.value = 'Videos must be 512 MB or smaller.'; return; }
     if (preview.value) URL.revokeObjectURL(preview.value);
     file.value = selected; preview.value = URL.createObjectURL(selected); error.value = ''; notice.value = ''; if (persist) saveDraft();
 };
 const selectImages = (selected?: FileList | File[] | null, persist = true) => {
     imagePreviews.value.forEach(URL.revokeObjectURL);
-    images.value = Array.from(selected ?? []).slice(0, 10);
+    const candidates = Array.from(selected ?? []).slice(0, 10);
+    const invalid = candidates.find(image => !['image/jpeg','image/png','image/webp'].includes(image.type) || image.size > 10 * 1024 * 1024);
+    if (invalid) { error.value = `${invalid.name} must be a JPG, PNG, or WebP image no larger than 10 MB.`; return; }
+    images.value = candidates;
     imagePreviews.value = images.value.map(URL.createObjectURL);
     coverIndex.value = 0;
     error.value = selected && selected.length > 10 ? 'Only the first 10 pictures were selected.' : ''; if (persist) saveDraft();

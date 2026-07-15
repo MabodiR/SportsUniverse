@@ -36,6 +36,16 @@ class WebInterfaceTest extends TestCase
             ->has('suggestions'));
     }
 
+    public function test_guest_can_open_the_mobile_app_download_page(): void
+    {
+        $this->get('/mobile-app')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('MobileApp/Download')
+            ->has('downloads')
+            ->where('downloads.ios', null)
+            ->where('downloads.android', null)
+            ->where('downloads.direct', null));
+    }
+
     public function test_member_can_register_and_enter_feed(): void
     {
         $response = $this->post('/register', [
@@ -76,8 +86,9 @@ class WebInterfaceTest extends TestCase
     {
         $user = User::factory()->create();
 
-        foreach (['/explore', '/following', '/videos/watch', '/upload', '/messages', '/profile', '/opportunities', '/settings/devices', '/notifications'] as $uri) {
-            $this->actingAs($user)->get($uri)->assertOk();
+        foreach (['/explore', '/women-in-sports', '/following', '/videos/watch', '/upload', '/uploads/status', '/messages', '/profile', '/profile/gallery', '/opportunities', '/applications', '/sponsorship', '/saved', '/settings/devices', '/notifications'] as $uri) {
+            $response = $this->actingAs($user)->get($uri);
+            $this->assertSame(200, $response->status(), "{$uri} should be available to authenticated members.");
         }
     }
 

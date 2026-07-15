@@ -13,9 +13,12 @@
         "laravel/reverb": "^1.10",
         "laravel/sanctum": "^4.3",
         "laravel/scout": "^11.3",
+        "laravel/socialite": "^5.28",
         "laravel/tinker": "^3.0",
         "league/flysystem-aws-s3-v3": "^3.35",
         "opensearch-project/opensearch-php": "^2.6",
+        "socialiteproviders/apple": "^5.10",
+        "socialiteproviders/microsoft": "^4.9",
         "spatie/laravel-permission": "^8.3"
     },
     "require-dev": {

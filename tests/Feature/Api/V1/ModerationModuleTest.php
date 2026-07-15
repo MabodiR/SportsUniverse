@@ -5,6 +5,7 @@ namespace Tests\Feature\Api\V1;
 use App\Domain\Feed\Models\Video;
 use App\Domain\Media\Models\Media;
 use App\Domain\Moderation\Models\Report;
+use App\Domain\Messaging\Models\Message;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -28,6 +29,14 @@ class ModerationModuleTest extends TestCase
         $video = Video::factory()->create();
         $this->actingAs($reporter, 'sanctum')->postJson('/api/v1/reports', ['type' => 'video', 'id' => $video->public_id, 'reason' => 'spam', 'details' => 'Repeated promotional content.'])->assertCreated()->assertJsonPath('data.status', 'open');
         $this->assertDatabaseHas('reports', ['reporter_id' => $reporter->id, 'reportable_id' => $video->id, 'reason' => 'spam']);
+    }
+
+    public function test_user_can_report_a_specific_message(): void
+    {
+        $reporter = $this->member('fan');
+        $message = Message::factory()->create();
+        $this->actingAs($reporter, 'sanctum')->postJson('/api/v1/reports', ['type' => 'message', 'id' => $message->public_id, 'reason' => 'harassment'])->assertCreated();
+        $this->assertDatabaseHas('reports', ['reportable_type' => $message->getMorphClass(), 'reportable_id' => $message->id]);
     }
 
     public function test_admin_can_moderate_media_with_audit_and_notification(): void

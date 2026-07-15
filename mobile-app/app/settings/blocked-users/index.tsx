@@ -1,0 +1,18 @@
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '../../../src/api/client';
+import { ScreenMessage } from '../../../src/components/ScreenMessage';
+import { colors, radius, spacing } from '../../../src/theme';
+
+type BlockedUser = { id: number; name: string; slug?: string | null; profile_image_path?: string | null; blocked_at: string };
+export default function BlockedUsersScreen() {
+  const client = useQueryClient();
+  const blocked = useQuery({ queryKey: ['blocked-users'], queryFn: async () => (await api.get('/blocked-users')).data.data as BlockedUser[] });
+  const unblock = useMutation({ mutationFn: (id: number) => api.delete('/profiles/' + id + '/block'), onSuccess: () => { client.invalidateQueries({ queryKey: ['blocked-users'] }); client.invalidateQueries({ queryKey: ['profile'] }); }, onError: (error: any) => Alert.alert('User not unblocked', error?.response?.data?.message || 'Please try again.') });
+  const items = blocked.data ?? [];
+  return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><Pressable accessibilityLabel="Go back" onPress={() => router.back()}><Ionicons name="chevron-back" size={26} color="#fff" /></Pressable><Text style={styles.headerTitle}>Blocked users</Text><View style={{ width: 26 }} /></View><FlatList data={items} keyExtractor={item => String(item.id)} contentContainerStyle={items.length ? styles.list : styles.empty} refreshing={blocked.isRefetching} onRefresh={() => blocked.refetch()} ItemSeparatorComponent={() => <View style={{ height: 9 }} />} ListEmptyComponent={<ScreenMessage icon="shield-checkmark-outline" title="No blocked users" message="People you block will appear here. They cannot message or follow you." />} renderItem={({ item }) => <View style={styles.row}><View style={styles.avatar}><Text style={styles.initial}>{item.name.charAt(0)}</Text></View><Pressable disabled={!item.slug} onPress={() => item.slug && router.push(`/profile/${item.slug}` as never)} style={styles.copy}><Text style={styles.name}>{item.name}</Text><Text style={styles.date}>Blocked {new Date(item.blocked_at).toLocaleDateString()}</Text></Pressable><Pressable disabled={unblock.isPending} onPress={() => unblock.mutate(item.id)} style={styles.unblock}><Text style={styles.unblockText}>Unblock</Text></Pressable></View>} /></SafeAreaView>;
+}
+const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: colors.navy }, header: { height: 56, paddingHorizontal: spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: colors.line }, headerTitle: { color: '#fff', fontSize: 17, fontWeight: '900' }, list: { padding: spacing.md }, empty: { flexGrow: 1 }, row: { minHeight: 70, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: radius.md, backgroundColor: colors.surface }, avatar: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised }, initial: { color: '#fff', fontWeight: '900' }, copy: { flex: 1 }, name: { color: '#fff', fontSize: 14, fontWeight: '900' }, date: { color: colors.muted, fontSize: 10, marginTop: 3 }, unblock: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, borderWidth: 1, borderColor: colors.line }, unblockText: { color: '#fff', fontSize: 11, fontWeight: '800' } });

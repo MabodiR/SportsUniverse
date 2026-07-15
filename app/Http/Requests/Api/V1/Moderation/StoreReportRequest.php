@@ -14,6 +14,6 @@ class StoreReportRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['type' => ['required', Rule::in(['video', 'comment', 'media', 'user'])], 'id' => ['required', 'string', 'max:64'], 'reason' => ['required', Rule::in(['spam', 'harassment', 'hate', 'nudity', 'violence', 'fraud', 'impersonation', 'copyright', 'other'])], 'details' => ['nullable', 'string', 'max:5000']];
+        return ['type' => ['required', Rule::in(['video', 'comment', 'media', 'message', 'user'])], 'id' => ['required', 'string', 'max:64'], 'reason' => ['required', Rule::in(['spam', 'harassment', 'hate', 'nudity', 'violence', 'fraud', 'impersonation', 'copyright', 'other'])], 'details' => ['nullable', 'string', 'max:5000']];
     }
 }

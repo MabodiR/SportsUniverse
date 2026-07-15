@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import { Bookmark, Grid3X3, Heart, Lock, Play, Repeat2, Settings, Share2 } from '@lucide/vue';
+import { BarChart3, Bookmark, FolderOpen, Grid3X3, Heart, Lock, Play, Repeat2, Settings, Share2 } from '@lucide/vue';
 import { computed, onMounted, ref } from 'vue';
 import AppShell from '../../Layouts/AppShell.vue';
 
@@ -50,7 +50,7 @@ onMounted(async () => {
                 <div class="self-profile-copy">
                     <div class="self-name"><h1>{{ profile?.name ?? auth?.name }}</h1><span>{{ handle }}</span></div>
                     <div class="self-stats"><span><strong>{{ auth?.following_count ?? 0 }}</strong> Following</span><span><strong>{{ auth?.followers_count ?? 0 }}</strong> Followers</span><span><strong>{{ media.reduce((sum, video) => sum + (video.counts?.likes ?? 0), 0) }}</strong> Likes</span><span><strong>{{ profileViews }}</strong> Profile views</span></div>
-                    <div class="self-actions"><Link href="/profile/edit">Edit profile</Link><button>Promote post</button><Link class="round" href="/settings/devices" aria-label="Settings"><Settings :size="18" /></Link><button class="round" aria-label="Share profile"><Share2 :size="18" /></button></div>
+                    <div class="self-actions"><Link href="/profile/edit">Edit profile</Link><Link v-if="profile?.roles?.includes('athlete')" href="/profile/statistics"><BarChart3 :size="16" /> Career</Link><Link href="/profile/gallery"><FolderOpen :size="16" /> Library</Link><button>Promote post</button><Link class="round" href="/settings/devices" aria-label="Settings"><Settings :size="18" /></Link><button class="round" aria-label="Share profile"><Share2 :size="18" /></button></div>
                     <p>{{ profile?.bio || 'Add a bio to tell the SportUniverse community about yourself.' }}</p>
                 </div>
             </section>

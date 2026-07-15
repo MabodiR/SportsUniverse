@@ -100,6 +100,46 @@ class DiscoveryModuleTest extends TestCase
         $this->assertDatabaseCount('saved_searches',0);
     }
 
+    public function test_user_can_save_list_and_remove_public_profiles(): void
+    {
+        $viewer = $this->member('Talent Saver', 'fan');
+        $athlete = $this->member('Saved Athlete', 'athlete', ['city' => 'Pretoria']);
+
+        $this->actingAs($viewer, 'sanctum')->postJson('/api/v1/saved-profiles/'.$athlete->id)
+            ->assertCreated()->assertJsonPath('data.saved', true);
+        $this->getJson('/api/v1/saved-profiles')->assertOk()
+            ->assertJsonCount(1, 'data')->assertJsonPath('data.0.name', 'Saved Athlete');
+        $this->deleteJson('/api/v1/saved-profiles/'.$athlete->id)
+            ->assertOk()->assertJsonPath('data.saved', false);
+        $this->assertDatabaseCount('saved_profiles', 0);
+    }
+
+    public function test_private_and_own_profiles_cannot_be_saved(): void
+    {
+        $viewer = $this->member('Talent Saver', 'fan');
+        $private = $this->member('Private Athlete', 'athlete', ['is_public' => false]);
+
+        $this->actingAs($viewer, 'sanctum')->postJson('/api/v1/saved-profiles/'.$private->id)->assertNotFound();
+        $this->postJson('/api/v1/saved-profiles/'.$viewer->id)->assertUnprocessable();
+    }
+
+    public function test_women_in_sports_hub_returns_public_women_content_and_opportunities(): void
+    {
+        $viewer = $this->member('Hub Viewer', 'fan');
+        $football = Sport::where('slug', 'football')->firstOrFail();
+        $woman = $this->member('Naledi Champion', 'athlete', ['gender' => 'female', 'city' => 'Pretoria']);
+        $woman->athleteProfile()->create(['sport_id' => $football->id]);
+        $man = $this->member('Male Athlete', 'athlete', ['gender' => 'male']);
+        $man->athleteProfile()->create(['sport_id' => $football->id]);
+        \App\Domain\Feed\Models\Video::factory()->for($woman)->create(['sport_id' => $football->id, 'caption' => 'Women football highlight', 'status' => 'published', 'visibility' => 'public', 'published_at' => now()]);
+        Opportunity::factory()->for($viewer, 'poster')->create(['sport_id' => $football->id, 'title' => 'Women Football Scholarship', 'description' => 'A pathway for emerging women players.', 'status' => 'published', 'deadline' => now()->addMonth()]);
+
+        $this->actingAs($viewer, 'sanctum')->getJson('/api/v1/women-in-sports?sport_id='.$football->id)
+            ->assertOk()->assertJsonPath('data.profiles.0.name', 'Naledi Champion')
+            ->assertJsonCount(1, 'data.profiles')->assertJsonPath('data.videos.0.caption', 'Women football highlight')
+            ->assertJsonPath('data.opportunities.0.title', 'Women Football Scholarship');
+    }
+
     private function member(string $name, string $role, array $profile = []): User
     {
         $user = User::factory()->create(['name' => $name]);

@@ -55,6 +55,45 @@ class ProfileController extends Controller
         return response()->json(['message' => 'Athlete profile updated.', 'data' => new ProfileResource($this->load($user->fresh()))]);
     }
 
+    public function updateProfessional(Request $request, CalculateProfileCompleteness $calculator): JsonResponse
+    {
+        $data = $request->validate([
+            'professional_type' => ['required', Rule::in(['coach', 'referee', 'linesman', 'scout', 'agent'])],
+            'specialisation' => ['nullable', 'string', 'max:160'],
+            'years_experience' => ['nullable', 'integer', 'min:0', 'max:80'],
+            'certifications' => ['nullable', 'array', 'max:30'],
+            'certifications.*' => ['string', 'max:255'],
+            'is_available' => ['required', 'boolean'],
+        ]);
+        $user = $request->user();
+        abort_unless($user->hasAnyRole(['coach', 'referee', 'linesman', 'scout', 'agent']), 403);
+        $user->professionalProfile()->updateOrCreate([], $data);
+        $user->profile()->update(['is_available' => $data['is_available']]);
+        $calculator->execute($user);
+
+        return response()->json(['message' => 'Professional profile updated.', 'data' => new ProfileResource($this->load($user->fresh()))]);
+    }
+
+    public function updateOrganisation(Request $request, CalculateProfileCompleteness $calculator): JsonResponse
+    {
+        $data = $request->validate([
+            'organisation_name' => ['required', 'string', 'max:160'],
+            'organisation_type' => ['required', Rule::in(['club', 'academy', 'business', 'sponsor'])],
+            'registration_number' => ['nullable', 'string', 'max:100'],
+            'website' => ['nullable', 'url:http,https', 'max:255'],
+            'contact_email' => ['nullable', 'email', 'max:255'],
+            'contact_phone' => ['nullable', 'string', 'max:32'],
+            'services' => ['nullable', 'array', 'max:30'],
+            'services.*' => ['string', 'max:160'],
+        ]);
+        $user = $request->user();
+        abort_unless($user->hasAnyRole(['club', 'academy', 'business', 'sponsor']), 403);
+        $user->organisationProfile()->updateOrCreate([], $data);
+        $calculator->execute($user);
+
+        return response()->json(['message' => 'Organisation profile updated.', 'data' => new ProfileResource($this->load($user->fresh()))]);
+    }
+
     public function photo(Request $request, CalculateProfileCompleteness $calculator): JsonResponse
     {
         $data = $request->validate(['photo' => ['required', 'image', 'mimes:jpeg,png,webp', 'max:10240']]);
@@ -71,8 +110,10 @@ class ProfileController extends Controller
 
     public function role(Request $request): ProfileResource
     {
-        $data = $request->validate(['role' => ['required', Rule::in(['athlete', 'fan', 'coach', 'scout', 'agent', 'club', 'academy', 'business', 'sponsor'])]]);
+        $data = $request->validate(['role' => ['required', Rule::in(['athlete', 'fan', 'coach', 'referee', 'linesman', 'scout', 'agent', 'club', 'academy', 'business', 'sponsor'])]]);
         $request->user()->syncRoles([$data['role']]);
+        if (in_array($data['role'], ['coach','referee','linesman','scout','agent'], true)) $request->user()->professionalProfile()->firstOrCreate([], ['professional_type'=>$data['role']]);
+        if (in_array($data['role'], ['club','academy','business','sponsor'], true)) $request->user()->organisationProfile()->firstOrCreate([], ['organisation_name'=>$request->user()->name,'organisation_type'=>$data['role']]);
 
         return new ProfileResource($this->load($request->user()->fresh()));
     }
@@ -84,6 +125,6 @@ class ProfileController extends Controller
 
     private function load(User $user): User
     {
-        return $user->load('roles', 'profile', 'athleteProfile.sport', 'athleteProfile.taxonomyPosition', 'fanProfile', 'professionalProfile', 'organisationProfile');
+        return $user->load('roles', 'profile', 'athleteProfile.sport', 'athleteProfile.taxonomyPosition', 'careerEntries', 'achievements', 'athleteStatistics', 'fanProfile', 'professionalProfile', 'organisationProfile');
     }
 }

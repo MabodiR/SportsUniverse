@@ -13,7 +13,7 @@ class LiveStreamController extends Controller
 {
     public function index(): JsonResponse
     {
-        return response()->json(['data' => DB::table('live_streams')->join('users', 'users.id', '=', 'live_streams.user_id')->leftJoin('user_profiles', 'user_profiles.user_id', '=', 'users.id')->where('live_streams.status', 'live')->latest('live_streams.started_at')->get(['live_streams.public_id as id', 'live_streams.title', 'live_streams.description', 'live_streams.viewer_count', 'live_streams.started_at', 'users.name as host_name', 'user_profiles.slug', 'user_profiles.profile_image_path as image'])]);
+        return response()->json(['data' => DB::table('live_streams')->join('users', 'users.id', '=', 'live_streams.user_id')->leftJoin('user_profiles', 'user_profiles.user_id', '=', 'users.id')->where('live_streams.status', 'live')->latest('live_streams.started_at')->get(['live_streams.public_id as id', 'live_streams.user_id as host_id', 'live_streams.title', 'live_streams.description', 'live_streams.viewer_count', 'live_streams.started_at', 'users.name as host_name', 'user_profiles.slug', 'user_profiles.profile_image_path as image'])]);
     }
 
     public function store(Request $request): JsonResponse
@@ -28,7 +28,7 @@ class LiveStreamController extends Controller
 
     public function show(string $stream): JsonResponse
     {
-        $item = DB::table('live_streams')->join('users', 'users.id', '=', 'live_streams.user_id')->leftJoin('user_profiles', 'user_profiles.user_id', '=', 'users.id')->where('live_streams.public_id', $stream)->first(['live_streams.*', 'users.name as host_name', 'user_profiles.slug', 'user_profiles.profile_image_path as image']);
+        $item = DB::table('live_streams')->join('users', 'users.id', '=', 'live_streams.user_id')->leftJoin('user_profiles', 'user_profiles.user_id', '=', 'users.id')->where('live_streams.public_id', $stream)->first(['live_streams.*', 'live_streams.user_id as host_id', 'users.name as host_name', 'user_profiles.slug', 'user_profiles.profile_image_path as image']);
         abort_unless($item, 404);
         $messages = DB::table('live_messages')->join('users', 'users.id', '=', 'live_messages.user_id')->where('live_stream_id', $item->id)->latest('live_messages.id')->limit(60)->get(['live_messages.id', 'live_messages.body', 'live_messages.reaction', 'live_messages.created_at', 'users.name'])->reverse()->values();
 

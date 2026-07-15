@@ -40,4 +40,35 @@ return [
         'host' => env('OPENSEARCH_HOST', 'http://127.0.0.1:9200'),
     ],
 
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
+    ],
+
+    'facebook' => [
+        'client_id' => env('FACEBOOK_CLIENT_ID'),
+        'client_secret' => env('FACEBOOK_CLIENT_SECRET'),
+        'redirect' => env('FACEBOOK_REDIRECT_URI', '/auth/facebook/callback'),
+    ],
+
+    'apple' => [
+        'client_id' => env('APPLE_CLIENT_ID'),
+        'client_secret' => env('APPLE_CLIENT_SECRET'),
+        'redirect' => env('APPLE_REDIRECT_URI', '/auth/apple/callback'),
+    ],
+
+    'microsoft' => [
+        'client_id' => env('MICROSOFT_CLIENT_ID'),
+        'client_secret' => env('MICROSOFT_CLIENT_SECRET'),
+        'redirect' => env('MICROSOFT_REDIRECT_URI', '/auth/microsoft/callback'),
+        'tenant' => env('MICROSOFT_TENANT_ID', 'common'),
+    ],
+
+    'mobile_app' => [
+        'ios_url' => env('MOBILE_APP_IOS_URL'),
+        'android_url' => env('MOBILE_APP_ANDROID_URL'),
+        'direct_url' => env('MOBILE_APP_DIRECT_URL'),
+    ],
+
 ];

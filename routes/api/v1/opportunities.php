@@ -17,6 +17,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('opportunities/{opportunity}/apply', [OpportunityApplicationController::class, 'store']);
     Route::get('opportunities/{opportunity}/applications', [OpportunityApplicationController::class, 'applicants']);
     Route::patch('applications/{application}', [OpportunityApplicationController::class, 'review']);
+    Route::post('applications/{application}/withdraw', [OpportunityApplicationController::class, 'withdraw']);
     Route::post('opportunities/{opportunity}/save', [SavedOpportunityController::class, 'store']);
     Route::delete('opportunities/{opportunity}/save', [SavedOpportunityController::class, 'destroy']);
 });

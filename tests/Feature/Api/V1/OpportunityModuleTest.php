@@ -43,6 +43,7 @@ class OpportunityModuleTest extends TestCase
         $athlete = $this->member('athlete', ['date_of_birth' => today()->subYears(20)]);
         $opportunity = Opportunity::factory()->for($club, 'poster')->create(['minimum_age' => 18, 'maximum_age' => 23]);
         $this->actingAs($athlete, 'sanctum')->postJson('/api/v1/opportunities/'.$opportunity->public_id.'/apply', ['cover_letter' => 'I am ready to trial.'])->assertCreated()->assertJsonPath('data.status', 'submitted');
+        $this->assertDatabaseHas('opportunity_application_status_history', ['changed_by_id' => $athlete->id, 'status' => 'submitted']);
         $this->postJson('/api/v1/opportunities/'.$opportunity->public_id.'/apply')->assertUnprocessable();
         $this->assertDatabaseHas('opportunities', ['id' => $opportunity->id, 'applications_count' => 1]);
     }
@@ -62,7 +63,33 @@ class OpportunityModuleTest extends TestCase
         $opportunity = Opportunity::factory()->for($club, 'poster')->create();
         $application = $opportunity->applications()->create(['public_id' => (string) Str::ulid(), 'user_id' => $athlete->id, 'status' => 'submitted']);
         $this->actingAs($club, 'sanctum')->patchJson('/api/v1/applications/'.$application->public_id, ['status' => 'shortlisted', 'reviewer_notes' => 'Attend final assessment.'])->assertOk()->assertJsonPath('data.status', 'shortlisted');
+        $this->assertDatabaseHas('opportunity_application_status_history', ['opportunity_application_id' => $application->id, 'status' => 'shortlisted', 'notes' => 'Attend final assessment.']);
         $this->assertDatabaseHas('notifications', ['notifiable_id' => $athlete->id]);
+    }
+
+    public function test_applicant_can_track_and_withdraw_their_application(): void
+    {
+        $club = $this->member('club');
+        $athlete = $this->member('athlete', ['date_of_birth' => today()->subYears(20)]);
+        $opportunity = Opportunity::factory()->for($club, 'poster')->create();
+        $created = $this->actingAs($athlete, 'sanctum')->postJson('/api/v1/opportunities/'.$opportunity->public_id.'/apply')->assertCreated();
+
+        $this->getJson('/api/v1/applications/mine')->assertOk()
+            ->assertJsonPath('data.0.timeline.0.status', 'submitted');
+        $this->postJson('/api/v1/applications/'.$created->json('data.id').'/withdraw')->assertOk()
+            ->assertJsonPath('data.status', 'withdrawn')
+            ->assertJsonPath('data.timeline.1.status', 'withdrawn');
+    }
+
+    public function test_another_user_cannot_withdraw_an_application(): void
+    {
+        $club = $this->member('club');
+        $athlete = $this->member('athlete');
+        $other = $this->member('athlete');
+        $opportunity = Opportunity::factory()->for($club, 'poster')->create();
+        $application = $opportunity->applications()->create(['public_id' => (string) Str::ulid(), 'user_id' => $athlete->id, 'status' => 'submitted']);
+
+        $this->actingAs($other, 'sanctum')->postJson('/api/v1/applications/'.$application->public_id.'/withdraw')->assertForbidden();
     }
 
     public function test_user_can_save_and_filter_opportunities(): void

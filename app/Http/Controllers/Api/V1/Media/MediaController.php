@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -42,6 +43,19 @@ return MediaResource::collection($query->paginate(min($request->integer('per_pag
         return new MediaResource($media);
     }
 
+    public function update(Request $request, Media $media): MediaResource
+    {
+        Gate::authorize('update', $media);
+        $data = $request->validate([
+            'title' => ['nullable', 'string', 'max:160'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'collection' => ['required', 'string', 'in:gallery,highlights,certificates,resumes,medical,identity,contracts,uploads'],
+        ]);
+        $media->update($data);
+
+        return new MediaResource($media->fresh());
+    }
+
     public function download(Media $media): StreamedResponse
     {
         Gate::authorize('view', $media);
@@ -53,6 +67,11 @@ return MediaResource::collection($query->paginate(min($request->integer('per_pag
     public function destroy(Media $media): JsonResponse
     {
         Gate::authorize('delete', $media);
+        $used = DB::table('videos')->where('media_id', $media->id)->exists()
+            || DB::table('video_images')->where('media_id', $media->id)->exists()
+            || DB::table('messages')->where('media_id', $media->id)->exists()
+            || DB::table('opportunity_applications')->where('resume_media_id', $media->id)->exists();
+        abort_if($used, 409, 'This file is currently attached to a post, message, or application and cannot be deleted.');
         Storage::disk($media->disk)->delete(array_filter([$media->path, $media->thumbnail_path]));
         $media->delete();
 

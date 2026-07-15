@@ -18,7 +18,9 @@ class ConversationController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
-        $page = $request->user()->belongsToMany(Conversation::class, 'conversation_participants')->wherePivotNull('archived_at')->with('participants.profile', 'latestMessage.sender.profile', 'latestMessage.media')->orderByDesc('last_message_at')->paginate(20);
+        $query = $request->user()->belongsToMany(Conversation::class, 'conversation_participants');
+        $request->boolean('archived') ? $query->wherePivotNotNull('archived_at') : $query->wherePivotNull('archived_at');
+        $page = $query->with('participants.profile', 'latestMessage.sender.profile', 'latestMessage.media')->orderByDesc('last_message_at')->paginate(20);
         foreach ($page as $conversation) {
             $lastRead = $conversation->participants->firstWhere('id', $request->user()->id)?->pivot?->last_read_at;
             $conversation->unread_count = $conversation->messages()->where('sender_id', '!=', $request->user()->id)->when($lastRead, fn ($q) => $q->where('created_at', '>', $lastRead))->count();

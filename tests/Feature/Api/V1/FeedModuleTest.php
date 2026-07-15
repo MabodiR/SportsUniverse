@@ -68,6 +68,17 @@ class FeedModuleTest extends TestCase
         $this->assertDatabaseMissing('videos',['id'=>$post->id]);
     }
 
+    public function test_owner_can_list_and_publish_a_draft(): void
+    {
+        $user = User::factory()->create();
+        $draft = Video::factory()->for($user)->create(['status' => 'draft', 'published_at' => null]);
+        Video::factory()->for($user)->create(['status' => 'published']);
+
+        $this->actingAs($user, 'sanctum')->getJson('/api/v1/videos/mine?status=draft')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $draft->public_id);
+        $this->postJson('/api/v1/videos/'.$draft->public_id.'/publish')->assertOk()->assertJsonPath('data.status', 'published');
+        $this->assertNotNull($draft->fresh()->published_at);
+    }
+
     public function test_following_feed_only_contains_followed_creators(): void
     {
         $viewer = User::factory()->create();
@@ -111,6 +122,16 @@ class FeedModuleTest extends TestCase
         $this->assertDatabaseCount('saved_videos', 1);
     }
 
+    public function test_saved_feed_only_contains_posts_saved_by_the_viewer(): void
+    {
+        $viewer = User::factory()->create();
+        $saved = Video::factory()->create();
+        Video::factory()->create();
+        $saved->savers()->attach($viewer, ['created_at' => now()]);
+
+        $this->actingAs($viewer, 'sanctum')->getJson('/api/v1/feed/saved')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $saved->public_id)->assertJsonPath('data.0.viewer.saved', true);
+    }
+
     public function test_view_is_counted_once_per_user_per_day(): void
     {
         $viewer = User::factory()->create();
@@ -127,5 +148,15 @@ class FeedModuleTest extends TestCase
         $first = $this->actingAs($viewer, 'sanctum')->postJson('/api/v1/videos/'.$video->public_id.'/comments', ['body' => 'Great finish!'])->assertCreated();
         $this->postJson('/api/v1/videos/'.$video->public_id.'/comments', ['body' => 'Agreed', 'parent_id' => $first->json('data.id')])->assertCreated()->assertJsonPath('data.parent_id', $first->json('data.id'));
         $this->assertDatabaseHas('videos',['id' => $video->id, 'comments_count' => 2]);
+    }
+
+    public function test_user_can_like_and_unlike_a_comment(): void
+    {
+        $viewer = User::factory()->create();
+        $video = Video::factory()->create();
+        $comment = $this->actingAs($viewer, 'sanctum')->postJson('/api/v1/videos/'.$video->public_id.'/comments', ['body' => 'Great work!'])->assertCreated()->json('data');
+
+        $this->postJson('/api/v1/comments/'.$comment['id'].'/like')->assertOk()->assertJsonPath('data.liked', true)->assertJsonPath('data.likes_count', 1);
+        $this->postJson('/api/v1/comments/'.$comment['id'].'/like')->assertOk()->assertJsonPath('data.liked', false)->assertJsonPath('data.likes_count', 0);
     }
 }

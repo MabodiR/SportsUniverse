@@ -6,9 +6,10 @@ import type { User } from '../types/api';
 
 type Credentials = { login: string; password: string };
 type Registration = { name: string; email: string; phone?: string; password: string; password_confirmation: string; role: string };
-type AuthState = { user: User | null; ready: boolean; busy: boolean; error: string | null; hydrate: () => Promise<void>; login: (data: Credentials) => Promise<boolean>; register: (data: Registration) => Promise<boolean>; logout: () => Promise<void>; clearError: () => void };
+type AuthState = { user: User | null; ready: boolean; busy: boolean; error: string | null; hydrate: () => Promise<void>; login: (data: Credentials) => Promise<boolean>; socialExchange: (code: string) => Promise<boolean>; register: (data: Registration) => Promise<boolean>; logout: () => Promise<void>; clearError: () => void };
 
 const tokenKey = 'sportuniverse_token';
+export const getAuthToken = () => SecureStore.getItemAsync(tokenKey);
 const message = (error: any) => error?.response?.data?.message || Object.values(error?.response?.data?.errors || {})?.flat()?.[0] || 'Unable to connect. Please try again.';
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -23,6 +24,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (credentials) => {
     set({ busy: true, error: null });
     try { const { data } = await api.post('/auth/login', { ...credentials, device_name: `${Platform.OS}-mobile` }); await SecureStore.setItemAsync(tokenKey, data.token); set({ user: data.data, busy: false }); return true; }
+    catch (error) { set({ error: message(error), busy: false }); return false; }
+  },
+  socialExchange: async (code) => {
+    set({ busy: true, error: null });
+    try { const { data } = await api.post('/auth/social/exchange', { code, device_name: `${Platform.OS}-mobile` }); await SecureStore.setItemAsync(tokenKey, data.token); set({ user: data.data, busy: false }); return true; }
     catch (error) { set({ error: message(error), busy: false }); return false; }
   },
   register: async ({ role, ...registration }) => {

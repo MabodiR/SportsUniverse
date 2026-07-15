@@ -16,15 +16,31 @@ use App\Http\Controllers\Web\VideoStreamController;
 use App\Http\Controllers\Web\WebAuthController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Foundation\Auth\EmailVerificationRequest;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [WebAuthController::class, 'loginPage'])->name('login');
     Route::post('/login', [WebAuthController::class, 'login']);
     Route::get('/register', [WebAuthController::class, 'registerPage'])->name('register');
     Route::post('/register', [WebAuthController::class, 'register']);
+    Route::get('/password/reset', [WebAuthController::class, 'forgotPasswordPage'])->name('password.request');
+    Route::post('/password/email', [WebAuthController::class, 'sendPasswordResetLink'])->name('password.email');
+    Route::get('/password/reset/{token}', [WebAuthController::class, 'resetPasswordPage'])->name('password.reset');
+    Route::post('/password/reset', [WebAuthController::class, 'resetPassword'])->name('password.update');
+    Route::get('/auth/{provider}/redirect', [WebAuthController::class, 'socialRedirect'])->name('social.redirect');
+    Route::get('/auth/{provider}/callback', [WebAuthController::class, 'socialCallback'])->name('social.callback');
 });
 
 Route::get('/', fn () => redirect('/feed'));
+Route::get('/mobile-app', fn () => Inertia::render('MobileApp/Download', [
+    'downloads' => [
+        'ios' => config('services.mobile_app.ios_url'),
+        'android' => config('services.mobile_app.android_url'),
+        'direct' => config('services.mobile_app.direct_url'),
+    ],
+]))->name('mobile.download');
 Route::get('/feed', FeedController::class)->name('feed');
 Route::get('/feed/location/{location}', [FeedController::class, 'location'])->name('feed.location');
 Route::get('/feed/sport/{sport}', [FeedController::class, 'sport'])->name('feed.sport');
@@ -41,12 +57,11 @@ Route::get('/sitemap.xml', function () {
     return response()->view('sitemap', ['urls' => $urls])->header('Content-Type', 'application/xml; charset=UTF-8');
 })->name('sitemap');
 
-Route::get('/password/reset', ModulePageController::class)->defaults('module', 'password-reset')->name('password.request');
-Route::get('/auth/phone', ModulePageController::class)->defaults('module', 'phone-auth')->name('phone-auth');
-Route::get('/auth/social', ModulePageController::class)->defaults('module', 'social-auth')->name('social-auth');
-Route::get('/verify-account', ModulePageController::class)->defaults('module', 'verification')->name('verification.notice');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/verify-account', [WebAuthController::class, 'verificationPage'])->name('verification.notice');
+    Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {$request->fulfill();return redirect('/feed')->with('success', 'Your email address has been verified.');})->middleware('signed')->name('verification.verify');
+    Route::post('/email/verification-notification', function (Request $request) {if (! $request->user()->hasVerifiedEmail()) $request->user()->sendEmailVerificationNotification();return back()->with('success', 'A new verification link has been sent.');})->middleware('throttle:6,1')->name('verification.send');
     Route::get('/api/v1/auth/sessions', [SessionController::class, 'index']);
     Route::delete('/api/v1/auth/sessions/others', [SessionController::class, 'destroyOthers']);
     Route::delete('/api/v1/auth/sessions/{session}', [SessionController::class, 'destroy']);
@@ -83,6 +98,7 @@ Route::middleware('auth')->group(function () {
         '/uploads/status' => 'upload-status',
         '/videos/watch' => 'video',
         '/explore' => 'explore',
+        '/women-in-sports' => 'women-in-sports',
         '/club-tools' => 'club-tools',
         '/live' => 'live',
         '/comments' => 'comments',

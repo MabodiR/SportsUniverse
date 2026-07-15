@@ -10,13 +10,30 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "SportUniverse accesses photos and videos only when you choose media to upload."
+        }
+      ],
+      "@config-plugins/react-native-webrtc",
+      "expo-web-browser",
+      "expo-video"
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.sportuniverse.mobile"
+      "bundleIdentifier": "com.sportuniverse.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "SportUniverse uses your camera when you choose to broadcast live sport.",
+        "NSMicrophoneUsageDescription": "SportUniverse uses your microphone when you choose to broadcast live sport."
+      }
     },
     "android": {
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
