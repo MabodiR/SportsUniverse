@@ -1,0 +1,68 @@
+name: Refresh Production Runtime
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/runtime-refresh.yml"
+      - "resources/js/app.ts"
+      - "resources/js/Pages/Live/**"
+      - "deploy/sportuniverse-queue.service"
+      - "deploy/sportuniverse-reverb.service"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-runtime-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: [self-hosted, Linux, X64]
+    environment: production
+    timeout-minutes: 10
+
+    steps:
+      - name: Wait for application synchronization
+        run: |
+          while pgrep -f "rsync.*sportuniverse" > /dev/null; do
+            sleep 2
+          done
+
+      - name: Configure secure Reverb client
+        run: |
+          cd /var/www/sportuniverse
+          if grep -q '^REVERB_HOST=' .env; then
+            sudo sed -i 's|^REVERB_HOST=.*|REVERB_HOST=sportsuniverse.co.za|' .env
+          else
+            echo 'REVERB_HOST=sportsuniverse.co.za' | sudo tee -a .env > /dev/null
+          fi
+          if grep -q '^REVERB_PORT=' .env; then
+            sudo sed -i 's|^REVERB_PORT=.*|REVERB_PORT=443|' .env
+          else
+            echo 'REVERB_PORT=443' | sudo tee -a .env > /dev/null
+          fi
+          if grep -q '^REVERB_SCHEME=' .env; then
+            sudo sed -i 's|^REVERB_SCHEME=.*|REVERB_SCHEME=https|' .env
+          else
+            echo 'REVERB_SCHEME=https' | sudo tee -a .env > /dev/null
+          fi
+
+      - name: Refresh Laravel and background services
+        run: |
+          cd /var/www/sportuniverse
+          sudo -u www-data php artisan optimize:clear
+          sudo -u www-data php artisan optimize
+          sudo systemctl daemon-reload
+          sudo systemctl restart sportuniverse-queue.service sportuniverse-reverb.service
+          sudo systemctl reload php8.5-fpm.service nginx.service
+
+      - name: Verify runtime services
+        run: |
+          sudo systemctl is-active --quiet sportuniverse-queue.service
+          sudo systemctl is-active --quiet sportuniverse-reverb.service
+          curl --fail --silent --show-error https://sportsuniverse.co.za/up > /dev/null
+          curl --fail --silent --show-error https://sportsuniverse.co.za/live > /dev/null
