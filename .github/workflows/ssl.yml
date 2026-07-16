@@ -66,7 +66,7 @@ jobs:
       - name: Enable certificate renewal
         run: |
           sudo systemctl enable --now certbot.timer
-          sudo certbot renew --dry-run
+          sudo certbot renew --dry-run --no-random-sleep-on-renew
 
       - name: Verify HTTPS
         run: |
