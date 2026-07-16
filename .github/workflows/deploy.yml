@@ -59,9 +59,7 @@ jobs:
         run: |
           cd /var/www/sportuniverse
           sudo chown -R www-data:www-data storage bootstrap/cache
-          sudo chown ubuntu:www-data database
-          sudo chmod 775 database
-          sudo chown www-data:www-data database/database.sqlite
+          sudo -u www-data php artisan tinker --execute="throw_unless(config('database.default') === 'pgsql', new RuntimeException('Production must use PostgreSQL.'));"
           sudo -u www-data php artisan migrate --force
           sudo -u www-data php artisan storage:link || true
           sudo -u www-data php artisan optimize
