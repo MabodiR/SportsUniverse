@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\Feed\EngagementController;
 use App\Http\Controllers\Api\V1\Feed\FeedController;
+use App\Http\Controllers\Api\V1\Feed\FeedPreferenceController;
 use App\Http\Controllers\Api\V1\Feed\VideoController;
 use Illuminate\Support\Facades\Route;
 
@@ -25,6 +26,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('videos/{video}/save', [EngagementController::class, 'save']);
     Route::post('videos/{video}/share', [EngagementController::class, 'share']);
     Route::post('videos/{video}/views', [EngagementController::class, 'view']);
+    Route::post('videos/{video}/not-interested', [FeedPreferenceController::class, 'store']);
     Route::post('profiles/{user}/follow', [EngagementController::class, 'follow']);
     Route::delete('profiles/{user}/follow', [EngagementController::class, 'unfollow']);
 });

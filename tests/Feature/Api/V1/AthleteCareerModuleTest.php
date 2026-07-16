@@ -3,6 +3,8 @@
 namespace Tests\Feature\Api\V1;
 
 use App\Domain\Profiles\Actions\EnsureProfileSlug;
+use App\Domain\Sports\Models\Position;
+use App\Domain\Sports\Models\Sport;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -22,10 +24,13 @@ class AthleteCareerModuleTest extends TestCase
     public function test_athlete_can_manage_complete_career_record(): void
     {
         $athlete = $this->member('athlete');
+        $sport = Sport::create(['name' => 'Football', 'slug' => 'football', 'is_active' => true]);
+        $position = Position::create(['sport_id' => $sport->id, 'name' => 'Striker', 'slug' => 'striker', 'is_active' => true]);
         $this->actingAs($athlete, 'sanctum');
 
         $history = $this->postJson('/api/v1/profile/career/history', [
-            'team_name' => 'Pretoria United', 'role' => 'Striker', 'level' => 'Provincial',
+            'team_name' => 'Pretoria United', 'sport_id' => $position->sport_id,
+            'position_id' => $position->id, 'level' => 'Provincial',
             'started_on' => '2024-01-01', 'is_current' => true, 'description' => 'First team player.',
         ])->assertCreated()->json('data.id');
         $achievement = $this->postJson('/api/v1/profile/career/achievements', [
@@ -37,6 +42,7 @@ class AthleteCareerModuleTest extends TestCase
 
         $this->getJson('/api/v1/profile/career')->assertOk()
             ->assertJsonPath('data.history.0.team_name', 'Pretoria United')
+            ->assertJsonPath('data.history.0.position.name', 'Striker')
             ->assertJsonPath('data.achievements.0.title', 'Golden Boot')
             ->assertJsonPath('data.statistics.0.name', 'Goals');
 

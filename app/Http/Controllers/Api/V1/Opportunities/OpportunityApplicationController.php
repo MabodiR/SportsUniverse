@@ -27,14 +27,14 @@ class OpportunityApplicationController extends Controller
 
     public function mine(Request $request): AnonymousResourceCollection
     {
-        return OpportunityApplicationResource::collection($request->user()->hasMany(OpportunityApplication::class)->with('opportunity.poster.profile', 'opportunity.poster.organisationProfile', 'opportunity.sport', 'opportunity.position', 'user.profile', 'resume', 'statusHistory')->latest()->paginate(20));
+        return OpportunityApplicationResource::collection($request->user()->hasMany(OpportunityApplication::class)->with('opportunity.poster.profile', 'opportunity.poster.organisationProfile', 'opportunity.sport', 'opportunity.position', 'user.profile', 'resume', 'documents', 'statusHistory')->latest()->paginate(20));
     }
 
     public function applicants(Opportunity $opportunity): AnonymousResourceCollection
     {
         Gate::authorize('update', $opportunity);
 
-        return OpportunityApplicationResource::collection($opportunity->applications()->with('opportunity.poster.profile', 'opportunity.poster.organisationProfile', 'opportunity.sport', 'opportunity.position', 'user.profile', 'resume', 'statusHistory')->latest()->paginate(30));
+        return OpportunityApplicationResource::collection($opportunity->applications()->with('opportunity.poster.profile', 'opportunity.poster.organisationProfile', 'opportunity.sport', 'opportunity.position', 'user.profile', 'resume', 'documents', 'statusHistory')->latest()->paginate(30));
     }
 
     public function review(ReviewApplicationRequest $request, OpportunityApplication $application, NotificationDispatcher $notifications): JsonResponse
@@ -60,6 +60,6 @@ class OpportunityApplicationController extends Controller
 
     private function load(OpportunityApplication $application): OpportunityApplication
     {
-        return $application->load('opportunity.poster.profile', 'opportunity.poster.organisationProfile', 'opportunity.sport', 'opportunity.position', 'user.profile', 'resume', 'statusHistory');
+        return $application->load('opportunity.poster.profile', 'opportunity.poster.organisationProfile', 'opportunity.sport', 'opportunity.position', 'user.profile', 'resume', 'documents', 'statusHistory');
     }
 }

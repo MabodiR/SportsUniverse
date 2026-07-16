@@ -31,9 +31,9 @@ class DatabaseProfileSearch implements ProfileIndexer, ProfileSearchEngine
                         ->orWhereHas('sport', fn ($sport) => $sport->whereRaw('LOWER(name) LIKE ?', [$like]))
                         ->orWhereHas('taxonomyPosition', fn ($position) => $position->whereRaw('LOWER(name) LIKE ?', [$like])))
                     ->orWhereHas('professionalProfile', fn ($professional) => $professional->whereRaw('LOWER(professional_type) LIKE ?', [$like])->orWhereRaw('LOWER(specialisation) LIKE ?', [$like]))
-                    ->orWhereHas('organisationProfile', fn ($organisation) => $organisation->whereRaw('LOWER(organisation_name) LIKE ?', [$like])->orWhereRaw('LOWER(organisation_type) LIKE ?', [$like])->orWhereRaw('LOWER(services) LIKE ?', [$like]))
-                    ->orWhereHas('videos', fn ($videos) => $videos->where('status', 'published')->where('visibility', 'public')->where(fn ($content) => $content->whereRaw('LOWER(caption) LIKE ?', [$like])->orWhereRaw('LOWER(hashtags) LIKE ?', [$like])))
-                    ->orWhereHas('postedOpportunities', fn ($opportunities) => $opportunities->where('status', 'published')->where(fn ($content) => $content->whereRaw('LOWER(title) LIKE ?', [$like])->orWhereRaw('LOWER(description) LIKE ?', [$like])->orWhereRaw('LOWER(city) LIKE ?', [$like])->orWhereRaw('LOWER(province) LIKE ?', [$like])->orWhereRaw('LOWER(requirements) LIKE ?', [$like])));
+                    ->orWhereHas('organisationProfile', fn ($organisation) => $organisation->whereRaw('LOWER(organisation_name) LIKE ?', [$like])->orWhereRaw('LOWER(organisation_type) LIKE ?', [$like])->orWhereRaw('LOWER(CAST(services AS TEXT)) LIKE ?', [$like]))
+                    ->orWhereHas('videos', fn ($videos) => $videos->where('status', 'published')->where('visibility', 'public')->where(fn ($content) => $content->whereRaw('LOWER(caption) LIKE ?', [$like])->orWhereRaw('LOWER(CAST(hashtags AS TEXT)) LIKE ?', [$like])))
+                    ->orWhereHas('postedOpportunities', fn ($opportunities) => $opportunities->where('status', 'published')->where(fn ($content) => $content->whereRaw('LOWER(title) LIKE ?', [$like])->orWhereRaw('LOWER(description) LIKE ?', [$like])->orWhereRaw('LOWER(city) LIKE ?', [$like])->orWhereRaw('LOWER(province) LIKE ?', [$like])->orWhereRaw('LOWER(CAST(requirements AS TEXT)) LIKE ?', [$like])));
 
                 if (ctype_digit($term) && (int) $term >= 5 && (int) $term <= 100) {
                     $age = (int) $term;

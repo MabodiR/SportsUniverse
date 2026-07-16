@@ -68,6 +68,14 @@ npx eas build --platform android
 npx eas build --platform ios
 ```
 
+For a directly installable Android APK:
+
+```bash
+npm run build:apk
+```
+
+The `preview` EAS profile produces an internally distributed APK configured for the public HTTPS API. Do not replace the HTTPS endpoint with plain HTTP for a downloadable build because authentication tokens and user data must be encrypted in transit.
+
 ## Design tokens
 
 - Deep Navy `#0D1B2A`

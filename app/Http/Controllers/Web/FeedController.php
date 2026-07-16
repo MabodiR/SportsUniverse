@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Domain\Feed\Models\Video;
+use App\Domain\Feed\Services\ApplyFeedPreferences;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -56,7 +57,7 @@ class FeedController extends Controller
         $followedIds = $request->user()?->following()->pluck('users.id')->flip() ?? collect();
         $fanSports = ! $following && $request->user()?->hasRole('fan') ? ($request->user()->fanProfile?->interested_sports ?? []) : [];
         $fanSports = collect($fanSports)->filter()->map(fn ($name) => mb_strtolower((string) $name))->values()->all();
-        $videos = Video::query()->where('status', 'published')->where('visibility', 'public')
+        $videos = app(ApplyFeedPreferences::class)->execute(Video::query()->where('status', 'published')->where('visibility', 'public'), $request->user())
             ->when($fanSports, fn ($query) => $query->where(function ($videos) use ($fanSports) { $videos->whereHas('sport', fn ($sport) => $sport->whereIn(DB::raw('LOWER(name)'), $fanSports))->orWhereHas('user.athleteProfile.sport', fn ($sport) => $sport->whereIn(DB::raw('LOWER(name)'), $fanSports)); }))
             ->when($location, fn ($query) => $query->whereHas('user.profile', fn ($profile) => $profile->whereRaw('LOWER(city) = ?', [mb_strtolower($location)])))
             ->when($sport, fn ($query) => $query->where(function ($videoQuery) use ($sport) {
@@ -80,8 +81,8 @@ class FeedController extends Controller
             ->withSum(['videos as recent_likes' => fn ($query) => $query->where('status', 'published')->where('published_at', '>=', $trendingSince)], 'likes_count')
             ->withSum(['videos as recent_comments' => fn ($query) => $query->where('status', 'published')->where('published_at', '>=', $trendingSince)], 'comments_count')
             ->withSum(['videos as recent_shares' => fn ($query) => $query->where('status', 'published')->where('published_at', '>=', $trendingSince)], 'shares_count')
-            ->orderByRaw('(COALESCE(recent_views, 0) + COALESCE(recent_likes, 0) * 3 + COALESCE(recent_comments, 0) * 4 + COALESCE(recent_shares, 0) * 5) DESC')
-            ->limit(8)->get()->map(fn (User $user) => [
+            ->orderByDesc('recent_views')
+            ->limit(40)->get()->sortByDesc(fn (User $user) => (int) $user->recent_views + ((int) $user->recent_likes * 3) + ((int) $user->recent_comments * 4) + ((int) $user->recent_shares * 5))->take(8)->values()->map(fn (User $user) => [
             'id' => $user->id,
             'name' => $user->name,
             'slug' => $user->profile?->slug,
@@ -106,6 +107,7 @@ class FeedController extends Controller
         $videoIds = $videos->pluck('id');
         $liked = $viewer ? DB::table('video_likes')->where('user_id', $viewer->id)->whereIn('video_id', $videoIds)->pluck('video_id')->flip() : collect();
         $saved = $viewer ? DB::table('saved_videos')->where('user_id', $viewer->id)->whereIn('video_id', $videoIds)->pluck('video_id')->flip() : collect();
+        $reposted = $viewer ? DB::table('video_shares')->where('user_id', $viewer->id)->where('channel', 'repost')->whereIn('video_id', $videoIds)->pluck('video_id')->flip() : collect();
 
         return $videos->map(fn (Video $video) => [
             'id' => $video->public_id,
@@ -129,7 +131,14 @@ class FeedController extends Controller
                 'completeness' => $video->user->profile?->completeness ?? 35,
             ],
             'counts' => ['views' => $video->views_count, 'likes' => $video->likes_count, 'comments' => $video->comments_count, 'shares' => $video->shares_count, 'saves' => $video->saves_count],
-            'viewer' => ['liked' => (bool) $liked->has($video->id), 'saved' => (bool) $saved->has($video->id), 'following_creator' => $followedIds->has($video->user_id)],
+            'viewer' => [
+                'liked' => (bool) $liked->has($video->id),
+                'saved' => (bool) $saved->has($video->id),
+                'reposted' => (bool) $reposted->has($video->id),
+                'following_creator' => $followedIds->has($video->user_id),
+                'is_owner' => $viewer?->id === $video->user_id,
+                'can_manage' => $viewer?->id === $video->user_id,
+            ],
         ])->values()->all();
     }
 }

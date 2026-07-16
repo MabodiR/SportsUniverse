@@ -125,6 +125,6 @@ class ProfileController extends Controller
 
     private function load(User $user): User
     {
-        return $user->load('roles', 'profile', 'athleteProfile.sport', 'athleteProfile.taxonomyPosition', 'careerEntries', 'achievements', 'athleteStatistics', 'fanProfile', 'professionalProfile', 'organisationProfile');
+        return $user->load('roles', 'profile', 'athleteProfile.sport', 'athleteProfile.taxonomyPosition', 'careerEntries.sport', 'careerEntries.position', 'achievements', 'athleteStatistics', 'fanProfile', 'professionalProfile', 'organisationProfile');
     }
 }

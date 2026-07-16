@@ -16,7 +16,7 @@ class AthleteProfileController extends Controller
     {
         $user = User::query()
             ->whereHas('profile', fn ($query) => $query->where('slug', $slug))
-            ->with(['profile', 'athleteProfile.sport', 'athleteProfile.taxonomyPosition', 'careerEntries', 'achievements', 'athleteStatistics'])
+            ->with(['profile', 'athleteProfile.sport', 'athleteProfile.taxonomyPosition', 'careerEntries.sport', 'careerEntries.position', 'achievements', 'athleteStatistics'])
             ->withCount(['followers', 'following', 'videos' => fn ($query) => $query->where('status', 'published')])
             ->firstOrFail();
 
@@ -72,7 +72,8 @@ class AthleteProfileController extends Controller
                 'is_following' => auth()->check() && auth()->user()->following()->whereKey($user->id)->exists(),
                 'is_saved' => auth()->check() && auth()->user()->savedProfiles()->whereKey($user->id)->exists(),
                 'career_history' => $user->careerEntries->sortByDesc('started_on')->values()->map(fn ($entry) => [
-                    'team_name' => $entry->team_name, 'role' => $entry->role, 'level' => $entry->level,
+                    'team_name' => $entry->team_name, 'sport' => $entry->sport?->name,
+                    'role' => $entry->position?->name ?? $entry->role, 'level' => $entry->level,
                     'started_on' => $entry->started_on?->toDateString(), 'ended_on' => $entry->ended_on?->toDateString(),
                     'is_current' => $entry->is_current, 'description' => $entry->description,
                 ]),

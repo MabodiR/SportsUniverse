@@ -2,7 +2,16 @@
   "cli": { "version": ">= 16.0.0" },
   "build": {
     "development": { "developmentClient": true, "distribution": "internal" },
-    "preview": { "distribution": "internal" },
+    "preview": {
+      "distribution": "internal",
+      "android": { "buildType": "apk" },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://sportsuniverse.co.za/api/v1",
+        "EXPO_PUBLIC_REVERB_HOST": "sportsuniverse.co.za",
+        "EXPO_PUBLIC_REVERB_PORT": "443",
+        "EXPO_PUBLIC_REVERB_SCHEME": "https"
+      }
+    },
     "production": { "autoIncrement": true }
   },
   "submit": { "production": {} }

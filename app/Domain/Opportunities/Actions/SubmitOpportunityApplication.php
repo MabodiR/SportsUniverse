@@ -29,11 +29,34 @@ class SubmitOpportunityApplication
             }
         }
 
-return DB::transaction(function () use ($user, $opportunity, $data, $media) {
+        $documentRequirements = collect($opportunity->required_documents ?? [])->keyBy('key');
+        $submittedDocuments = collect($data['documents'] ?? [])->keyBy('requirement_key');
+        $missing = $documentRequirements->filter(fn (array $requirement) => ($requirement['required'] ?? false) && ! $submittedDocuments->has($requirement['key']))->pluck('label')->values();
+        if ($missing->isNotEmpty()) {
+            throw ValidationException::withMessages(['documents' => ['Select the required Library documents: '.$missing->join(', ').'.']]);
+        }
+
+        $documents = collect();
+        foreach ($submittedDocuments as $key => $document) {
+            $requirement = $documentRequirements->get($key);
+            if (! $requirement) {
+                throw ValidationException::withMessages(['documents' => ['An unknown document requirement was submitted.']]);
+            }
+            $ownedMedia = Media::where('public_id', $document['media_id'])->where('user_id', $user->id)->where('processing_status', 'ready')->where('moderation_status', 'approved')->first();
+            if (! $ownedMedia || ($requirement['collection'] ?? null) !== $ownedMedia->collection) {
+                throw ValidationException::withMessages(['documents' => ["Choose an approved {$requirement['label']} from your Library."]]);
+            }
+            $documents->put($key, $ownedMedia);
+        }
+
+return DB::transaction(function () use ($user, $opportunity, $data, $media, $documents) {
             $locked = Opportunity::lockForUpdate()->findOrFail($opportunity->id);
             if ($locked->status !== 'published' || ($locked->deadline && $locked->deadline->isPast())) {
                 throw ValidationException::withMessages(['opportunity' => ['This opportunity is no longer accepting applications.']]);
             }$application = $locked->applications()->create(['public_id' => (string) Str::ulid(), 'user_id' => $user->id, 'resume_media_id' => $media?->id, 'cover_letter' => $data['cover_letter'] ?? null, 'status' => 'submitted']);
+            if ($documents->isNotEmpty()) {
+                $application->documents()->attach($documents->mapWithKeys(fn (Media $document, string $key) => [$document->id => ['requirement_key' => $key]])->all());
+            }
             $application->statusHistory()->create(['changed_by_id' => $user->id, 'status' => 'submitted']);
             $locked->increment('applications_count');
 

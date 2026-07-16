@@ -165,10 +165,12 @@ class VideoController extends Controller
         }$ids = $videos->pluck('id');
         $liked = $user->id ? \DB::table('video_likes')->where('user_id', $user->id)->whereIn('video_id', $ids)->pluck('video_id')->flip() : collect();
         $saved = \DB::table('saved_videos')->where('user_id', $user->id)->whereIn('video_id', $ids)->pluck('video_id')->flip();
+        $reposted = \DB::table('video_shares')->where('user_id', $user->id)->where('channel', 'repost')->whereIn('video_id', $ids)->pluck('video_id')->flip();
         $following = $user->following()->pluck('users.id')->flip();
         foreach ($videos as $video) {
             $video->liked_by_viewer_exists = $liked->has($video->id);
             $video->saved_by_viewer_exists = $saved->has($video->id);
+            $video->reposted_by_viewer_exists = $reposted->has($video->id);
             $video->creator_followed_by_viewer_exists = $following->has($video->user_id);
         }
     }

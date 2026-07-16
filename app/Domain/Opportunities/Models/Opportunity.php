@@ -26,7 +26,7 @@ class Opportunity extends Model
 
     protected function casts(): array
     {
-        return ['requirements' => 'array', 'is_remote' => 'boolean', 'published_at' => 'datetime', 'deadline' => 'datetime'];
+        return ['requirements' => 'array', 'required_documents' => 'array', 'is_remote' => 'boolean', 'published_at' => 'datetime', 'deadline' => 'datetime'];
     }
 
     public function getRouteKeyName(): string

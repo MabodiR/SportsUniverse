@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Web;
 
 use App\Domain\Feed\Models\Video;
+use App\Domain\Opportunities\Models\Opportunity;
+use App\Domain\Opportunities\Models\OpportunityApplication;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -25,6 +27,39 @@ class ModulePageController extends Controller
 
         if ($key === 'upload') {
             return Inertia::render('Upload/Index');
+        }
+
+        if ($key === 'dashboard') {
+            $user = $request->user()->load(['roles', 'profile', 'athleteProfile.sport', 'careerEntries.sport', 'careerEntries.position']);
+            $isAthlete = $user->hasRole('athlete');
+            $recentPosts = $user->videos()->latest()->limit(3)->get(['id', 'public_id', 'caption', 'status', 'created_at']);
+            $recentCareer = $user->careerEntries()->with(['sport:id,name', 'position:id,name'])->latest()->limit(3)->get();
+            $applications = OpportunityApplication::query()->where('user_id', $user->id)->count();
+            $openOpportunities = Opportunity::query()->where('status', 'published')->where(fn ($query) => $query->whereNull('deadline')->orWhere('deadline', '>=', now()))->count();
+
+            return Inertia::render('Dashboard/Index', ['dashboard' => [
+                'user' => ['name' => $user->name, 'role' => $user->roles->first()?->name ?? 'member', 'sport' => $user->athleteProfile?->sport?->name],
+                'metrics' => [
+                    'profile_completion' => (int) ($user->profile?->completeness ?? 0),
+                    'profile_views' => (int) ($user->profile?->views_count ?? 0),
+                    'followers' => $user->followers()->count(),
+                    'posts' => $user->videos()->count(),
+                    'applications' => $applications,
+                    'unread_notifications' => $user->unreadNotifications()->count(),
+                ],
+                'open_opportunities' => $openOpportunities,
+                'activities' => $recentPosts->map(fn ($post) => ['type' => 'post', 'title' => $post->caption ?: 'SportUniverse post', 'meta' => ucfirst($post->status).' · '.$post->created_at->diffForHumans(), 'href' => '/feed'])->concat($recentCareer->map(fn ($entry) => ['type' => 'career', 'title' => $entry->team_name, 'meta' => collect([$entry->sport?->name, $entry->position?->name ?? $entry->role, $entry->level])->filter()->join(' · '), 'href' => '/profile']))->take(6)->values(),
+                'actions' => $isAthlete ? [
+                    ['title' => 'Complete your profile', 'description' => 'Improve how scouts and clubs discover you.', 'href' => '/profile/edit', 'kind' => 'profile'],
+                    ['title' => 'Add career history', 'description' => 'Keep your teams, level and playing position current.', 'href' => '/profile', 'kind' => 'career'],
+                    ['title' => 'Upload a highlight', 'description' => 'Show your latest performance to the community.', 'href' => '/upload', 'kind' => 'upload'],
+                    ['title' => 'Find opportunities', 'description' => $openOpportunities.' open opportunities available.', 'href' => '/opportunities', 'kind' => 'opportunity'],
+                ] : [
+                    ['title' => 'Complete your profile', 'description' => 'Help the community understand who you are.', 'href' => '/profile/edit', 'kind' => 'profile'],
+                    ['title' => 'Discover talent', 'description' => 'Search athletes across sports and locations.', 'href' => '/explore', 'kind' => 'career'],
+                    ['title' => 'Review opportunities', 'description' => $openOpportunities.' open opportunities available.', 'href' => '/opportunities', 'kind' => 'opportunity'],
+                ],
+            ]]);
         }
 
         if ($key === 'sponsorship') {

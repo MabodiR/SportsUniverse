@@ -18,7 +18,7 @@ class DatabaseSeeder extends Seeder
     {
         // User::factory(10)->create();
 
-        foreach (['athlete', 'fan', 'coach', 'referee', 'linesman', 'scout', 'agent', 'club', 'academy', 'business', 'sponsor', 'admin'] as $role) {
+        foreach (['athlete', 'fan', 'coach', 'referee', 'linesman', 'scout', 'agent', 'club', 'academy', 'business', 'sponsor', 'admin', 'system_admin', 'super_admin'] as $role) {
             Role::findOrCreate($role, 'web');
         }
         $this->call(SportSeeder::class);

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\Auth\SessionController;
 use App\Http\Controllers\Api\V1\Feed\EngagementController;
+use App\Http\Controllers\Api\V1\Feed\FeedPreferenceController;
 use App\Http\Controllers\Api\V1\Feed\VideoController;
 use App\Http\Controllers\Api\V1\Media\MediaController;
 use App\Http\Controllers\Api\V1\Messaging\MessageController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\Web\MessagingContextController;
 use App\Http\Controllers\Web\ModulePageController;
 use App\Http\Controllers\Web\VideoStreamController;
 use App\Http\Controllers\Web\WebAuthController;
+use App\Domain\Opportunities\Models\Opportunity;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
@@ -34,6 +36,8 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::get('/', fn () => redirect('/feed'));
+Route::get('/about', fn () => Inertia::render('Public/About'))->name('about');
+Route::get('/privacy-policy', fn () => Inertia::render('Public/PrivacyPolicy'))->name('privacy-policy');
 Route::get('/mobile-app', fn () => Inertia::render('MobileApp/Download', [
     'downloads' => [
         'ios' => config('services.mobile_app.ios_url'),
@@ -71,6 +75,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/posts/{video}/like', [EngagementController::class, 'like'])->name('web.posts.like');
     Route::post('/posts/{video}/save', [EngagementController::class, 'save'])->name('web.posts.save');
     Route::post('/posts/{video}/share', [EngagementController::class, 'share'])->name('web.posts.share');
+    Route::post('/posts/{video}/not-interested', [FeedPreferenceController::class, 'store'])->name('web.posts.not-interested');
     Route::post('/posts/{video}/comments', [EngagementController::class, 'comment'])->name('web.posts.comment');
     Route::post('/comments/{comment}/like', [EngagementController::class, 'likeComment'])->name('web.comments.like');
     Route::post('/athlete-message-requests', [MessageRequestController::class, 'store'])->name('web.message-requests.store');
@@ -122,6 +127,7 @@ Route::middleware('auth')->group(function () {
     foreach ($pages as $uri => $module) {
         Route::get($uri, ModulePageController::class)->defaults('module', $module)->name("workspace.$module");
     }
+    Route::get('/opportunities/{opportunity}', fn (Opportunity $opportunity) => Inertia::render('Opportunities/Show', ['opportunityId' => $opportunity->public_id]))->name('opportunities.show');
     Route::get('/live/{stream}', ModulePageController::class)->defaults('module', 'live')->name('live.show');
 });
 Route::get('/posts/{video}/comments', [VideoController::class, 'comments'])->name('web.posts.comments');

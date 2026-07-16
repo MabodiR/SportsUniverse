@@ -132,6 +132,41 @@ class FeedModuleTest extends TestCase
         $this->actingAs($viewer, 'sanctum')->getJson('/api/v1/feed/saved')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $saved->public_id)->assertJsonPath('data.0.viewer.saved', true);
     }
 
+    public function test_repost_is_an_idempotent_toggle_and_appears_on_profile(): void
+    {
+        $viewer = User::factory()->create();
+        $video = Video::factory()->create(['shares_count' => 0]);
+
+        $this->actingAs($viewer, 'sanctum')->postJson('/api/v1/videos/'.$video->public_id.'/share', ['channel' => 'repost'])
+            ->assertOk()->assertJsonPath('data.reposted', true)->assertJsonPath('data.shares_count', 1);
+        $this->getJson('/api/v1/videos/mine/reposts')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $video->public_id)->assertJsonPath('data.0.viewer.reposted', true);
+
+        $this->postJson('/api/v1/videos/'.$video->public_id.'/share', ['channel' => 'repost'])
+            ->assertOk()->assertJsonPath('data.reposted', false)->assertJsonPath('data.shares_count', 0);
+        $this->getJson('/api/v1/videos/mine/reposts')->assertOk()->assertJsonCount(0, 'data');
+        $this->assertDatabaseMissing('video_shares', ['video_id' => $video->id, 'user_id' => $viewer->id, 'channel' => 'repost']);
+    }
+
+    public function test_not_interested_preference_is_recorded_and_filters_future_feeds(): void
+    {
+        $viewer = User::factory()->create();
+        $creator = User::factory()->create();
+        $hidden = Video::factory()->for($creator)->create();
+        $alsoHidden = Video::factory()->for($creator)->create();
+        $visible = Video::factory()->create();
+
+        $this->actingAs($viewer, 'sanctum')->postJson('/api/v1/videos/'.$hidden->public_id.'/not-interested', [
+            'scope' => 'creator', 'reason' => 'irrelevant', 'details' => 'Not relevant to my feed.',
+        ])->assertCreated()->assertJsonPath('data.scope', 'creator');
+
+        $this->assertDatabaseHas('feed_preferences', ['user_id' => $viewer->id, 'video_id' => $hidden->id, 'creator_id' => $creator->id, 'scope' => 'creator', 'reason' => 'irrelevant']);
+        $response = $this->getJson('/api/v1/feed/for-you')->assertOk();
+        $ids = collect($response->json('data'))->pluck('id');
+        $this->assertFalse($ids->contains($hidden->public_id));
+        $this->assertFalse($ids->contains($alsoHidden->public_id));
+        $this->assertTrue($ids->contains($visible->public_id));
+    }
+
     public function test_view_is_counted_once_per_user_per_day(): void
     {
         $viewer = User::factory()->create();

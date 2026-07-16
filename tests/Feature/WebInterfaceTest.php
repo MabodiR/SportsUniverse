@@ -27,6 +27,12 @@ class WebInterfaceTest extends TestCase
         $this->get('/register')->assertOk()->assertInertia(fn (Assert $page) => $page->component('Auth/Register'));
     }
 
+    public function test_guest_can_open_about_and_privacy_policy_pages(): void
+    {
+        $this->get('/about')->assertOk()->assertInertia(fn (Assert $page) => $page->component('Public/About'));
+        $this->get('/privacy-policy')->assertOk()->assertInertia(fn (Assert $page) => $page->component('Public/PrivacyPolicy'));
+    }
+
     public function test_guest_can_render_a_limited_public_feed(): void
     {
         $this->get('/feed')->assertOk()->assertInertia(fn (Assert $page) => $page

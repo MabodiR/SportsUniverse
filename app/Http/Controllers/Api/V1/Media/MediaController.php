@@ -70,7 +70,8 @@ return MediaResource::collection($query->paginate(min($request->integer('per_pag
         $used = DB::table('videos')->where('media_id', $media->id)->exists()
             || DB::table('video_images')->where('media_id', $media->id)->exists()
             || DB::table('messages')->where('media_id', $media->id)->exists()
-            || DB::table('opportunity_applications')->where('resume_media_id', $media->id)->exists();
+            || DB::table('opportunity_applications')->where('resume_media_id', $media->id)->exists()
+            || DB::table('opportunity_application_documents')->where('media_id', $media->id)->exists();
         abort_if($used, 409, 'This file is currently attached to a post, message, or application and cannot be deleted.');
         Storage::disk($media->disk)->delete(array_filter([$media->path, $media->thumbnail_path]));
         $media->delete();

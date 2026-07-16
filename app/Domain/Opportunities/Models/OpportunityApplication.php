@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class OpportunityApplication extends Model
@@ -45,6 +46,13 @@ class OpportunityApplication extends Model
     public function resume(): BelongsTo
     {
         return $this->belongsTo(Media::class, 'resume_media_id');
+    }
+
+    public function documents(): BelongsToMany
+    {
+        return $this->belongsToMany(Media::class, 'opportunity_application_documents')
+            ->withPivot('requirement_key')
+            ->withTimestamps();
     }
 
     public function statusHistory(): HasMany

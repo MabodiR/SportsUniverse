@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api\V1\Profiles;
 
+use App\Domain\Sports\Models\Position;
 use App\Http\Controllers\Controller;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class AthleteCareerController extends Controller
 {
@@ -15,7 +17,7 @@ class AthleteCareerController extends Controller
         $user = $request->user();
 
         return response()->json(['data' => [
-            'history' => $user->careerEntries()->orderByDesc('is_current')->orderByDesc('started_on')->get(),
+            'history' => $user->careerEntries()->with(['sport:id,name', 'position:id,name,sport_id'])->orderByDesc('is_current')->orderByDesc('started_on')->get(),
             'achievements' => $user->achievements()->latest('achieved_on')->get(),
             'statistics' => $user->athleteStatistics()->orderByDesc('season')->orderBy('name')->get(),
         ]]);
@@ -26,16 +28,18 @@ class AthleteCareerController extends Controller
         $this->ensureAthlete($request);
         $data = $request->validate([
             'team_name' => ['required', 'string', 'max:160'],
-            'role' => ['nullable', 'string', 'max:100'],
+            'sport_id' => ['required', Rule::exists('sports', 'id')->where('is_active', true)],
+            'position_id' => ['nullable', Rule::exists('positions', 'id')->where(fn ($query) => $query->where('sport_id', $request->integer('sport_id'))->where('is_active', true))],
             'level' => ['nullable', 'string', 'max:100'],
             'started_on' => ['nullable', 'date'],
             'ended_on' => ['nullable', 'date', 'after_or_equal:started_on'],
             'is_current' => ['required', 'boolean'],
             'description' => ['nullable', 'string', 'max:2000'],
         ]);
+        $data['role'] = isset($data['position_id']) ? Position::find($data['position_id'])?->name : null;
         if ($data['is_current']) $data['ended_on'] = null;
 
-        return $this->created($request->user()->careerEntries()->create($data), 'Career entry added.');
+        return $this->created($request->user()->careerEntries()->create($data)->load(['sport:id,name', 'position:id,name,sport_id']), 'Career entry added.');
     }
 
     public function storeAchievement(Request $request): JsonResponse

@@ -13,6 +13,6 @@ class ApplyOpportunityRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['cover_letter' => ['nullable', 'string', 'max:5000'], 'resume_media_id' => ['nullable', 'string', 'exists:media,public_id']];
+        return ['cover_letter' => ['nullable', 'string', 'max:5000'], 'resume_media_id' => ['nullable', 'string', 'exists:media,public_id'], 'documents' => ['nullable', 'array', 'max:12'], 'documents.*.requirement_key' => ['required', 'string', 'max:80', 'distinct'], 'documents.*.media_id' => ['required', 'string', 'exists:media,public_id']];
     }
 }

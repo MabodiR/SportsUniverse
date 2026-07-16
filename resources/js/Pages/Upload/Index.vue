@@ -37,6 +37,24 @@ const responsePayload = async (response: Response) => {
     throw new Error(response.status === 413 ? 'This video is larger than the server upload limit.' : `The server could not complete the upload (${response.status}). ${body ? 'Please try again.' : ''}`.trim());
 };
 const fileSize = computed(() => file.value ? `${(file.value.size / 1024 / 1024).toFixed(1)} MB` : '');
+const selectedSport = computed(() => sports.value.find(sport => String(sport.id) === String(sportId.value))?.name ?? 'Sport');
+const sportUploadSymbol = computed(() => {
+    const name = selectedSport.value.toLowerCase();
+    if (name.includes('football') || name.includes('soccer')) return '⚽';
+    if (name.includes('cricket')) return '🏏';
+    if (name.includes('rugby')) return '🏉';
+    if (name.includes('basketball')) return '🏀';
+    if (name.includes('tennis')) return '🎾';
+    if (name.includes('volleyball')) return '🏐';
+    if (name.includes('baseball') || name.includes('softball')) return '⚾';
+    if (name.includes('hockey')) return '🏑';
+    if (name.includes('golf')) return '⛳';
+    if (name.includes('boxing')) return '🥊';
+    if (name.includes('swimming')) return '🏊';
+    if (name.includes('cycling')) return '🚴';
+    if (name.includes('running') || name.includes('athletics')) return '🏃';
+    return '🏅';
+});
 const select = (selected?: File, persist = true) => {
     if (!selected) return;
     if (!['video/mp4', 'video/quicktime', 'video/webm'].includes(selected.type)) { error.value = 'Choose an MP4, MOV, or WebM video.'; return; }
@@ -62,7 +80,12 @@ const uploadMedia = async (uploadFile: File, kind: 'video' | 'image', index: num
         const xhr = new XMLHttpRequest(); xhr.open('POST', '/api/v1/media'); xhr.responseType = 'json'; xhr.setRequestHeader('Accept', 'application/json'); xhr.setRequestHeader('X-CSRF-TOKEN', csrf());
         xhr.upload.onprogress = event => { if (event.lengthComputable) progress.value = Math.round(((index + event.loaded / event.total * .7) / total) * 100); };
         xhr.onerror = () => reject(new Error('Network error during upload.'));
-        xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve(xhr.response.data) : reject(new Error(xhr.response?.message ?? 'Upload failed.'));
+        xhr.ontimeout = () => reject(new Error('The upload timed out. Your draft is safe; please retry.'));
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) return resolve(xhr.response.data);
+            if (xhr.status === 413) return reject(new Error('This video is larger than the PHP upload limit. Restart the local app with composer run dev to enable uploads up to 512 MB.'));
+            reject(new Error(xhr.response?.message ?? `Upload failed (${xhr.status}).`));
+        };
         xhr.send(form);
     });
     let processed = processedUpload;
@@ -126,6 +149,10 @@ onUnmounted(() => { if (preview.value) URL.revokeObjectURL(preview.value); image
                     <label><span class="upload-label">Who can watch this video</span><select v-model="visibility"><option>Everyone</option><option>Followers</option><option>Only me</option></select></label>
                     <div><span class="upload-label">Allow users to</span><label class="upload-check"><input v-model="comments" type="checkbox" /> Comments</label></div>
                     <div class="upload-note"><Info :size="17" /><p>Your video will be reviewed and processed after upload. Keep this page open until the upload completes.</p></div>
+                    <div v-if="saving" class="sport-upload-status" role="status" aria-live="polite">
+                        <span class="sport-upload-spinner" aria-hidden="true">{{ sportUploadSymbol }}</span>
+                        <div><strong>{{ selectedSport }} upload in progress</strong><small>{{ progress < 75 ? 'Uploading your media…' : progress < 100 ? 'Processing your post…' : 'Finishing up…' }}</small></div>
+                    </div>
                     <div v-if="saving" class="upload-progress"><span :style="{ width: progress + '%' }" /><strong>{{ progress }}%</strong></div>
                     <p v-if="error" class="upload-feedback error">{{ error }}</p><p v-if="notice" class="upload-feedback success"><CheckCircle2 :size="16" />{{ notice }}</p>
                     <div class="upload-actions"><button type="button" class="discard" @click="discard">Discard</button><button class="post" :disabled="saving || (!file && !images.length)">{{ saving ? 'Uploading…' : 'Post' }}</button></div>
@@ -134,3 +161,11 @@ onUnmounted(() => { if (preview.value) URL.revokeObjectURL(preview.value); image
         </main>
     </AppShell>
 </template>
+
+<style scoped>
+.sport-upload-status { display: flex; align-items: center; gap: .85rem; padding: .8rem 1rem; color: #172033; border: 1px solid #e2e8f1; border-radius: 13px; background: #f7f9fc; }
+.sport-upload-spinner { display: grid; flex: 0 0 42px; width: 42px; height: 42px; place-items: center; border-radius: 50%; background: #fff; box-shadow: 0 5px 14px rgba(30,46,72,.12); font-size: 1.65rem; animation: sport-ball-spin .9s linear infinite; }
+.sport-upload-status div { display: grid; gap: .15rem; }.sport-upload-status strong { font-size: .75rem; }.sport-upload-status small { color: #718096; font-size: .65rem; }
+@keyframes sport-ball-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .sport-upload-spinner { animation: sport-ball-pulse 1.2s ease-in-out infinite; } @keyframes sport-ball-pulse { 50% { transform: scale(.9); opacity: .7; } } }
+</style>

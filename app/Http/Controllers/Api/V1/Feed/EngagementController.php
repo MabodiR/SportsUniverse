@@ -66,12 +66,24 @@ class EngagementController extends Controller
     {
         Gate::authorize('view', $video);
         $channel = $request->validate(['channel' => ['nullable', 'string', 'in:copy_link,whatsapp,facebook,x,email,repost,other']])['channel'] ?? 'copy_link';
-        DB::transaction(function () use ($request, $video, $channel) {
+        $reposted = null;
+        DB::transaction(function () use ($request, $video, $channel, &$reposted) {
+            $lockedVideo = Video::whereKey($video->id)->lockForUpdate()->firstOrFail();
+            if ($channel === 'repost') {
+                $existing = DB::table('video_shares')->where(['video_id' => $video->id, 'user_id' => $request->user()->id, 'channel' => 'repost'])->lockForUpdate()->first();
+                if ($existing) {
+                    DB::table('video_shares')->where('id', $existing->id)->delete();
+                    $lockedVideo->update(['shares_count' => max(0, $lockedVideo->shares_count - 1)]);
+                    $reposted = false;
+                    return;
+                }
+                $reposted = true;
+            }
             DB::table('video_shares')->insert(['video_id' => $video->id, 'user_id' => $request->user()->id, 'channel' => $channel, 'created_at' => now(), 'updated_at' => now()]);
-            $video->increment('shares_count');
+            $lockedVideo->increment('shares_count');
         });
 
-        return response()->json(['data' => ['shares_count' => $video->fresh()->shares_count]]);
+        return response()->json(['data' => ['shares_count' => $video->fresh()->shares_count, 'reposted' => $reposted]]);
     }
 
     public function view(RecordViewRequest $request, Video $video): JsonResponse
