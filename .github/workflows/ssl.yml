@@ -1,0 +1,74 @@
+name: Configure Production SSL
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/ssl.yml"
+      - "deploy/nginx.conf"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-ssl
+  cancel-in-progress: false
+
+jobs:
+  ssl:
+    runs-on: [self-hosted, Linux, X64]
+    environment: production
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Certbot
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y certbot python3-certbot-nginx
+
+      - name: Install base Nginx configuration
+        run: |
+          sudo install -m 644 deploy/nginx.conf /etc/nginx/sites-available/sportuniverse
+          sudo ln -sfn /etc/nginx/sites-available/sportuniverse /etc/nginx/sites-enabled/sportuniverse
+          sudo nginx -t
+          sudo systemctl reload nginx
+
+      - name: Issue and install TLS certificate
+        run: |
+          sudo certbot --nginx \
+            --non-interactive \
+            --agree-tos \
+            --register-unsafely-without-email \
+            --redirect \
+            --keep-until-expiring \
+            --domain sportsuniverse.co.za \
+            --domain www.sportsuniverse.co.za
+          sudo nginx -t
+          sudo systemctl reload nginx
+
+      - name: Configure Laravel HTTPS URL
+        run: |
+          cd /var/www/sportuniverse
+          sudo sed -i 's|^APP_URL=.*|APP_URL=https://sportsuniverse.co.za|' .env
+          if grep -q '^SESSION_SECURE_COOKIE=' .env; then
+            sudo sed -i 's|^SESSION_SECURE_COOKIE=.*|SESSION_SECURE_COOKIE=true|' .env
+          else
+            echo 'SESSION_SECURE_COOKIE=true' | sudo tee -a .env > /dev/null
+          fi
+          sudo -u www-data php artisan optimize:clear
+          sudo -u www-data php artisan optimize
+
+      - name: Enable certificate renewal
+        run: |
+          sudo systemctl enable --now certbot.timer
+          sudo certbot renew --dry-run
+
+      - name: Verify HTTPS
+        run: |
+          curl --fail --silent --show-error https://sportsuniverse.co.za/up > /dev/null
+          curl --fail --silent --show-error https://www.sportsuniverse.co.za/up > /dev/null
