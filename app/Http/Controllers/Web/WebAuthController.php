@@ -19,6 +19,7 @@ use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Inertia\Response;
 use Laravel\Socialite\Facades\Socialite;
+use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpFoundation\RedirectResponse as SymfonyRedirectResponse;
 use Throwable;
 
@@ -161,6 +162,7 @@ class WebAuthController extends Controller
         $user = DB::transaction(function () use ($data) {
             $user = User::create(collect($data)->only(['name','email','phone','password'])->all());
             $user->profile()->create(['completeness' => 35, 'bio' => $data['bio'] ?? null, 'date_of_birth' => $data['date_of_birth'] ?? null, 'country' => 'ZA', 'province' => $data['province'] ?? null, 'city' => $data['city'] ?? null, 'locality' => $data['locality'] ?? null]);
+            Role::findOrCreate($data['role'], 'web');
             $user->assignRole($data['role']);
             if ($data['role'] === 'fan') $user->fanProfile()->create(['interested_sports' => $data['interested_sports'] ?? []]);
             if ($data['role'] === 'athlete') $user->athleteProfile()->create(['sport_id' => $data['sport_id'] ?? null, 'position_id' => $data['position_id'] ?? null, 'club_name' => $data['club_name'] ?? null, 'playing_level' => $data['playing_level'] ?? null]);
@@ -170,7 +172,11 @@ class WebAuthController extends Controller
             return $user;
         });
         $slugs->execute($user->load('profile'));
-        $user->sendEmailVerificationNotification();
+        try {
+            $user->sendEmailVerificationNotification();
+        } catch (Throwable $exception) {
+            report($exception);
+        }
         Auth::login($user);
         $request->session()->regenerate();
 
