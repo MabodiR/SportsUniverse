@@ -58,6 +58,11 @@ jobs:
       - name: Prepare Laravel runtime
         run: |
           cd /var/www/sportuniverse
+          if grep -q '^DB_CONNECTION=' .env; then
+            sudo sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=pgsql/' .env
+          else
+            echo 'DB_CONNECTION=pgsql' | sudo tee -a .env > /dev/null
+          fi
           sudo chown -R www-data:www-data storage bootstrap/cache
           sudo -u www-data php artisan optimize:clear
 
