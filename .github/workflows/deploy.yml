@@ -95,6 +95,9 @@ jobs:
         run: |
           cd /var/www/sportuniverse
           sudo -u www-data php artisan migrate --force
+          sudo -u www-data php artisan db:seed --class=Database\\Seeders\\SportSeeder --force
+          sudo -u www-data php artisan db:seed --class=Database\\Seeders\\FeedDemoSeeder --force
+          sudo -u www-data php artisan db:seed --class=Database\\Seeders\\SouthAfricaScaleSeeder --force
           sudo -u www-data php artisan storage:link || true
           sudo -u www-data php artisan optimize
 
