@@ -58,13 +58,30 @@ jobs:
       - name: Prepare Laravel runtime
         run: |
           cd /var/www/sportuniverse
-          if grep -q '^DB_CONNECTION=' .env; then
-            sudo sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=pgsql/' .env
-          else
-            echo 'DB_CONNECTION=pgsql' | sudo tee -a .env > /dev/null
-          fi
+          set_env() {
+            key="$1"
+            value="$2"
+            if grep -q "^${key}=" .env; then
+              sudo sed -i "s|^${key}=.*|${key}=${value}|" .env
+            else
+              echo "${key}=${value}" | sudo tee -a .env > /dev/null
+            fi
+          }
+          set_env DB_CONNECTION pgsql
+          set_env DB_HOST /var/run/postgresql
+          set_env DB_PORT 5432
+          set_env DB_DATABASE sportuniverse
+          set_env DB_USERNAME www-data
+          set_env DB_PASSWORD ''
           sudo chown -R www-data:www-data storage bootstrap/cache
           sudo -u www-data php artisan optimize:clear
+
+      - name: Prepare production PostgreSQL
+        run: |
+          sudo systemctl start postgresql
+          sudo -u postgres createuser www-data 2>/dev/null || true
+          sudo -u postgres createdb --owner=www-data sportuniverse 2>/dev/null || true
+          sudo -u postgres psql --set ON_ERROR_STOP=1 --command 'ALTER DATABASE sportuniverse OWNER TO "www-data";'
 
       - name: Run production migrations
         run: |
