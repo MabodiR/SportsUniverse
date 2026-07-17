@@ -78,7 +78,15 @@ jobs:
 
       - name: Prepare production PostgreSQL
         run: |
-          sudo systemctl start postgresql
+          if ! command -v psql > /dev/null; then
+            sudo apt-get update
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y postgresql
+          fi
+          if ! php -m | grep -qi '^pdo_pgsql$'; then
+            sudo apt-get update
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y php8.5-pgsql
+          fi
+          sudo systemctl enable --now postgresql
           sudo -u postgres createuser www-data 2>/dev/null || true
           sudo -u postgres createdb --owner=www-data sportuniverse 2>/dev/null || true
           sudo -u postgres psql --set ON_ERROR_STOP=1 --command 'ALTER DATABASE sportuniverse OWNER TO "www-data";'
