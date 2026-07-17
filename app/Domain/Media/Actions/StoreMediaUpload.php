@@ -12,7 +12,7 @@ use Throwable;
 
 class StoreMediaUpload
 {
-    public function execute(User $user, UploadedFile $file, string $kind, string $collection = 'uploads'): Media
+    public function execute(User $user, UploadedFile $file, string $kind, string $collection = 'uploads', array $metadata = []): Media
     {
         $disk = (string) config('media.disk');
         $publicId = (string) Str::ulid();
@@ -22,7 +22,7 @@ class StoreMediaUpload
             $stored = Storage::disk($disk)->putFileAs(dirname($path), $file, basename($path), ['visibility' => 'private']);
             if (! $stored) {
                 throw new \RuntimeException('The upload could not be stored.');
-            }$media = Media::create(['public_id' => $publicId, 'user_id' => $user->id, 'kind' => $kind, 'collection' => $collection, 'disk' => $disk, 'path' => $path, 'original_name' => $file->getClientOriginalName(), 'mime_type' => $file->getMimeType() ?: 'application/octet-stream', 'size_bytes' => $file->getSize(), 'processing_status' => 'pending', 'moderation_status' => config('media.requires_moderation') ? 'pending' : 'approved']);
+            }$media = Media::create(['public_id' => $publicId, 'user_id' => $user->id, 'kind' => $kind, 'collection' => $collection, 'disk' => $disk, 'path' => $path, 'original_name' => $file->getClientOriginalName(), 'mime_type' => $file->getMimeType() ?: 'application/octet-stream', 'size_bytes' => $file->getSize(), 'metadata' => $metadata ?: null, 'processing_status' => 'pending', 'moderation_status' => config('media.requires_moderation') ? 'pending' : 'approved']);
             ProcessMedia::dispatch($media)->afterCommit();
 
             return $media;

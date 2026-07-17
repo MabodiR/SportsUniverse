@@ -37,15 +37,29 @@ class MediaProcessor
     private function video(Media $media): array
     {
         $source = $this->localCopy($media);
+        $working = $source;
+        $trimmed = null;
         $thumb = tempnam(sys_get_temp_dir(), 'su-thumb-').'.jpg';
         $renditionFiles = [];
         try {
-            $probe = new Process([config('media.ffprobe_binary'), '-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', $source]);
+            $startMs = max(0, (int) ($media->metadata['trim_start_ms'] ?? 0));
+            $endMs = (int) ($media->metadata['trim_end_ms'] ?? 0);
+            if ($endMs > $startMs) {
+                $trimmed = tempnam(sys_get_temp_dir(), 'su-trim-').'.mp4';
+                $trim = new Process([config('media.ffmpeg_binary'), '-y', '-ss', number_format($startMs / 1000, 3, '.', ''), '-i', $source, '-t', number_format(min(60000, $endMs - $startMs) / 1000, 3, '.', ''), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', $trimmed]);
+                $trim->setTimeout(900);
+                $trim->mustRun();
+                $working = $trimmed;
+                $stream = fopen($trimmed, 'rb');
+                Storage::disk($media->disk)->put($media->path, $stream, ['visibility' => 'private']);
+                fclose($stream);
+            }
+            $probe = new Process([config('media.ffprobe_binary'), '-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', $working]);
             $probe->setTimeout(120);
             $probe->mustRun();
             $data = json_decode($probe->getOutput(), true, 512, JSON_THROW_ON_ERROR);
             $stream = collect($data['streams'] ?? [])->firstWhere('codec_type', 'video') ?? [];
-            $ffmpeg = new Process([config('media.ffmpeg_binary'), '-y', '-ss', '00:00:01', '-i', $source, '-frames:v', '1', '-vf', 'scale=720:-2', $thumb]);
+            $ffmpeg = new Process([config('media.ffmpeg_binary'), '-y', '-ss', '00:00:01', '-i', $working, '-frames:v', '1', '-vf', 'scale=720:-2', $thumb]);
             $ffmpeg->setTimeout(180);
             $ffmpeg->mustRun();
             $thumbPath = "users/{$media->user_id}/thumbnails/{$media->public_id}.jpg";
@@ -55,7 +69,7 @@ class MediaProcessor
                 if (($stream['width'] ?? 0) <= $width) continue;
                 $output = tempnam(sys_get_temp_dir(), "su-{$width}-").'.mp4';
                 $renditionFiles[] = $output;
-                $transcode = new Process([config('media.ffmpeg_binary'),'-y','-i',$source,'-vf',"scale={$width}:-2",'-c:v','libx264','-preset','veryfast','-crf','24','-c:a','aac','-b:a','128k','-movflags','+faststart',$output]);
+                $transcode = new Process([config('media.ffmpeg_binary'),'-y','-i',$working,'-vf',"scale={$width}:-2",'-c:v','libx264','-preset','veryfast','-crf','24','-c:a','aac','-b:a','128k','-movflags','+faststart',$output]);
                 $transcode->setTimeout(600);
                 $transcode->mustRun();
                 $path = "users/{$media->user_id}/renditions/{$media->public_id}-{$width}p.mp4";
@@ -63,9 +77,10 @@ class MediaProcessor
                 $renditions["{$width}p"] = ['path'=>$path,'width'=>$width,'size_bytes'=>filesize($output)];
             }
 
-            return ['thumbnail_path' => $thumbPath, 'duration_ms' => (int) round(((float) ($data['format']['duration'] ?? 0)) * 1000), 'width' => $stream['width'] ?? null, 'height' => $stream['height'] ?? null, 'metadata' => ['codec' => $stream['codec_name'] ?? null,'renditions'=>$renditions]];
+            return ['thumbnail_path' => $thumbPath, 'duration_ms' => (int) round(((float) ($data['format']['duration'] ?? 0)) * 1000), 'width' => $stream['width'] ?? null, 'height' => $stream['height'] ?? null, 'size_bytes' => $trimmed ? filesize($trimmed) : $media->size_bytes, 'metadata' => ['codec' => $stream['codec_name'] ?? null, 'trim_start_ms' => $startMs, 'trim_end_ms' => $endMs ?: null, 'renditions'=>$renditions]];
         } finally {
             @unlink($source);
+            if ($trimmed) @unlink($trimmed);
             @unlink($thumb);
             foreach ($renditionFiles as $file) @unlink($file);
         }

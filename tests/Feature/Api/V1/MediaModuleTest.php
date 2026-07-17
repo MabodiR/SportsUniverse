@@ -42,6 +42,35 @@ class MediaModuleTest extends TestCase
         Queue::assertNothingPushed();
     }
 
+    public function test_video_trim_selection_is_queued_with_the_upload(): void
+    {
+        $user = User::factory()->create();
+        $file = UploadedFile::fake()->create('match.mp4', 1024, 'video/mp4');
+
+        $this->actingAs($user, 'sanctum')->post('/api/v1/media', [
+            'kind' => 'video',
+            'collection' => 'highlights',
+            'trim_start_ms' => 90000,
+            'trim_end_ms' => 150000,
+            'file' => $file,
+        ], ['Accept' => 'application/json'])->assertAccepted();
+
+        $this->assertSame(['trim_start_ms' => 90000, 'trim_end_ms' => 150000], Media::firstOrFail()->metadata);
+        Queue::assertPushedOn('media', ProcessMedia::class);
+    }
+
+    public function test_video_trim_cannot_exceed_sixty_seconds(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user, 'sanctum')->post('/api/v1/media', [
+            'kind' => 'video',
+            'trim_start_ms' => 0,
+            'trim_end_ms' => 61000,
+            'file' => UploadedFile::fake()->create('match.mp4', 1024, 'video/mp4'),
+        ], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors('trim_end_ms');
+    }
+
     public function test_user_can_list_and_delete_own_media(): void
     {
         $user = User::factory()->create();

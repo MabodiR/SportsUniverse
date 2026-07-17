@@ -32,7 +32,10 @@ return MediaResource::collection($query->paginate(min($request->integer('per_pag
 
     public function store(StoreMediaRequest $request, StoreMediaUpload $store): JsonResponse
     {
-        $media = $store->execute($request->user(), $request->file('file'), $request->validated('kind'), $request->validated('collection', 'uploads'));
+        $media = $store->execute($request->user(), $request->file('file'), $request->validated('kind'), $request->validated('collection', 'uploads'), array_filter([
+            'trim_start_ms' => $request->validated('trim_start_ms'),
+            'trim_end_ms' => $request->validated('trim_end_ms'),
+        ], fn ($value) => $value !== null));
 
         return response()->json(['message' => 'Upload received and queued for processing.', 'data' => new MediaResource($media)], 202);
     }

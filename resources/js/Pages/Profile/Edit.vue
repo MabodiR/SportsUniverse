@@ -12,6 +12,9 @@ const profile = ref<any>();
 const sports = ref<any[]>([]);
 const photo = ref<File | null>(null);
 const preview = ref('');
+const cropZoom = ref(1);
+const cropX = ref(50);
+const cropY = ref(50);
 const saving = ref(false);
 const notice = ref('');
 const error = ref('');
@@ -72,6 +75,20 @@ const pick = (file?: File) => {
     if (!file) return;
     photo.value = file;
     preview.value = URL.createObjectURL(file);
+    cropZoom.value = 1; cropX.value = 50; cropY.value = 50;
+};
+
+const croppedPhoto = async () => {
+    if (!photo.value) return null;
+    const image = await createImageBitmap(photo.value);
+    const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 1024;
+    const context = canvas.getContext('2d')!;
+    const scale = Math.max(1024 / image.width, 1024 / image.height) * cropZoom.value;
+    const width = image.width * scale, height = image.height * scale;
+    const x = -(width - 1024) * cropX.value / 100, y = -(height - 1024) * cropY.value / 100;
+    context.drawImage(image, x, y, width, height); image.close();
+    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not crop the profile image.')), 'image/jpeg', .9));
+    return new File([blob], 'profile-cropped.jpg', { type: 'image/jpeg' });
 };
 
 const save = async () => {
@@ -81,7 +98,7 @@ const save = async () => {
     try {
         if (photo.value) {
             const body = new FormData();
-            body.append('photo', photo.value);
+            body.append('photo', (await croppedPhoto())!);
             profile.value.images.profile = (await api('/api/v1/profile/photo', { method: 'POST', body })).url;
         }
         await api('/api/v1/profile/role', { method: 'PATCH', body: JSON.stringify({ role: form.value.role }) });
@@ -158,10 +175,11 @@ onMounted(async () => {
             <form v-if="profile" @submit.prevent="save">
                 <aside>
                     <div class="edit-avatar">
-                        <img v-if="preview || profile.images?.profile" :src="preview || profile.images.profile" :alt="`${form.name} profile photo`" />
+                        <img v-if="preview || profile.images?.profile" :src="preview || profile.images.profile" :alt="`${form.name} profile photo`" :style="preview ? { transform: `scale(${cropZoom})`, objectPosition: `${cropX}% ${cropY}%` } : undefined" />
                         <span v-else>{{ form.name.slice(0, 2).toUpperCase() }}</span>
                         <label><Camera /><input hidden type="file" accept="image/jpeg,image/png,image/webp" @change="pick(($event.target as HTMLInputElement).files?.[0])" /></label>
                     </div>
+                    <div v-if="photo" class="profile-crop-controls"><strong>Crop profile photo</strong><label>Zoom<input v-model.number="cropZoom" type="range" min="1" max="3" step=".05" /></label><label>Horizontal position<input v-model.number="cropX" type="range" min="0" max="100" /></label><label>Vertical position<input v-model.number="cropY" type="range" min="0" max="100" /></label></div>
                     <h2>{{ form.name }}</h2>
                     <small>@{{ profile.slug }}</small>
                     <p>{{ profile.completeness }}% complete</p>
@@ -234,3 +252,7 @@ onMounted(async () => {
         </main>
     </AppShell>
 </template>
+
+<style scoped>
+.edit-avatar { overflow: hidden; }.edit-avatar img { width: 100%; height: 100%; object-fit: cover; transform-origin: center; }.profile-crop-controls { display: grid; gap: .55rem; width: 100%; margin-top: .8rem; padding: .8rem; border: 1px solid #dde5ef; border-radius: 12px; background: #f7f9fc; }.profile-crop-controls strong { font-size: .75rem; }.profile-crop-controls label { display: grid; gap: .2rem; color: #617087; font-size: .65rem; }.profile-crop-controls input { width: 100%; accent-color: #2563eb; }
+</style>
