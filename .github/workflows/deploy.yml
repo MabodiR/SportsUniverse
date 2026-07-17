@@ -104,7 +104,8 @@ jobs:
       - name: Seed production feed
         run: |
           cd /var/www/sportuniverse
-          sudo -u www-data php artisan db:seed --class=Database\\Seeders\\FeedDemoSeeder --force
+          set -o pipefail
+          sudo -u www-data php artisan db:seed --class=Database\\Seeders\\FeedDemoSeeder --force 2>&1 | sed 's/^/::error::/'
 
       - name: Seed production scale data
         run: |
