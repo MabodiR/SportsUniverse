@@ -11,6 +11,17 @@ class SessionController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        if ($currentToken = $request->user()->currentAccessToken()) {
+            return response()->json(['data' => $request->user()->tokens()->latest()->get()->map(fn ($token) => [
+                ...$this->tokenDevice((string) $token->name),
+                'id' => (string) $token->id,
+                'ip_address' => null,
+                'current' => (int) $currentToken->id === (int) $token->id,
+                'last_active_at' => ($token->last_used_at ?? $token->created_at)->toISOString(),
+                'active_now' => $token->last_used_at?->greaterThanOrEqualTo(now()->subMinutes(5)) ?? false,
+            ])->values()]);
+        }
+
         $current = $request->session()->getId();
         $sessions = collect();
         if (config('session.driver') === 'database') {
@@ -25,6 +36,13 @@ class SessionController extends Controller
 
     public function destroy(Request $request, string $session): JsonResponse
     {
+        if ($currentToken = $request->user()->currentAccessToken()) {
+            abort_if((int) $currentToken->id === (int) $session, 422, 'Use Sign out to end your current session.');
+            $request->user()->tokens()->whereKey($session)->delete();
+
+            return response()->json(['message' => 'Device signed out.']);
+        }
+
         abort_if(hash_equals($request->session()->getId(), $session), 422, 'Use Sign out to end your current session.');
         abort_unless(config('session.driver') === 'database', 409, 'Session revocation requires database sessions.');
         DB::table(config('session.table', 'sessions'))->where('id', $session)->where('user_id', $request->user()->id)->delete();
@@ -34,6 +52,12 @@ class SessionController extends Controller
 
     public function destroyOthers(Request $request): JsonResponse
     {
+        if ($currentToken = $request->user()->currentAccessToken()) {
+            $count = $request->user()->tokens()->whereKeyNot($currentToken->id)->delete();
+
+            return response()->json(['message' => "$count other session(s) signed out."]);
+        }
+
         abort_unless(config('session.driver') === 'database', 409, 'Session revocation requires database sessions.');
         $count = DB::table(config('session.table', 'sessions'))->where('user_id', $request->user()->id)->where('id', '!=', $request->session()->getId())->delete();
 
@@ -47,5 +71,12 @@ class SessionController extends Controller
         $type = preg_match('/Mobile|Android|iPhone/', $agent) ? 'mobile' : (str_contains($agent, 'iPad') ? 'tablet' : 'desktop');
 
         return compact('browser', 'platform', 'type');
+    }
+
+    private function tokenDevice(string $name): array
+    {
+        $platform = str_contains(strtolower($name), 'ios') ? 'iOS' : (str_contains(strtolower($name), 'android') ? 'Android' : 'Mobile app');
+
+        return ['browser' => 'SportUniverse', 'platform' => $platform, 'type' => 'mobile'];
     }
 }

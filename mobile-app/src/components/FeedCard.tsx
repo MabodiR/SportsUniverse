@@ -10,6 +10,7 @@ import { getAuthToken } from '../stores/auth';
 import { colors, radius } from '../theme';
 import type { Video } from '../types/api';
 import { absoluteMediaUrl } from '../utils/url';
+import { webUrl } from '../utils/share';
 
 const compact = (n: number) => Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(n || 0);
 
@@ -57,8 +58,7 @@ export function FeedCard({ video, height, onProtectedAction, index, active, auth
   };
   const share = async () => {
     if (!authenticated) return onProtectedAction();
-    const origin = (api.defaults.baseURL ?? '').replace(/\/api\/v1\/?$/, '');
-    const url = origin + '/feed#' + video.id;
+    const url = webUrl('/feed#' + video.id);
     const result = await Share.share({ message: (video.caption ?? 'SportUniverse highlight') + '\n' + url, url });
     if (result.action === Share.sharedAction) api.post('/videos/' + video.id + '/share', { channel: 'other' }).then(response => setCounts(current => ({ ...current, shares: response.data.data.shares_count }))).catch(() => undefined);
   };

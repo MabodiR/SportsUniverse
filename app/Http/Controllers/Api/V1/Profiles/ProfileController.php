@@ -8,12 +8,16 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Profiles\UpdateAthleteProfileRequest;
 use App\Http\Requests\Api\V1\Profiles\UpdateProfileRequest;
 use App\Http\Resources\Api\V1\Profiles\ProfileResource;
+use App\Http\Resources\Api\V1\Feed\VideoResource;
+use App\Http\Controllers\Api\V1\Feed\VideoController;
+use App\Domain\Feed\Models\Video;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class ProfileController extends Controller
 {
@@ -23,6 +27,20 @@ class ProfileController extends Controller
         Gate::authorize('view', $user->profile);
 
         return new ProfileResource($user);
+    }
+
+    public function videos(Request $request, string $slug, VideoController $videos): AnonymousResourceCollection
+    {
+        $user = $this->find($slug);
+        Gate::authorize('view', $user->profile);
+        $items = Video::query()->where('user_id', $user->id)->where('status', 'published')->where('visibility', 'public')
+            ->where(fn ($query) => $query
+                ->whereHas('media', fn ($media) => $media->where('processing_status', 'ready')->where('moderation_status', 'approved'))
+                ->orWhereHas('images', fn ($images) => $images->where('processing_status', 'ready')->where('moderation_status', 'approved')))
+            ->with('user.profile', 'media', 'images', 'sport')->latest('published_at')->paginate(18);
+        $videos->decorate($items->getCollection(), $request);
+
+        return VideoResource::collection($items);
     }
 
     public function mine(EnsureProfileSlug $slugs): ProfileResource
@@ -108,6 +126,20 @@ class ProfileController extends Controller
         return response()->json(['message' => 'Profile photo updated.', 'data' => ['url' => $url]]);
     }
 
+    public function cover(Request $request, CalculateProfileCompleteness $calculator): JsonResponse
+    {
+        $data = $request->validate(['cover' => ['required', 'image', 'mimes:jpeg,png,webp', 'max:15360', 'dimensions:min_width=800,min_height=300']]);
+        $user = $request->user();
+        $oldPath = $user->profile?->cover_image_path;
+        $path = $data['cover']->storePublicly("profiles/{$user->id}", 'public');
+        $url = '/storage/'.$path;
+        $user->profile()->update(['cover_image_path' => $url]);
+        if ($oldPath && str_starts_with($oldPath, '/storage/')) Storage::disk('public')->delete(str($oldPath)->after('/storage/')->value());
+        $calculator->execute($user);
+
+        return response()->json(['message' => 'Cover photo updated.', 'data' => ['url' => $url]]);
+    }
+
     public function role(Request $request): ProfileResource
     {
         $data = $request->validate(['role' => ['required', Rule::in(['athlete', 'fan', 'coach', 'referee', 'linesman', 'scout', 'agent', 'club', 'academy', 'business', 'sponsor'])]]);
@@ -125,6 +157,6 @@ class ProfileController extends Controller
 
     private function load(User $user): User
     {
-        return $user->load('roles', 'profile', 'athleteProfile.sport', 'athleteProfile.taxonomyPosition', 'careerEntries.sport', 'careerEntries.position', 'achievements', 'athleteStatistics', 'fanProfile', 'professionalProfile', 'organisationProfile');
+        return $user->load('roles', 'profile', 'athleteProfile.sport', 'athleteProfile.taxonomyPosition', 'careerEntries.sport', 'careerEntries.position', 'achievements', 'athleteStatistics', 'fanProfile', 'professionalProfile', 'organisationProfile')->loadCount(['followers', 'following']);
     }
 }

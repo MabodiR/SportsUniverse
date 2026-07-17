@@ -3,6 +3,7 @@
 namespace App\Domain\Notifications\Services;
 
 use App\Domain\Notifications\Notifications\SportUniverseNotification;
+use App\Jobs\SendExpoPushNotification;
 use App\Models\User;
 
 class NotificationDispatcher
@@ -13,5 +14,6 @@ class NotificationDispatcher
         if (! $preferences->{$category}) {
             return;
         }$recipient->notify(new SportUniverseNotification($category, $payload));
+        SendExpoPushNotification::dispatch($recipient->id, $category, $payload);
     }
 }

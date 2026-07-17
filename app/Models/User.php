@@ -29,6 +29,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
+use App\Notifications\MobileVerifyEmail;
 
 #[Fillable(['name', 'email', 'phone', 'password', 'status', 'email_verified_at', 'onboarding_completed_at'])]
 #[Hidden(['password', 'remember_token'])]
@@ -36,6 +37,11 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, HasRoles, Notifiable;
+
+    public function sendEmailVerificationNotification(): void
+    {
+        $this->notify(new MobileVerifyEmail);
+    }
 
     public function profile(): HasOne
     {

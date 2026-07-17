@@ -1,0 +1,37 @@
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '../../../src/api/client';
+import { PrimaryButton } from '../../../src/components/PrimaryButton';
+import { ScreenMessage } from '../../../src/components/ScreenMessage';
+import { colors, radius, spacing } from '../../../src/theme';
+import type { ApiResponse } from '../../../src/types/api';
+
+type Session = { id: string; browser: string; platform: string; type: 'mobile' | 'tablet' | 'desktop'; ip_address?: string | null; current: boolean; last_active_at: string; active_now: boolean };
+
+export default function DevicesScreen() {
+  const client = useQueryClient();
+  const sessions = useQuery({ queryKey: ['auth-sessions'], queryFn: async () => (await api.get<ApiResponse<Session[]>>('/auth/sessions')).data.data });
+  const revoke = useMutation({ mutationFn: (id: string) => api.delete('/auth/sessions/' + id), onSuccess: () => client.invalidateQueries({ queryKey: ['auth-sessions'] }), onError: (error: any) => Alert.alert('Device not signed out', message(error)) });
+  const revokeOthers = useMutation({ mutationFn: () => api.delete('/auth/sessions/others'), onSuccess: response => { client.invalidateQueries({ queryKey: ['auth-sessions'] }); Alert.alert('Sessions updated', response.data.message); }, onError: (error: any) => Alert.alert('Devices not signed out', message(error)) });
+  const items = sessions.data ?? [];
+  const others = items.filter(item => !item.current);
+  const confirmOne = (item: Session) => Alert.alert('Sign out this device?', `${item.browser} on ${item.platform} will need to sign in again.`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out', style: 'destructive', onPress: () => revoke.mutate(item.id) }]);
+  const confirmOthers = () => Alert.alert('Sign out all other devices?', 'Every other mobile or web token will be revoked.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out all', style: 'destructive', onPress: () => revokeOthers.mutate() }]);
+
+  return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><Pressable accessibilityLabel="Go back" onPress={() => router.back()}><Ionicons name="chevron-back" size={26} color="#fff" /></Pressable><Text style={styles.headerTitle}>Sessions & devices</Text><Pressable accessibilityLabel="Refresh sessions" onPress={() => sessions.refetch()}><Ionicons name="refresh-outline" size={23} color="#fff" /></Pressable></View><FlatList data={items} keyExtractor={item => item.id} contentContainerStyle={items.length ? styles.list : styles.empty} refreshing={sessions.isRefetching} onRefresh={() => sessions.refetch()} ListHeaderComponent={items.length ? <View style={styles.summary}><View><Text style={styles.summaryTitle}>{items.length} active {items.length === 1 ? 'session' : 'sessions'}</Text><Text style={styles.summaryCopy}>{others.length ? `${others.length} other device${others.length === 1 ? '' : 's'} can access your account.` : 'Only this device is signed in.'}</Text></View>{others.length ? <PrimaryButton label="Sign out all others" secondary loading={revokeOthers.isPending} onPress={confirmOthers} style={{ marginTop: 15 }} /> : null}</View> : null} renderItem={({ item }) => <SessionRow item={item} busy={revoke.isPending} onRevoke={() => confirmOne(item)} />} ItemSeparatorComponent={() => <View style={{ height: 10 }} />} ListEmptyComponent={sessions.isLoading ? <ActivityIndicator style={{ marginTop: 100 }} color={colors.blue} /> : sessions.isError ? <ScreenMessage icon="cloud-offline-outline" title="Sessions unavailable" message="Check your connection and try again." /> : <ScreenMessage icon="shield-checkmark-outline" title="No active sessions" message="Your account has no recorded sessions." />} ListFooterComponent={items.length ? <View style={styles.tip}><Ionicons name="lock-closed-outline" size={21} color={colors.orange} /><Text style={styles.tipText}>If you do not recognise a device, sign it out and change your password immediately.</Text></View> : null} /></SafeAreaView>;
+}
+
+function SessionRow({ item, busy, onRevoke }: { item: Session; busy: boolean; onRevoke: () => void }) {
+  const icon = item.type === 'desktop' ? 'desktop-outline' : item.type === 'tablet' ? 'tablet-portrait-outline' : 'phone-portrait-outline';
+  return <View style={[styles.card, item.current && styles.current]}><View style={styles.icon}><Ionicons name={icon} size={25} color="#79A3FF" /></View><View style={styles.copy}><View style={styles.nameRow}><Text style={styles.name}>{item.browser} on {item.platform}</Text>{item.current ? <Text style={styles.badge}>THIS DEVICE</Text> : null}</View><Text style={styles.meta}>{item.active_now ? 'Active now' : `Last active ${when(item.last_active_at)}`}{item.ip_address ? ` · IP ${item.ip_address}` : ''}</Text></View>{!item.current ? <Pressable accessibilityLabel="Sign out device" disabled={busy} onPress={onRevoke} style={styles.logout}><Ionicons name="log-out-outline" size={21} color={colors.danger} /></Pressable> : null}</View>;
+}
+function when(value: string) { const date = new Date(value); const minutes = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60000)); if (minutes < 1) return 'just now'; if (minutes < 60) return `${minutes}m ago`; if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`; return date.toLocaleDateString(); }
+function message(error: any) { return error?.response?.data?.message || 'Please try again.'; }
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.navy }, header: { height: 56, paddingHorizontal: spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: colors.line }, headerTitle: { color: '#fff', fontSize: 17, fontWeight: '900' }, list: { padding: spacing.md, paddingBottom: 40 }, empty: { flexGrow: 1 }, summary: { padding: spacing.md, marginBottom: 14, borderRadius: radius.lg, backgroundColor: colors.surface }, summaryTitle: { color: '#fff', fontSize: 18, fontWeight: '900' }, summaryCopy: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 5 },
+  card: { minHeight: 86, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface }, current: { borderColor: 'rgba(27,99,243,.55)' }, icon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised }, copy: { flex: 1 }, nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 7 }, name: { color: '#fff', fontSize: 14, fontWeight: '900' }, badge: { color: '#79A3FF', fontSize: 8, fontWeight: '900', paddingHorizontal: 7, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: 'rgba(27,99,243,.15)' }, meta: { color: colors.muted, fontSize: 10, marginTop: 6 }, logout: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }, tip: { marginTop: 18, padding: spacing.md, flexDirection: 'row', gap: 11, borderRadius: radius.md, backgroundColor: 'rgba(255,176,32,.09)' }, tipText: { flex: 1, color: '#D7C8A5', fontSize: 11, lineHeight: 17 },
+});

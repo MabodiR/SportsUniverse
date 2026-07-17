@@ -1,4 +1,4 @@
-export type User = { id: number; name: string; email?: string; phone?: string; roles: string[]; profile?: { completeness: number; city?: string; profile_image?: string } };
+export type User = { id: number; name: string; email?: string; email_verified?: boolean; email_verified_at?: string | null; phone?: string; roles: string[]; profile?: { completeness: number; city?: string; profile_image?: string }; onboarding_completed_at?: string | null };
 export type Video = { id: string; type?: 'video' | 'images' | 'carousel'; caption?: string; hashtags: string[]; comments_enabled?: boolean; visibility?: 'public' | 'followers' | 'private'; status?: 'published' | 'draft'; published_at?: string | null; creator: { id: number; name: string; slug?: string; profile_image?: string | null; sport?: string; position?: string; city?: string }; sport?: { id: number; name: string; slug: string } | null; location?: { name?: string | null }; media?: { id: string; mime_type: string; duration_ms?: number | null; download_url: string } | null; images?: { id: string; download_url: string; is_cover: boolean; position: number }[]; counts: { views: number; likes: number; comments: number; shares: number; saves: number }; viewer?: { liked: boolean; saved: boolean; following_creator: boolean } };
 export type Comment = { id: string; body: string; user: { id: number; name: string; slug?: string | null }; parent_id?: string | null; likes_count: number; liked: boolean; replies: Comment[]; created_at: string };
 export type ApiResponse<T> = { data: T; message?: string; token?: string };
@@ -22,9 +22,10 @@ export type Profile = {
   images: { profile?: string | null; cover?: string | null };
   is_available: boolean;
   is_public: boolean;
-  viewer?: { blocked: boolean };
+  viewer?: { blocked: boolean; saved?: boolean; following?: boolean };
   completeness?: number;
   views_count: number;
+  connections?: { followers: number; following: number };
   athlete?: {
     sport?: { id: number; name: string; slug: string } | null;
     position?: { id: number; name: string; slug: string } | null;
@@ -51,6 +52,25 @@ export type Profile = {
     contact_phone?: string | null;
     services?: string[] | null;
   } | null;
+  fan?: { interested_sports: string[]; favourites?: string | null } | null;
+  club?: { name: string; slug: string } | null;
+};
+
+export type PublicClub = {
+  id: number;
+  name: string;
+  slug: string;
+  bio?: string | null;
+  website?: string | null;
+  image?: string | null;
+  cover_image?: string | null;
+  city?: string | null;
+  province?: string | null;
+  location?: { city?: string | null; province?: string | null; country?: string | null };
+  staff_count: number;
+  opportunities_count: number;
+  staff?: { id: number; name: string; slug?: string | null; image?: string | null; role: string }[];
+  opportunities?: { id: string; title: string; type: string; city?: string | null; is_remote: boolean; sport?: string | null; deadline?: string | null }[];
 };
 
 export type CareerEntry = { id: number; team_name: string; role?: string | null; level?: string | null; started_on?: string | null; ended_on?: string | null; is_current: boolean; description?: string | null };
@@ -81,6 +101,7 @@ export type Opportunity = {
   location: { country?: string | null; province?: string | null; city?: string | null; is_remote: boolean };
   age_range: { minimum?: number | null; maximum?: number | null };
   requirements: string[];
+  required_documents: { key: string; label: string; collection: string; required: boolean }[];
   status: string;
   deadline?: string | null;
   applications_count: number;
@@ -94,6 +115,7 @@ export type OpportunityApplication = {
   applicant: { id: number; name: string; slug?: string | null; image?: string | null };
   cover_letter?: string | null;
   resume?: { id: string; download_url: string } | null;
+  documents?: { id: string; requirement_key: string; name: string; collection: string; download_url: string }[];
   status: 'submitted' | 'reviewing' | 'shortlisted' | 'accepted' | 'rejected' | 'withdrawn';
   reviewer_notes?: string | null;
   reviewed_at?: string | null;
@@ -142,7 +164,52 @@ export type LiveStream = { id: string; public_id?: string; host_id: number; titl
 export type LiveMessage = { id: number; name: string; body?: string | null; reaction?: 'heart' | 'fire' | 'clap' | 'football' | null; created_at: string; type?: string };
 export type LiveRoomResponse = { data: { stream: LiveStream; messages: LiveMessage[] } };
 
-export type MediaUpload = { id: string; kind: 'image' | 'video' | 'document'; collection: string; original_name: string; mime_type: string; size_bytes: number; processing_status: 'pending' | 'processing' | 'ready' | 'failed'; processing_error?: string | null; moderation_status: string; download_url: string };
+export type MediaUpload = {
+  id: string;
+  kind: 'image' | 'video' | 'document';
+  collection: string;
+  title?: string | null;
+  description?: string | null;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number;
+  processing_status: 'pending' | 'processing' | 'ready' | 'failed';
+  processing_error?: string | null;
+  moderation_status: string;
+  duration_ms?: number | null;
+  width?: number | null;
+  height?: number | null;
+  download_url: string;
+  created_at?: string | null;
+};
 
 export type AppNotification = { id: string; type: string; category: string; data: Record<string, any>; read_at?: string | null; created_at: string };
 export type NotificationPreferences = { messages: boolean; message_requests: boolean; opportunities: boolean; followers: boolean; engagement: boolean; moderation: boolean; profile_views: boolean; email_digest: boolean };
+
+export type CreatorAnalytics = {
+  period_days: number;
+  totals: { profile_views: number; video_views: number; likes: number; comments: number; shares: number; followers: number; opportunity_applications: number };
+  period: { views: number; video_views: number; profile_views: number; interactions: number; likes: number; comments: number; shares: number; engagement_rate: number };
+  daily: Record<string, { date: string; value: number }[]>;
+  locations: { city: string; views: number }[];
+  top_videos: { id: string; caption: string; views: number; likes: number; comments: number; shares: number; published_at?: string | null }[];
+};
+
+export type Campaign = {
+  id: string;
+  campaign_type: 'post_promotion' | 'sponsorship';
+  title: string;
+  description?: string | null;
+  goal: 'views' | 'followers' | 'website' | 'applications' | 'awareness';
+  audience: { sport_id?: number | null; gender?: 'female' | 'male' | 'all'; province?: string | null; min_age?: number; max_age?: number };
+  destination_url?: string | null;
+  daily_budget_cents: number;
+  total_budget_cents: number;
+  starts_on: string;
+  ends_on: string;
+  status: string;
+  review_notes?: string | null;
+  metrics: { impressions: number; clicks: number; click_rate: number; spent_cents: number };
+  video?: { id: string; caption?: string | null; url?: string | null } | null;
+  created_at: string;
+};

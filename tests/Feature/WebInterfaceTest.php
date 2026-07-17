@@ -49,7 +49,7 @@ class WebInterfaceTest extends TestCase
             ->has('downloads')
             ->where('downloads.ios', null)
             ->where('downloads.android', null)
-            ->where('downloads.direct', null));
+            ->where('downloads.direct', config('services.mobile_app.direct_url')));
     }
 
     public function test_member_can_register_and_enter_feed(): void

@@ -4,11 +4,13 @@ use App\Http\Controllers\Api\V1\Messaging\BlockController;
 use App\Http\Controllers\Api\V1\Messaging\ConversationController;
 use App\Http\Controllers\Api\V1\Messaging\MessageController;
 use App\Http\Controllers\Api\V1\Messaging\MessageRequestController;
+use App\Http\Controllers\Web\MessagingContextController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('blocked-users', [BlockController::class, 'index']);
     Route::get('message-requests', [MessageRequestController::class, 'index']);
+    Route::get('profiles/{user}/messaging-context', MessagingContextController::class);
     Route::post('message-requests', [MessageRequestController::class, 'store'])->middleware('throttle:20,1');
     Route::post('message-requests/{messageRequest}/accept', [MessageRequestController::class, 'accept']);
     Route::post('message-requests/{messageRequest}/decline', [MessageRequestController::class, 'decline']);

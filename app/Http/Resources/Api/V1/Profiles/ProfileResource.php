@@ -24,14 +24,23 @@ class ProfileResource extends JsonResource
             'images' => ['profile' => $profile->profile_image_path, 'cover' => $profile->cover_image_path],
             'is_available' => $profile->is_available,
             'is_public' => $profile->is_public,
-            'viewer' => ['blocked' => $request->user() ? \DB::table('user_blocks')->where(['blocker_id' => $request->user()->id, 'blocked_id' => $this->id])->exists() : false],
+            'viewer' => [
+                'blocked' => $request->user() ? \DB::table('user_blocks')->where(['blocker_id' => $request->user()->id, 'blocked_id' => $this->id])->exists() : false,
+                'saved' => $request->user() ? \DB::table('saved_profiles')->where(['user_id' => $request->user()->id, 'profile_user_id' => $this->id])->exists() : false,
+                'following' => $request->user() ? \DB::table('follows')->where(['follower_id' => $request->user()->id, 'followed_id' => $this->id])->exists() : false,
+            ],
             'views_count' => (int) $profile->views_count,
+            'connections' => [
+                'followers' => (int) ($this->followers_count ?? $this->followers()->count()),
+                'following' => (int) ($this->following_count ?? $this->following()->count()),
+            ],
             'completeness' => $this->when($request->user()?->id === $this->id || $request->user()?->hasRole('admin'), $profile->completeness),
             'athlete' => $this->when($this->relationLoaded('athleteProfile') && $this->athleteProfile, fn () => ['sport' => $this->athleteProfile->sport?->only(['id', 'name', 'slug']), 'position' => $this->athleteProfile->taxonomyPosition?->only(['id', 'name', 'slug']), 'club_name' => $this->athleteProfile->club_name, 'playing_level' => $this->athleteProfile->playing_level, 'dominant_side' => $this->athleteProfile->dominant_side, 'height_cm' => $this->athleteProfile->height_cm, 'weight_kg' => $this->athleteProfile->weight_kg]),
             'career' => $this->when($this->hasRole('athlete'), fn () => ['history' => $this->careerEntries->sortByDesc('started_on')->values(), 'achievements' => $this->achievements->sortByDesc('achieved_on')->values(), 'statistics' => $this->athleteStatistics->sortByDesc('season')->values()]),
             'fan' => $this->when($this->relationLoaded('fanProfile') && $this->fanProfile, fn () => ['interested_sports' => $this->fanProfile->interested_sports ?? [], 'favourites' => $this->fanProfile->favourites]),
             'professional' => $this->when($this->relationLoaded('professionalProfile') && $this->professionalProfile, fn () => $this->professionalProfile?->only(['professional_type', 'specialisation', 'years_experience', 'certifications', 'is_available'])),
             'organisation' => $this->when($this->relationLoaded('organisationProfile') && $this->organisationProfile, fn () => $this->organisationProfile?->only(['organisation_name', 'organisation_type', 'registration_number', 'website', 'contact_email', 'contact_phone', 'services'])),
+            'club' => $this->when($this->hasAnyRole(['club', 'academy']), fn () => \DB::table('club_workspaces')->where('owner_id', $this->id)->first(['name', 'slug'])),
         ];
     }
 }

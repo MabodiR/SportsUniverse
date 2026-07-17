@@ -13,6 +13,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class MediaController extends Controller
@@ -59,6 +60,20 @@ return MediaResource::collection($query->paginate(min($request->integer('per_pag
     public function download(Media $media): StreamedResponse
     {
         Gate::authorize('view', $media);
+        abort_unless(Storage::disk($media->disk)->exists($media->path), 404);
+
+        return Storage::disk($media->disk)->download($media->path, $media->original_name, ['Content-Type' => $media->mime_type]);
+    }
+
+    public function temporaryLink(Media $media): JsonResponse
+    {
+        Gate::authorize('view', $media);
+
+        return response()->json(['data' => ['url' => URL::temporarySignedRoute('media.signed-download', now()->addMinutes(5), ['media' => $media])]]);
+    }
+
+    public function signedDownload(Media $media): StreamedResponse
+    {
         abort_unless(Storage::disk($media->disk)->exists($media->path), 404);
 
         return Storage::disk($media->disk)->download($media->path, $media->original_name, ['Content-Type' => $media->mime_type]);

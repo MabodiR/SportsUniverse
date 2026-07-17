@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\Messaging\MessageRequestController;
 use App\Http\Controllers\Api\V1\Moderation\ReportController;
 use App\Http\Controllers\Web\AthleteProfileController;
 use App\Http\Controllers\Web\ClubPageController;
+use App\Http\Controllers\Web\MobileAssociationController;
 use App\Http\Controllers\Web\FeedController;
 use App\Http\Controllers\Web\MessagingContextController;
 use App\Http\Controllers\Web\ModulePageController;
@@ -51,6 +52,8 @@ Route::get('/feed/sport/{sport}', [FeedController::class, 'sport'])->name('feed.
 Route::get('/feed/position/{position}', [FeedController::class, 'position'])->name('feed.position');
 Route::get('/@{slug}', AthleteProfileController::class)->name('athletes.show');
 Route::get('/clubs/{slug}', ClubPageController::class)->name('clubs.show');
+Route::get('/.well-known/apple-app-site-association', [MobileAssociationController::class, 'apple'])->name('mobile.association.apple');
+Route::get('/.well-known/assetlinks.json', [MobileAssociationController::class, 'android'])->name('mobile.association.android');
 Route::get('/watch/{video}/stream', VideoStreamController::class)->name('videos.stream');
 Route::get('/media/{media}/display', [MediaController::class, 'download'])->name('media.public');
 Route::get('/sitemap.xml', function () {

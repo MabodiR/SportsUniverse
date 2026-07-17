@@ -28,6 +28,11 @@ class AuthController extends Controller
             return $user;
         });
         $slugs->execute($user->load('profile'));
+        try {
+            $user->sendEmailVerificationNotification();
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
 
         return response()->json(['message' => 'Account created. Continue onboarding.', 'token' => $user->createToken($request->string('device_name')->value() ?: 'api')->plainTextToken, 'data' => new UserResource($user->load('roles', 'profile'))], 201);
     }
@@ -50,6 +55,39 @@ class AuthController extends Controller
         Password::sendResetLink($request->only('email'));
 
         return response()->json(['message' => 'If an account exists for that email address, a password reset link has been sent.']);
+    }
+
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'token' => ['required', 'string'],
+            'email' => ['required', 'email'],
+            'password' => ['required', 'confirmed', PasswordRule::defaults()],
+        ]);
+        $status = Password::reset($data, function (User $user, string $password) {
+            $user->forceFill(['password' => Hash::make($password)])->save();
+            $user->tokens()->delete();
+        });
+        if ($status !== Password::PASSWORD_RESET) throw ValidationException::withMessages(['email' => [__($status)]]);
+
+        return response()->json(['message' => 'Your password has been reset. Sign in with your new password.']);
+    }
+
+    public function resendVerification(Request $request): JsonResponse
+    {
+        if ($request->user()->hasVerifiedEmail()) return response()->json(['message' => 'Your email address is already verified.', 'data' => ['verified' => true]]);
+        $request->user()->sendEmailVerificationNotification();
+
+        return response()->json(['message' => 'A new verification link has been sent.', 'data' => ['verified' => false]]);
+    }
+
+    public function verifyEmail(Request $request, int $id, string $hash): JsonResponse
+    {
+        $user = User::findOrFail($id);
+        abort_unless(hash_equals($hash, sha1($user->getEmailForVerification())), 403, 'This verification link is invalid.');
+        if (! $user->hasVerifiedEmail()) $user->markEmailAsVerified();
+
+        return response()->json(['message' => 'Email verified successfully.', 'data' => ['verified' => true]]);
     }
 
     public function socialExchange(Request $request): JsonResponse

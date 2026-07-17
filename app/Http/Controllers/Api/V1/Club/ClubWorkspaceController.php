@@ -37,7 +37,7 @@ class ClubWorkspaceController extends Controller
         $staff = DB::table('club_staff')->join('users', 'users.id', '=', 'club_staff.user_id')->where('workspace_id', $w->id)->select('users.id', 'users.name', 'users.email', 'club_staff.role', 'club_staff.status')->get();
         $invitations = DB::table('trial_invitations')->join('users', 'users.id', '=', 'trial_invitations.athlete_id')->where('workspace_id', $w->id)->select('trial_invitations.*', 'users.name as athlete_name')->latest('sent_at')->limit(30)->get();
 
-        return response()->json(['data' => ['workspace' => $w, 'shortlists' => $shortlists, 'staff' => $staff, 'invitations' => $invitations, 'counts' => ['athletes' => DB::table('shortlist_athletes')->join('talent_shortlists', 'talent_shortlists.id', '=', 'shortlist_athletes.shortlist_id')->where('talent_shortlists.workspace_id', $w->id)->count(), 'notes' => DB::table('scouting_notes')->where('workspace_id', $w->id)->count(), 'invitations' => DB::table('trial_invitations')->where('workspace_id', $w->id)->count()]]]);
+        return response()->json(['data' => ['workspace' => $w, 'permissions' => ['is_owner' => $w->owner_id === $r->user()->id, 'can_manage_staff' => $w->owner_id === $r->user()->id], 'shortlists' => $shortlists, 'staff' => $staff, 'invitations' => $invitations, 'counts' => ['athletes' => DB::table('shortlist_athletes')->join('talent_shortlists', 'talent_shortlists.id', '=', 'shortlist_athletes.shortlist_id')->where('talent_shortlists.workspace_id', $w->id)->count(), 'notes' => DB::table('scouting_notes')->where('workspace_id', $w->id)->count(), 'invitations' => DB::table('trial_invitations')->where('workspace_id', $w->id)->count()]]]);
     }
 
     public function update(Request $r): JsonResponse
@@ -114,6 +114,27 @@ class ClubWorkspaceController extends Controller
         DB::table('club_staff')->updateOrInsert(['workspace_id' => $w->id, 'user_id' => $staff->id], ['invited_by_id' => $r->user()->id, 'role' => $d['role'], 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
 
         return response()->json(['message' => 'Staff account added.'], 201);
+    }
+
+    public function updateStaff(Request $r, User $staff): JsonResponse
+    {
+        $w = $this->workspace($r);
+        abort_unless($w->owner_id === $r->user()->id, 403, 'Only the workspace owner can manage staff access.');
+        abort_unless(DB::table('club_staff')->where(['workspace_id' => $w->id, 'user_id' => $staff->id])->exists(), 404, 'Staff account not found.');
+        $data = $r->validate(['role' => ['required', 'in:manager,scout,coach,analyst'], 'status' => ['required', 'in:active,inactive']]);
+        DB::table('club_staff')->where(['workspace_id' => $w->id, 'user_id' => $staff->id])->update([...$data, 'updated_at' => now()]);
+
+        return response()->json(['message' => 'Staff access updated.', 'data' => ['id' => $staff->id, ...$data]]);
+    }
+
+    public function removeStaff(Request $r, User $staff): JsonResponse
+    {
+        $w = $this->workspace($r);
+        abort_unless($w->owner_id === $r->user()->id, 403, 'Only the workspace owner can remove staff access.');
+        $removed = DB::table('club_staff')->where(['workspace_id' => $w->id, 'user_id' => $staff->id])->delete();
+        abort_unless($removed, 404, 'Staff account not found.');
+
+        return response()->json(['message' => 'Staff access removed.']);
     }
 
     public function pipeline(Request $r): JsonResponse

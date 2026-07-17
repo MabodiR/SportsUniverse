@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "SportUniverse",
-    "slug": "sportuniverse-mobile",
+    "slug": "sports-universe",
     "scheme": "sportuniverse",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,6 +10,7 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      "expo-notifications",
       "expo-font",
       [
         "expo-image-picker",
@@ -19,21 +20,34 @@
       ],
       "@config-plugins/react-native-webrtc",
       "expo-web-browser",
-      "expo-video"
+      "expo-video",
+      "expo-status-bar"
     ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sportuniverse.mobile",
+      "associatedDomains": [
+        "applinks:sportsuniverse.co.za",
+        "applinks:www.sportsuniverse.co.za"
+      ],
       "infoPlist": {
         "NSCameraUsageDescription": "SportUniverse uses your camera when you choose to broadcast live sport.",
         "NSMicrophoneUsageDescription": "SportUniverse uses your microphone when you choose to broadcast live sport."
-      }
+      },
+      "bitcode": false
     },
     "android": {
       "versionCode": 1,
       "permissions": [
-        "CAMERA",
-        "RECORD_AUDIO"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.INTERNET",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.WAKE_LOCK",
+        "android.permission.BLUETOOTH"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -42,10 +56,80 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.sportuniverse.mobile"
+      "package": "com.sportuniverse.mobile",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "sportsuniverse.co.za",
+              "pathPrefix": "/feed"
+            },
+            {
+              "scheme": "https",
+              "host": "sportsuniverse.co.za",
+              "pathPrefix": "/@"
+            },
+            {
+              "scheme": "https",
+              "host": "sportsuniverse.co.za",
+              "pathPrefix": "/clubs"
+            },
+            {
+              "scheme": "https",
+              "host": "sportsuniverse.co.za",
+              "pathPrefix": "/opportunities"
+            },
+            {
+              "scheme": "https",
+              "host": "sportsuniverse.co.za",
+              "pathPrefix": "/live"
+            },
+            {
+              "scheme": "https",
+              "host": "sportsuniverse.co.za",
+              "pathPrefix": "/posts"
+            },
+            {
+              "scheme": "https",
+              "host": "sportsuniverse.co.za",
+              "pathPrefix": "/password/reset"
+            },
+            {
+              "scheme": "https",
+              "host": "sportsuniverse.co.za",
+              "pathPrefix": "/api/v1/auth/email/verify"
+            },
+            {
+              "scheme": "https",
+              "host": "www.sportsuniverse.co.za",
+              "pathPrefix": "/"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f15e2c0f-efec-43ad-a4bc-4f3b705235a7"
+      }
+    },
+    "owner": "imaginativetechs-team",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/f15e2c0f-efec-43ad-a4bc-4f3b705235a7"
     }
   }
 }

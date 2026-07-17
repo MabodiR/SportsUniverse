@@ -1,18 +1,53 @@
 {
-  "cli": { "version": ">= 16.0.0" },
+  "cli": {
+    "version": ">= 16.0.1",
+    "appVersionSource": "remote"
+  },
   "build": {
-    "development": { "developmentClient": true, "distribution": "internal" },
-    "preview": {
+    "development": {
+      "autoIncrement": true,
+      "developmentClient": true,
       "distribution": "internal",
-      "android": { "buildType": "apk" },
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://sportsuniverse.co.za/api/v1",
+        "EXPO_PUBLIC_WEB_URL": "https://sportsuniverse.co.za",
         "EXPO_PUBLIC_REVERB_HOST": "sportsuniverse.co.za",
         "EXPO_PUBLIC_REVERB_PORT": "443",
         "EXPO_PUBLIC_REVERB_SCHEME": "https"
-      }
+      },
+      "channel": "development"
     },
-    "production": { "autoIncrement": true }
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://sportsuniverse.co.za/api/v1",
+        "EXPO_PUBLIC_WEB_URL": "https://sportsuniverse.co.za",
+        "EXPO_PUBLIC_REVERB_HOST": "sportsuniverse.co.za",
+        "EXPO_PUBLIC_REVERB_PORT": "443",
+        "EXPO_PUBLIC_REVERB_SCHEME": "https"
+      },
+      "channel": "preview"
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://sportsuniverse.co.za/api/v1",
+        "EXPO_PUBLIC_WEB_URL": "https://sportsuniverse.co.za",
+        "EXPO_PUBLIC_REVERB_HOST": "sportsuniverse.co.za",
+        "EXPO_PUBLIC_REVERB_PORT": "443",
+        "EXPO_PUBLIC_REVERB_SCHEME": "https"
+      },
+      "channel": "production"
+    }
   },
-  "submit": { "production": {} }
+  "submit": {
+    "production": {},
+    "development": {}
+  }
 }
