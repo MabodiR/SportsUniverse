@@ -9,11 +9,14 @@ use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Spatie\Permission\Models\Role;
 
 class FeedDemoSeeder extends Seeder
 {
     public function run(): void
     {
+        Role::findOrCreate('athlete', 'web');
+
         $sports = Sport::all();
         if ($sports->isEmpty()) {
             return;
