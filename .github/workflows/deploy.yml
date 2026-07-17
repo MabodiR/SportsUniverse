@@ -120,5 +120,5 @@ jobs:
 
       - name: Verify production health
         run: |
-          curl --fail --silent --show-error http://127.0.0.1/up > /dev/null
-          curl --fail --silent --show-error http://127.0.0.1/feed > /dev/null
+          curl --fail --silent --show-error --header 'Host: sportsuniverse.co.za' http://127.0.0.1/up > /dev/null
+          curl --fail --silent --show-error --header 'Host: sportsuniverse.co.za' http://127.0.0.1/feed > /dev/null
