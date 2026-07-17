@@ -29,6 +29,25 @@ class AuthenticationOnboardingTest extends TestCase
         $this->assertDatabaseHas('user_profiles', ['completeness' => 20]);
     }
 
+    public function test_mobile_registration_creates_the_selected_role_atomically(): void
+    {
+        Notification::fake();
+
+        $response = $this->postJson('/api/v1/auth/register', [
+            'name' => 'Mobile Coach',
+            'email' => 'mobile-coach@example.com',
+            'password' => 'Password9',
+            'password_confirmation' => 'Password9',
+            'role' => 'coach',
+            'device_name' => 'android-mobile',
+        ]);
+
+        $response->assertCreated()->assertJsonPath('data.roles.0', 'coach');
+        $user = User::where('email', 'mobile-coach@example.com')->firstOrFail();
+        $this->assertTrue($user->hasRole('coach'));
+        $this->assertDatabaseHas('professional_profiles', ['user_id' => $user->id, 'professional_type' => 'coach']);
+    }
+
     public function test_athlete_can_complete_role_details_and_location_incrementally(): void
     {
         $registration = $this->postJson('/api/v1/auth/register', ['name' => 'Ada Athlete', 'email' => 'ada@example.com', 'password' => 'Password9', 'password_confirmation' => 'Password9']);

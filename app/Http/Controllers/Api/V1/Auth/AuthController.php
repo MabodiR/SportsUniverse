@@ -16,14 +16,26 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rules\Password as PasswordRule;
+use Spatie\Permission\Models\Role;
 
 class AuthController extends Controller
 {
     public function register(RegisterRequest $request, EnsureProfileSlug $slugs): JsonResponse
     {
         $user = DB::transaction(function () use ($request) {
-            $user = User::create($request->safe()->except(['password_confirmation', 'device_name']));
+            $role = $request->validated('role');
+            $user = User::create($request->safe()->except(['password_confirmation', 'device_name', 'role']));
             $user->profile()->create(['completeness' => 20]);
+            if ($role) {
+                Role::findOrCreate($role, 'web');
+                $user->syncRoles([$role]);
+                if (in_array($role, ['coach', 'referee', 'linesman', 'scout', 'agent'], true)) {
+                    $user->professionalProfile()->create(['professional_type' => $role]);
+                }
+                if (in_array($role, ['club', 'academy', 'business', 'sponsor'], true)) {
+                    $user->organisationProfile()->create(['organisation_name' => $user->name, 'organisation_type' => $role]);
+                }
+            }
 
             return $user;
         });

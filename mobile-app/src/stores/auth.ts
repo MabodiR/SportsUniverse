@@ -31,9 +31,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     try { const { data } = await api.post('/auth/social/exchange', { code, device_name: `${Platform.OS}-mobile` }); await SecureStore.setItemAsync(tokenKey, data.token); set({ user: data.data, busy: false }); return true; }
     catch (error) { set({ error: message(error), busy: false }); return false; }
   },
-  register: async ({ role, ...registration }) => {
+  register: async (registration) => {
     set({ busy: true, error: null });
-    try { const { data } = await api.post('/auth/register', { ...registration, device_name: `${Platform.OS}-mobile` }); await SecureStore.setItemAsync(tokenKey, data.token); await api.put('/onboarding/role', { role }); const me = await api.get('/me'); set({ user: me.data.data, busy: false }); return true; }
+    try { const { data } = await api.post('/auth/register', { ...registration, device_name: `${Platform.OS}-mobile` }); await SecureStore.setItemAsync(tokenKey, data.token); set({ user: data.data, busy: false }); return true; }
     catch (error) { set({ error: message(error), busy: false }); return false; }
   },
   logout: async () => { try { await api.post('/auth/logout'); } finally { await SecureStore.deleteItemAsync(tokenKey); set({ user: null }); } },
