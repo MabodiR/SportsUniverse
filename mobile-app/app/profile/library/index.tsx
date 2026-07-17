@@ -63,7 +63,6 @@ export default function LibraryScreen() {
       form.append('title', asset.name.replace(/\.[^.]+$/, ''));
       form.append('file', { uri: asset.uri, name: asset.name, type: mime } as any);
       await api.post('/media', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 600000,
         onUploadProgress: event => setProgress(event.total ? Math.round((event.loaded / event.total) * 100) : 0),
       });

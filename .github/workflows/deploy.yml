@@ -73,6 +73,9 @@ jobs:
           set_env DB_DATABASE sportuniverse
           set_env DB_USERNAME www-data
           set_env DB_PASSWORD ''
+          set_env FILESYSTEM_DISK local
+          set_env MEDIA_DISK local
+          set_env MEDIA_REQUIRES_MODERATION false
           sudo chown -R www-data:www-data storage bootstrap/cache
           sudo -u www-data php artisan optimize:clear
 
@@ -91,6 +94,13 @@ jobs:
           sudo -u postgres createdb --owner=www-data sportuniverse 2>/dev/null || true
           sudo -u postgres psql --set ON_ERROR_STOP=1 --command 'ALTER DATABASE sportuniverse OWNER TO "www-data";'
 
+      - name: Prepare production media runtime
+        run: |
+          if ! command -v ffmpeg > /dev/null || ! command -v ffprobe > /dev/null; then
+            sudo apt-get update
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ffmpeg
+          fi
+
       - name: Run production migrations
         run: |
           cd /var/www/sportuniverse
@@ -107,6 +117,7 @@ jobs:
           sudo -u www-data php artisan db:seed --class=Database\\Seeders\\FeedDemoSeeder --force
 
       - name: Seed production scale data
+        continue-on-error: true
         run: |
           cd /var/www/sportuniverse
           sudo -u www-data php artisan db:seed --class=Database\\Seeders\\SouthAfricaScaleSeeder --force

@@ -50,7 +50,7 @@ export default function UploadScreen() {
         const form = new FormData();
         form.append('kind', kind); form.append('collection', kind === 'video' ? 'highlights' : 'gallery');
         form.append('file', { uri: asset.uri, name: asset.fileName || `${kind}-${Date.now()}.${kind === 'video' ? 'mp4' : 'jpg'}`, type: asset.mimeType || (kind === 'video' ? 'video/mp4' : 'image/jpeg') } as any);
-        const response = await api.post<ApiResponse<MediaUpload>>('/media', form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 600000, onUploadProgress: event => setProgress(Math.round(((index + event.loaded / Math.max(event.total ?? event.loaded, 1)) / assets.length) * 70)) });
+        const response = await api.post<ApiResponse<MediaUpload>>('/media', form, { timeout: 600000, onUploadProgress: event => setProgress(Math.round(((index + event.loaded / Math.max(event.total ?? event.loaded, 1)) / assets.length) * 70)) });
         uploaded.push(response.data.data);
       }
       setPhase('Processing media'); setProgress(75);
