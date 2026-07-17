@@ -95,9 +95,25 @@ jobs:
         run: |
           cd /var/www/sportuniverse
           sudo -u www-data php artisan migrate --force
+
+      - name: Seed production sports
+        run: |
+          cd /var/www/sportuniverse
           sudo -u www-data php artisan db:seed --class=Database\\Seeders\\SportSeeder --force
+
+      - name: Seed production feed
+        run: |
+          cd /var/www/sportuniverse
           sudo -u www-data php artisan db:seed --class=Database\\Seeders\\FeedDemoSeeder --force
+
+      - name: Seed production scale data
+        run: |
+          cd /var/www/sportuniverse
           sudo -u www-data php artisan db:seed --class=Database\\Seeders\\SouthAfricaScaleSeeder --force
+
+      - name: Optimize production application
+        run: |
+          cd /var/www/sportuniverse
           sudo -u www-data php artisan storage:link || true
           sudo -u www-data php artisan optimize
 
