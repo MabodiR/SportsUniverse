@@ -55,15 +55,27 @@ jobs:
             --exclude='tests/' \
             ./ /var/www/sportuniverse/
 
-      - name: Finalize deployment
+      - name: Prepare Laravel runtime
         run: |
           cd /var/www/sportuniverse
           sudo chown -R www-data:www-data storage bootstrap/cache
           sudo -u www-data php artisan optimize:clear
+
+      - name: Verify production database
+        run: |
+          cd /var/www/sportuniverse
           sudo -u www-data php artisan tinker --execute="throw_unless(config('database.default') === 'pgsql', new RuntimeException('Production must use PostgreSQL.'));"
+
+      - name: Run production migrations
+        run: |
+          cd /var/www/sportuniverse
           sudo -u www-data php artisan migrate --force
           sudo -u www-data php artisan storage:link || true
           sudo -u www-data php artisan optimize
+
+      - name: Install production services
+        run: |
+          cd /var/www/sportuniverse
           sudo install -m 644 deploy/sportuniverse-queue.service /etc/systemd/system/sportuniverse-queue.service
           sudo install -m 644 deploy/php-upload.ini /etc/php/8.5/fpm/conf.d/99-sportuniverse-upload.ini
           sudo install -m 644 deploy/php-upload.ini /etc/php/8.5/cli/conf.d/99-sportuniverse-upload.ini
@@ -80,5 +92,8 @@ jobs:
           sudo systemctl daemon-reload
           sudo systemctl restart sportuniverse-queue.service sportuniverse-reverb.service
           sudo systemctl reload php8.5-fpm.service nginx.service
+
+      - name: Verify production health
+        run: |
           curl --fail --silent --show-error http://127.0.0.1/up > /dev/null
           curl --fail --silent --show-error http://127.0.0.1/feed > /dev/null
