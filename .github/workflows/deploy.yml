@@ -56,17 +56,20 @@ jobs:
             ./ /var/www/sportuniverse/
 
       - name: Prepare Laravel runtime
+        env:
+          PRODUCTION_MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
         run: |
           cd /var/www/sportuniverse
           set_env() {
             key="$1"
             value="$2"
-            if grep -q "^${key}=" .env; then
-              sudo sed -i "s|^${key}=.*|${key}=${value}|" .env
-            else
-              echo "${key}=${value}" | sudo tee -a .env > /dev/null
-            fi
+            sudo sed -i "/^${key}=/d" .env
+            printf '%s=%s\n' "$key" "$value" | sudo tee -a .env > /dev/null
           }
+          if [ -z "$PRODUCTION_MAIL_PASSWORD" ]; then
+            echo "MAIL_PASSWORD is not configured in the GitHub production environment." >&2
+            exit 1
+          fi
           set_env DB_CONNECTION pgsql
           set_env DB_HOST /var/run/postgresql
           set_env DB_PORT 5432
@@ -76,6 +79,14 @@ jobs:
           set_env FILESYSTEM_DISK local
           set_env MEDIA_DISK local
           set_env MEDIA_REQUIRES_MODERATION false
+          set_env MAIL_MAILER smtp
+          set_env MAIL_SCHEME smtps
+          set_env MAIL_HOST mail.sportuniverse.co.za
+          set_env MAIL_PORT 465
+          set_env MAIL_USERNAME no-reply@sportuniverse.co.za
+          set_env MAIL_PASSWORD "$PRODUCTION_MAIL_PASSWORD"
+          set_env MAIL_FROM_ADDRESS no-reply@sportuniverse.co.za
+          set_env MAIL_FROM_NAME SportUniverse
           sudo chown -R www-data:www-data storage bootstrap/cache
           sudo -u www-data php artisan optimize:clear
 
