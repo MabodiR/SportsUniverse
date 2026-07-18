@@ -81,7 +81,7 @@ jobs:
           set_env MEDIA_REQUIRES_MODERATION false
           set_env MAIL_MAILER smtp
           set_env MAIL_SCHEME smtps
-          set_env MAIL_HOST mail.sportsuniverse.co.za
+          set_env MAIL_HOST www116.jnb2.host-h.net
           set_env MAIL_PORT 465
           set_env MAIL_USERNAME no-reply@sportsuniverse.co.za
           set_env MAIL_PASSWORD "$PRODUCTION_MAIL_PASSWORD"
