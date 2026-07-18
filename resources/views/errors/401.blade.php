@@ -1,0 +1,1 @@
+@include('errors.layout', ['status' => 401, 'title' => 'Sign in required', 'label' => 'Authentication required', 'heading' => 'Please sign in to continue.', 'message' => 'Your account is not currently authenticated. Sign in securely to return to SportUniverse.', 'primaryUrl' => '/login', 'primaryLabel' => 'Sign in', 'support' => 'Your requested page will remain protected.'])

@@ -42,6 +42,7 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::get('/', fn () => redirect('/feed'));
+Route::get('/session-expired', fn () => Inertia::render('Errors/Show', ['status' => 419]))->name('session-expired');
 Route::get('/about', fn () => Inertia::render('Public/About'))->name('about');
 Route::get('/privacy-policy', fn () => Inertia::render('Public/PrivacyPolicy'))->name('privacy-policy');
 Route::get('/payments/payfast/return/{payment}', [PayFastController::class, 'returned'])->name('payfast.return');
@@ -142,4 +143,4 @@ Route::middleware('auth')->group(function () {
 });
 Route::get('/posts/{video}/comments', [VideoController::class, 'comments'])->name('web.posts.comments');
 
-Route::fallback(fn () => auth()->check() ? redirect('/feed') : redirect('/login'));
+Route::fallback(fn () => abort(404));

@@ -1,0 +1,1 @@
+@include('errors.layout', ['status' => 404, 'title' => 'Page not found', 'label' => 'Off the field', 'heading' => 'This page is out of play.', 'message' => 'The link may be outdated, the post may have been removed, or the page may have moved somewhere new.', 'primaryUrl' => '/feed', 'primaryLabel' => 'Return to the feed', 'support' => 'Check the address and try again.'])
