@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Feed;
 
 use App\Domain\Feed\Models\Video;
+use App\Domain\Feed\Jobs\FinalizeQueuedPost;
 use App\Domain\Media\Models\Media;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Feed\StoreVideoRequest;
@@ -54,29 +55,40 @@ class VideoController extends Controller
     public function store(StoreVideoRequest $request): JsonResponse
     {
         $media = $request->filled('media_id') ? Media::where('public_id', $request->validated('media_id'))->where('user_id', $request->user()->id)->first() : null;
-        if ($request->filled('media_id') && (! $media || $media->kind !== 'video' || $media->processing_status !== 'ready' || $media->moderation_status !== 'approved')) {
-            throw ValidationException::withMessages(['media_id' => ['Use an owned, approved video that has finished processing.']]);
+        if ($request->filled('media_id') && (! $media || $media->kind !== 'video' || $media->processing_status === 'failed' || $media->moderation_status === 'rejected')) {
+            throw ValidationException::withMessages(['media_id' => ['Use an owned video that has not failed processing or moderation.']]);
         }
         if ($media && Video::where('media_id', $media->id)->exists()) {
             throw ValidationException::withMessages(['media_id' => ['This video has already been published in another post.']]);
         }
         $imageIds = $request->validated('image_media_ids', []);
         $images = Media::whereIn('public_id', $imageIds)->where('user_id', $request->user()->id)->get();
-        if ($images->count() !== count($imageIds) || $images->contains(fn (Media $image) => $image->kind !== 'image' || $image->processing_status !== 'ready' || $image->moderation_status !== 'approved')) {
-            throw ValidationException::withMessages(['image_media_ids' => ['Use owned, approved images that have finished processing.']]);
+        if ($images->count() !== count($imageIds) || $images->contains(fn (Media $image) => $image->kind !== 'image' || $image->processing_status === 'failed' || $image->moderation_status === 'rejected')) {
+            throw ValidationException::withMessages(['image_media_ids' => ['Use owned images that have not failed processing or moderation.']]);
         }
         if ($images->isNotEmpty() && DB::table('video_images')->whereIn('media_id', $images->pluck('id'))->exists()) {
             throw ValidationException::withMessages(['image_media_ids' => ['One or more pictures have already been published in another post.']]);
         }
         $publish = $request->boolean('publish');
-        $video = DB::transaction(function () use ($request, $media, $images, $publish) {
-            $video = Video::create(['public_id' => (string) Str::ulid(), 'user_id' => $request->user()->id, 'media_id' => $media?->id, 'sport_id' => $request->validated('sport_id'), 'caption' => $request->validated('caption'), 'hashtags' => $this->hashtags($request->validated('hashtags', [])), 'location_name' => $request->validated('location_name'), 'latitude' => $request->validated('latitude'), 'longitude' => $request->validated('longitude'), 'comments_enabled' => $request->boolean('comments_enabled', true), 'visibility' => $request->validated('visibility', 'public'), 'status' => $publish ? 'published' : 'draft', 'published_at' => $publish ? now() : null]);
+        $allMedia = collect([$media])->filter()->concat($images);
+        $ready = $allMedia->isNotEmpty() && $allMedia->every(fn (Media $item) => $item->processing_status === 'ready' && $item->moderation_status === 'approved');
+        $video = DB::transaction(function () use ($request, $media, $images, $publish, $ready) {
+            $published = $publish && $ready;
+            $video = Video::create(['public_id' => (string) Str::ulid(), 'user_id' => $request->user()->id, 'media_id' => $media?->id, 'sport_id' => $request->validated('sport_id'), 'caption' => $request->validated('caption'), 'hashtags' => $this->hashtags($request->validated('hashtags', [])), 'location_name' => $request->validated('location_name'), 'latitude' => $request->validated('latitude'), 'longitude' => $request->validated('longitude'), 'comments_enabled' => $request->boolean('comments_enabled', true), 'visibility' => $request->validated('visibility', 'public'), 'status' => $published ? 'published' : 'draft', 'published_at' => $published ? now() : null]);
             $coverId = $request->validated('cover_media_id') ?? $images->first()?->public_id;
             $video->images()->attach($images->values()->mapWithKeys(fn (Media $image, int $position) => [$image->id => ['position' => $position, 'is_cover' => $image->public_id === $coverId]])->all());
             return $video;
         });
 
-        return response()->json(['message' => $publish ? 'Video published.' : 'Draft created.', 'data' => new VideoResource($this->load($video, $request))], 201);
+        if (! $ready) {
+            FinalizeQueuedPost::dispatch($video, $publish)->afterCommit();
+        }
+
+        $message = ! $ready
+            ? ($publish ? 'Upload received. Your post will be published after processing.' : 'Upload received. Your draft will be ready after processing.')
+            : ($publish ? 'Video published.' : 'Draft created.');
+
+        return response()->json(['message' => $message, 'queued' => ! $ready, 'data' => new VideoResource($this->load($video, $request))], $ready ? 201 : 202);
     }
 
     public function update(UpdateVideoRequest $request, Video $video): VideoResource

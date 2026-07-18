@@ -2,11 +2,16 @@
 
 namespace Tests\Feature\Api\V1;
 
+use App\Domain\Feed\Jobs\FinalizeQueuedPost;
 use App\Domain\Feed\Models\Video;
 use App\Domain\Media\Models\Media;
+use App\Domain\Notifications\Notifications\SportUniverseNotification;
+use App\Domain\Notifications\Services\NotificationDispatcher;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class FeedModuleTest extends TestCase
@@ -49,11 +54,26 @@ class FeedModuleTest extends TestCase
         ])->assertCreated()->assertJsonPath('data.type', 'video');
     }
 
-    public function test_unprocessed_media_cannot_be_published(): void
+    public function test_unprocessed_media_is_accepted_and_published_by_the_queue_when_ready(): void
     {
+        Queue::fake();
         $user = User::factory()->create();
         $media = Media::factory()->for($user)->create(['kind' => 'video', 'processing_status' => 'pending']);
-        $this->actingAs($user, 'sanctum')->postJson('/api/v1/videos', ['media_id' => $media->public_id, 'publish' => true])->assertUnprocessable()->assertJsonValidationErrors('media_id');
+        $this->actingAs($user, 'sanctum')->postJson('/api/v1/videos', ['media_id' => $media->public_id, 'publish' => true])
+            ->assertAccepted()
+            ->assertJsonPath('queued', true)
+            ->assertJsonPath('data.status', 'draft');
+
+        $video = Video::firstOrFail();
+        Queue::assertPushedOn('media', FinalizeQueuedPost::class, fn ($job) => $job->video->is($video) && $job->publishWhenReady);
+
+        $media->update(['processing_status' => 'ready', 'moderation_status' => 'approved']);
+        Notification::fake();
+        (new FinalizeQueuedPost($video, true))->handle(app(NotificationDispatcher::class));
+
+        $this->assertSame('published', $video->fresh()->status);
+        $this->assertNotNull($video->fresh()->published_at);
+        Notification::assertSentTo($user, SportUniverseNotification::class, fn ($notification) => $notification->payload['event'] === 'post_upload_completed');
     }
 
     public function test_media_cannot_be_published_as_multiple_posts(): void

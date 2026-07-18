@@ -161,23 +161,18 @@ export default function UploadScreen() {
                 );
                 uploaded.push(response.data.data);
             }
-            setPhase("Processing media");
-            setProgress(75);
-            const ready = await waitUntilReady(uploaded, (value) =>
-                setProgress(75 + Math.round(value * 20)),
-            );
-            setPhase(publishNow ? "Publishing post" : "Saving draft");
-            setProgress(96);
-            const isVideo = ready[0].kind === "video";
+            setPhase(publishNow ? "Queuing post" : "Saving draft");
+            setProgress(92);
+            const isVideo = uploaded[0].kind === "video";
             const hashtags = [...caption.matchAll(/#([\p{L}\p{N}_]+)/gu)].map(
                 (match) => match[1],
             );
-            await api.post("/videos", {
+            const postResponse = await api.post("/videos", {
                 ...(isVideo
-                    ? { media_id: ready[0].id }
+                    ? { media_id: uploaded[0].id }
                     : {
-                          image_media_ids: ready.map((item) => item.id),
-                          cover_media_id: ready[0].id,
+                          image_media_ids: uploaded.map((item) => item.id),
+                          cover_media_id: uploaded[0].id,
                       }),
                 caption: caption.trim() || undefined,
                 hashtags,
@@ -187,18 +182,23 @@ export default function UploadScreen() {
                 publish: publishNow,
             });
             setProgress(100);
-            setPhase(publishNow ? "Published" : "Draft saved");
+            const queued = Boolean(postResponse.data?.queued);
+            setPhase(queued ? "Queued" : publishNow ? "Published" : "Draft saved");
             Alert.alert(
-                publishNow ? "Post published" : "Draft saved",
-                publishNow
-                    ? "Your post is now available in the feed."
-                    : "You can publish it later from My Posts.",
+                queued ? "Upload received" : publishNow ? "Post published" : "Draft saved",
+                queued
+                    ? "You can leave this screen. We’ll notify you when processing finishes."
+                    : publishNow
+                      ? "Your post is now available in the feed."
+                      : "You can publish it later from My Posts.",
                 [
                     {
-                        text: publishNow ? "View feed" : "View drafts",
+                        text: queued ? "Done" : publishNow ? "View feed" : "View drafts",
                         onPress: () =>
                             router.replace(
-                                publishNow
+                                queued
+                                    ? "/(tabs)/feed"
+                                    : publishNow
                                     ? "/(tabs)/feed"
                                     : "/profile/my-posts",
                             ),
@@ -440,43 +440,6 @@ export default function UploadScreen() {
     );
 }
 
-async function waitUntilReady(
-    items: MediaUpload[],
-    update: (progress: number) => void,
-) {
-    let current = items;
-    for (let attempt = 0; attempt < 30; attempt++) {
-        current = await Promise.all(
-            current.map(async (item) =>
-                item.processing_status === "ready"
-                    ? item
-                    : (
-                          await api.get<ApiResponse<MediaUpload>>(
-                              `/media/${item.id}`,
-                          )
-                      ).data.data,
-            ),
-        );
-        if (current.some((item) => item.processing_status === "failed"))
-            throw new Error(
-                current.find((item) => item.processing_status === "failed")
-                    ?.processing_error || "Media processing failed.",
-            );
-        if (
-            current.every(
-                (item) =>
-                    item.processing_status === "ready" &&
-                    item.moderation_status === "approved",
-            )
-        )
-            return current;
-        update((attempt + 1) / 30);
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-    }
-    throw new Error(
-        "Media is still processing. Make sure the Laravel queue worker is running, then try again.",
-    );
-}
 function TopBar() {
     return (
         <View style={styles.topBar}>

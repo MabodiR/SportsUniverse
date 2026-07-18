@@ -106,7 +106,7 @@ const discard = () => { if (preview.value) URL.revokeObjectURL(preview.value); i
 const uploadMedia = async (uploadFile: File, kind: 'video' | 'image', index: number, total: number) => {
     const form = new FormData(); form.append('file', uploadFile); form.append('kind', kind); form.append('collection', 'uploads');
     if (kind === 'video' && videoDuration.value > 0) { form.append('trim_start_ms', String(Math.round(trimStart.value * 1000))); form.append('trim_end_ms', String(Math.round(trimEnd.value * 1000))); }
-    const processedUpload = await new Promise<any>((resolve, reject) => {
+    const acceptedUpload = await new Promise<any>((resolve, reject) => {
         const xhr = new XMLHttpRequest(); xhr.open('POST', '/api/v1/media'); xhr.responseType = 'json'; xhr.setRequestHeader('Accept', 'application/json'); xhr.setRequestHeader('X-CSRF-TOKEN', csrf());
         xhr.upload.onprogress = event => { if (event.lengthComputable) progress.value = Math.round(((index + event.loaded / event.total * .7) / total) * 100); };
         xhr.onerror = () => reject(new Error('Network error during upload.'));
@@ -119,14 +119,8 @@ const uploadMedia = async (uploadFile: File, kind: 'video' | 'image', index: num
         };
         xhr.send(form);
     });
-    let processed = processedUpload;
-    for (let attempt = 0; attempt < 900 && ['pending', 'processing'].includes(processed.processing_status); attempt++) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        const statusResponse = await fetch(`/api/v1/media/${processed.id}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
-        const statusPayload = await responsePayload(statusResponse); processed = statusPayload.data ?? statusPayload; progress.value = Math.max(progress.value, Math.round(((index + .85) / total) * 100));
-    }
-    if (processed.processing_status !== 'ready') throw new Error(processed.processing_error || `${kind === 'video' ? 'Video' : 'Picture'} processing did not complete.`);
-    return processed;
+    progress.value = Math.max(progress.value, Math.round(((index + 1) / total) * 90));
+    return acceptedUpload;
 };
 const upload = async () => {
     if (saving.value || publishedPost.value) return;
@@ -135,7 +129,7 @@ const upload = async () => {
     saving.value = true; error.value = ''; notice.value = ''; await saveDraft();
     try {
         const total = images.value.length + (file.value ? 1 : 0); let cursor = 0;
-        notice.value = 'Uploading and processing your media…';
+        notice.value = 'Uploading your media…';
         const media = file.value ? await uploadMedia(file.value, 'video', cursor++, total) : null;
         const uploadedImages = [];
         for (const image of images.value) uploadedImages.push(await uploadMedia(image, 'image', cursor++, total));
@@ -144,7 +138,7 @@ const upload = async () => {
         const publishPayload = await responsePayload(publishResponse);
         if (!publishResponse.ok) throw new Error(publishPayload.message ?? Object.values(publishPayload.errors ?? {}).flat().join(' '));
         publishedPost.value = publishPayload.data;
-        progress.value = 100; notice.value = 'Your post is live on SportUniverse.'; await clearDraft();
+        progress.value = 100; notice.value = publishPayload.queued ? 'Upload received. You can leave this page—we’ll notify you when your post is ready.' : 'Your post is live on SportUniverse.'; await clearDraft();
     } catch (e: any) { error.value = `${e.message ?? 'Upload failed.'} Your draft is saved and can be retried.`; navigator.serviceWorker?.ready.then((registration:any)=>registration.sync?.register('sportuniverse-upload')); }
     finally { saving.value = false; }
 };
@@ -182,14 +176,14 @@ onUnmounted(() => { if (preview.value) URL.revokeObjectURL(preview.value); image
                     <label><span class="upload-label">Location</span><input v-model="locationName" class="su-input" placeholder="City, venue, suburb or township" /></label>
                     <label><span class="upload-label">Who can watch this video</span><select v-model="visibility"><option>Everyone</option><option>Followers</option><option>Only me</option></select></label>
                     <div><span class="upload-label">Allow users to</span><label class="upload-check"><input v-model="comments" type="checkbox" /> Comments</label></div>
-                    <div class="upload-note"><Info :size="17" /><p>Your video will be reviewed and processed after upload. Keep this page open until the upload completes.</p></div>
+                    <div class="upload-note"><Info :size="17" /><p>Keep this page open only while the original file uploads. Processing continues in the background and we’ll notify you when it is ready.</p></div>
                     <div v-if="saving" class="sport-upload-status" role="status" aria-live="polite">
                         <span class="sport-upload-spinner" aria-hidden="true">{{ sportUploadSymbol }}</span>
-                        <div><strong>{{ selectedSport }} upload in progress</strong><small>{{ progress < 75 ? 'Uploading your media…' : progress < 100 ? 'Processing your post…' : 'Finishing up…' }}</small></div>
+                        <div><strong>{{ selectedSport }} upload in progress</strong><small>{{ progress < 100 ? 'Safely transferring your media…' : 'Sending it to the processing queue…' }}</small></div>
                     </div>
                     <div v-if="saving" class="upload-progress"><span :style="{ width: progress + '%' }" /><strong>{{ progress }}%</strong></div>
                     <p v-if="error" class="upload-feedback error">{{ error }}</p><p v-if="notice" class="upload-feedback success"><CheckCircle2 :size="16" />{{ notice }}</p>
-                    <div class="upload-actions"><button type="button" class="discard" @click="discard">{{ publishedPost ? 'Create another post' : 'Discard' }}</button><button class="post" :disabled="saving || !!publishedPost || (!file && !images.length)">{{ saving ? 'Uploading…' : publishedPost ? 'Posted' : 'Post' }}</button></div>
+                    <div class="upload-actions"><button type="button" class="discard" @click="discard">{{ publishedPost ? 'Create another post' : 'Discard' }}</button><button class="post" :disabled="saving || !!publishedPost || (!file && !images.length)">{{ saving ? 'Uploading…' : publishedPost ? (publishedPost.status === 'published' ? 'Posted' : 'Queued') : 'Post' }}</button></div>
                 </form>
             </section>
         </main>
