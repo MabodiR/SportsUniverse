@@ -83,9 +83,9 @@ jobs:
           set_env MAIL_SCHEME smtps
           set_env MAIL_HOST www116.jnb2.host-h.net
           set_env MAIL_PORT 465
-          set_env MAIL_USERNAME no-reply@sportsuniverse.co.za
+          set_env MAIL_USERNAME support@sportsuniverse.co.za
           set_env MAIL_PASSWORD "$PRODUCTION_MAIL_PASSWORD"
-          set_env MAIL_FROM_ADDRESS no-reply@sportsuniverse.co.za
+          set_env MAIL_FROM_ADDRESS support@sportsuniverse.co.za
           set_env MAIL_FROM_NAME SportUniverse
           sudo chown -R www-data:www-data storage bootstrap/cache
           sudo -u www-data php artisan optimize:clear
