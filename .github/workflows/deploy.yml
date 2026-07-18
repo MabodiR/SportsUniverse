@@ -81,11 +81,11 @@ jobs:
           set_env MEDIA_REQUIRES_MODERATION false
           set_env MAIL_MAILER smtp
           set_env MAIL_SCHEME smtps
-          set_env MAIL_HOST mail.sportuniverse.co.za
+          set_env MAIL_HOST mail.sportsuniverse.co.za
           set_env MAIL_PORT 465
-          set_env MAIL_USERNAME no-reply@sportuniverse.co.za
+          set_env MAIL_USERNAME no-reply@sportsuniverse.co.za
           set_env MAIL_PASSWORD "$PRODUCTION_MAIL_PASSWORD"
-          set_env MAIL_FROM_ADDRESS no-reply@sportuniverse.co.za
+          set_env MAIL_FROM_ADDRESS no-reply@sportsuniverse.co.za
           set_env MAIL_FROM_NAME SportUniverse
           sudo chown -R www-data:www-data storage bootstrap/cache
           sudo -u www-data php artisan optimize:clear

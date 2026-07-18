@@ -186,9 +186,12 @@ class WebAuthController extends Controller
         Cache::put('pending-registration:'.$token, $data, now()->addMinutes(60));
         $request->session()->put('pending_registration_token', $token);
         $request->session()->put('pending_registration_email', $data['email']);
-        $this->sendPendingVerification($token, $data);
+        $sent = $this->sendPendingVerification($token, $data);
 
-        return redirect()->route('register.verification-sent');
+        return redirect()->route('register.verification-sent')->with(
+            $sent ? 'success' : 'mail_error',
+            $sent ? 'A verification email has been sent.' : 'Your registration is saved, but we could not send the verification email. Please use Resend verification email.'
+        );
     }
 
     public function pendingVerification(Request $request): Response|RedirectResponse
@@ -198,7 +201,7 @@ class WebAuthController extends Controller
             return redirect('/register');
         }
 
-        return Inertia::render('Auth/PendingRegistration', ['email' => $email, 'status' => session('success')]);
+        return Inertia::render('Auth/PendingRegistration', ['email' => $email, 'status' => session('success'), 'mailError' => session('mail_error')]);
     }
 
     public function resendPendingVerification(Request $request): RedirectResponse
@@ -208,7 +211,9 @@ class WebAuthController extends Controller
         if (! $token || ! $data) {
             return redirect('/register')->withErrors(['email' => 'Your registration request expired. Please register again.']);
         }
-        $this->sendPendingVerification($token, $data);
+        if (! $this->sendPendingVerification($token, $data)) {
+            return back()->with('mail_error', 'We could not send the verification email. Please try again shortly.');
+        }
 
         return back()->with('success', 'A new verification email has been sent.');
     }
@@ -256,10 +261,18 @@ class WebAuthController extends Controller
         return $user;
     }
 
-    private function sendPendingVerification(string $token, array $data): void
+    private function sendPendingVerification(string $token, array $data): bool
     {
         $url = URL::temporarySignedRoute('register.verify', now()->addMinutes(60), ['token' => $token]);
-        Notification::route('mail', $data['email'])->notify(new VerifyPendingRegistration($data['name'], $url));
+        try {
+            Notification::route('mail', $data['email'])->notify(new VerifyPendingRegistration($data['name'], $url));
+
+            return true;
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return false;
+        }
     }
 
     public function logout(Request $request): RedirectResponse

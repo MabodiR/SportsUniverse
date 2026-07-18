@@ -91,6 +91,23 @@ class WebInterfaceTest extends TestCase
             ->assertJsonPath('data.phone_available', false);
     }
 
+    public function test_registration_is_preserved_when_verification_email_delivery_fails(): void
+    {
+        config(['mail.default' => 'unavailable-test-mailer']);
+
+        $response = $this->post('/register', [
+            'name' => 'Mail Retry Athlete',
+            'email' => 'mail-retry@example.com',
+            'password' => 'Password9!',
+            'password_confirmation' => 'Password9!',
+            'role' => 'athlete',
+        ]);
+
+        $response->assertRedirect(route('register.verification-sent'))->assertSessionHas('mail_error');
+        $this->assertNotNull(session('pending_registration_token'));
+        $this->assertDatabaseMissing('users', ['email' => 'mail-retry@example.com']);
+    }
+
     public function test_registration_password_requires_a_letter_number_and_symbol(): void
     {
         $this->post('/register', [
