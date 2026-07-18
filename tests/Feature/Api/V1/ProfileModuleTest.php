@@ -51,6 +51,7 @@ class ProfileModuleTest extends TestCase
         ], ['Accept' => 'application/json']);
 
         $response->assertOk()->assertJsonPath('data.url', fn ($url) => str_starts_with($url, '/storage/profiles/'.$user->id.'/'));
+        $this->assertSame($response->json('data.url'), $user->profile->fresh()->profile_image_path);
         Storage::disk('public')->assertExists(str($response->json('data.url'))->after('/storage/')->value());
     }
 

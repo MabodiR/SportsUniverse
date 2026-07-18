@@ -136,7 +136,7 @@ jobs:
       - name: Optimize production application
         run: |
           cd /var/www/sportuniverse
-          sudo -u www-data php artisan storage:link || true
+          sudo -u www-data php artisan storage:link --force
           sudo -u www-data php artisan optimize
 
       - name: Install production services
@@ -158,6 +158,13 @@ jobs:
           sudo systemctl daemon-reload
           sudo systemctl restart sportuniverse-queue.service sportuniverse-reverb.service
           sudo systemctl reload php8.5-fpm.service nginx.service
+
+      - name: Verify production profile media storage
+        run: |
+          cd /var/www/sportuniverse
+          printf 'profile-media-ok' | sudo -u www-data tee storage/app/public/deployment-storage-health.txt > /dev/null
+          curl --fail --silent --show-error --header 'Host: sportsuniverse.co.za' http://127.0.0.1/storage/deployment-storage-health.txt | grep -q 'profile-media-ok'
+          sudo -u www-data rm storage/app/public/deployment-storage-health.txt
 
       - name: Verify production health
         run: |

@@ -118,6 +118,7 @@ class ProfileController extends Controller
         $user = $request->user();
         $oldPath = $user->profile?->profile_image_path;
         $path = $data['photo']->storePublicly("profiles/{$user->id}", 'public');
+        abort_unless(is_string($path) && Storage::disk('public')->exists($path), 500, 'The profile photo could not be stored. Please try again.');
         $url = '/storage/'.$path;
         $user->profile()->update(['profile_image_path' => $url]);
         if ($oldPath && str_starts_with($oldPath, '/storage/')) Storage::disk('public')->delete(str($oldPath)->after('/storage/')->value());
@@ -132,6 +133,7 @@ class ProfileController extends Controller
         $user = $request->user();
         $oldPath = $user->profile?->cover_image_path;
         $path = $data['cover']->storePublicly("profiles/{$user->id}", 'public');
+        abort_unless(is_string($path) && Storage::disk('public')->exists($path), 500, 'The cover photo could not be stored. Please try again.');
         $url = '/storage/'.$path;
         $user->profile()->update(['cover_image_path' => $url]);
         if ($oldPath && str_starts_with($oldPath, '/storage/')) Storage::disk('public')->delete(str($oldPath)->after('/storage/')->value());
