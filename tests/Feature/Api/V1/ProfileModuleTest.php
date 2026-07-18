@@ -54,6 +54,21 @@ class ProfileModuleTest extends TestCase
         Storage::disk('public')->assertExists(str($response->json('data.url'))->after('/storage/')->value());
     }
 
+    public function test_owner_can_upload_a_profile_cover(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        $user->profile()->create();
+
+        $response = $this->actingAs($user, 'sanctum')->post('/api/v1/profile/cover', [
+            'cover' => UploadedFile::fake()->image('banner.jpg', 1200, 450),
+        ], ['Accept' => 'application/json']);
+
+        $response->assertOk()->assertJsonPath('data.url', fn ($url) => str_starts_with($url, '/storage/profiles/'.$user->id.'/'));
+        $this->assertSame($response->json('data.url'), $user->profile->fresh()->cover_image_path);
+        Storage::disk('public')->assertExists(str($response->json('data.url'))->after('/storage/')->value());
+    }
+
     public function test_position_must_belong_to_selected_sport(): void
     {
         $user = User::factory()->create();

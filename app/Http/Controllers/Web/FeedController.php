@@ -59,7 +59,7 @@ class FeedController extends Controller
         $fanSports = collect($fanSports)->filter()->map(fn ($name) => mb_strtolower((string) $name))->values()->all();
         $videos = app(ApplyFeedPreferences::class)->execute(Video::query()->where('status', 'published')->where('visibility', 'public'), $request->user())
             ->when($fanSports, fn ($query) => $query->where(function ($videos) use ($fanSports) { $videos->whereHas('sport', fn ($sport) => $sport->whereIn(DB::raw('LOWER(name)'), $fanSports))->orWhereHas('user.athleteProfile.sport', fn ($sport) => $sport->whereIn(DB::raw('LOWER(name)'), $fanSports)); }))
-            ->when($location, fn ($query) => $query->whereHas('user.profile', fn ($profile) => $profile->whereRaw('LOWER(city) = ?', [mb_strtolower($location)])))
+            ->when($location, fn ($query) => $query->whereRaw('LOWER(location_name) = ?', [mb_strtolower($location)]))
             ->when($sport, fn ($query) => $query->where(function ($videoQuery) use ($sport) {
                 $videoQuery->whereHas('sport', fn ($sportQuery) => $sportQuery->whereRaw('LOWER(name) = ?', [mb_strtolower($sport)]))
                     ->orWhereHas('user.athleteProfile.sport', fn ($sportQuery) => $sportQuery->whereRaw('LOWER(name) = ?', [mb_strtolower($sport)]));
@@ -125,6 +125,7 @@ class FeedController extends Controller
                 'id' => $video->user->id,
                 'name' => $video->user->name,
                 'slug' => $video->user->profile?->slug,
+                'profile_image' => $video->user->profile?->profile_image_path,
                 'sport' => $video->user->athleteProfile?->sport?->name ?? $video->sport?->name,
                 'position' => $video->user->athleteProfile?->taxonomyPosition?->name,
                 'city' => $video->user->profile?->city,

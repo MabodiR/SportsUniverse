@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Feed;
 use App\Domain\Feed\Actions\ToggleVideoEngagement;
 use App\Domain\Feed\Models\Comment;
 use App\Domain\Feed\Models\Video;
+use App\Domain\Feed\Services\BufferedVideoCounters;
 use App\Domain\Notifications\Services\NotificationDispatcher;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Feed\RecordViewRequest;
@@ -86,13 +87,14 @@ class EngagementController extends Controller
         return response()->json(['data' => ['shares_count' => $video->fresh()->shares_count, 'reposted' => $reposted]]);
     }
 
-    public function view(RecordViewRequest $request, Video $video): JsonResponse
+    public function view(RecordViewRequest $request, Video $video, BufferedVideoCounters $counters): JsonResponse
     {
         Gate::authorize('view', $video);
         $created = false;
         DB::transaction(function () use ($request, $video, &$created) {
             $date = today()->toDateString();
-            $query = DB::table('video_views')->where(['video_id' => $video->id, 'user_id' => $request->user()->id, 'viewed_on' => $date]);
+            $table = DB::getDriverName() === 'pgsql' ? config('scale.video_views_table') : 'video_views';
+            $query = DB::table($table)->where(['video_id' => $video->id, 'user_id' => $request->user()->id, 'viewed_on' => $date]);
             $record = $query->lockForUpdate()->first();
             if ($record) {
                 $query->update([
@@ -103,12 +105,13 @@ class EngagementController extends Controller
 
                 return;
             }
-            DB::table('video_views')->insert(['video_id' => $video->id, 'user_id' => $request->user()->id, 'watched_ms' => $request->integer('watched_ms'), 'completed' => $request->boolean('completed'), 'viewed_on' => $date, 'created_at' => now(), 'updated_at' => now()]);
-            $video->increment('views_count');
+            DB::table($table)->insert(['video_id' => $video->id, 'user_id' => $request->user()->id, 'watched_ms' => $request->integer('watched_ms'), 'completed' => $request->boolean('completed'), 'viewed_on' => $date, 'created_at' => now(), 'updated_at' => now()]);
             $created = true;
         });
 
-        return response()->json(['data' => ['counted' => $created, 'views_count' => $video->fresh()->views_count]]);
+        $views = $created ? $counters->increment($video) : (int) $video->fresh()->views_count + $counters->pending($video->id);
+
+        return response()->json(['data' => ['counted' => $created, 'views_count' => $views]]);
     }
 
     public function follow(Request $request, User $user, NotificationDispatcher $notifications): JsonResponse

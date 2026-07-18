@@ -29,11 +29,14 @@ class MessagingContextController extends Controller
             });
         }
 
+        $archived = $conversation ? (bool) DB::table('conversation_participants')->where(['conversation_id' => $conversation->id, 'user_id' => $request->user()->id])->value('archived_at') : false;
+
         return response()->json(['data' => [
             'mode' => $conversation ? 'conversation' : 'request',
             'recipient' => ['id' => $user->id, 'name' => $user->name, 'slug' => $user->profile?->slug],
             'conversation' => $conversation ? [
                 'id' => $conversation->public_id,
+                'archived' => $archived,
                 'messages' => $conversation->messages()->with('sender')->latest()->limit(50)->get()->reverse()->values()->map(fn ($message) => [
                     'id' => $message->public_id,
                     'body' => $message->deleted_at ? null : $message->body,

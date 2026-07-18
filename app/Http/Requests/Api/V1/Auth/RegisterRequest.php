@@ -15,6 +15,6 @@ class RegisterRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['name' => ['required', 'string', 'max:120'], 'email' => ['required_without:phone', 'nullable', 'email', 'max:255', 'unique:users,email'], 'phone' => ['required_without:email', 'nullable', 'string', 'max:32', 'unique:users,phone'], 'password' => ['required', 'confirmed', Password::min(8)->letters()->numbers()], 'role' => ['nullable', Rule::in(['athlete', 'fan', 'coach', 'referee', 'linesman', 'scout', 'agent', 'club', 'academy', 'business', 'sponsor'])], 'device_name' => ['nullable', 'string', 'max:120']];
+        return ['name' => ['required', 'string', 'max:120'], 'email' => ['required_without:phone', 'nullable', 'email', 'max:255', 'unique:users,email'], 'phone' => ['required_without:email', 'nullable', 'string', 'max:32', 'unique:users,phone'], 'password' => ['required', 'confirmed', Password::min(8)->letters()->numbers()->symbols()], 'role' => ['nullable', Rule::in(['athlete', 'fan', 'coach', 'referee', 'linesman', 'scout', 'agent', 'club', 'academy', 'business', 'sponsor'])], 'device_name' => ['nullable', 'string', 'max:120']];
     }
 }

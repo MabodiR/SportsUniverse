@@ -6,6 +6,7 @@ use App\Domain\Feed\Models\Video;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AdCampaign extends Model
 {
@@ -29,5 +30,10 @@ class AdCampaign extends Model
     public function video(): BelongsTo
     {
         return $this->belongsTo(Video::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(CampaignPayment::class, 'campaign_id');
     }
 }

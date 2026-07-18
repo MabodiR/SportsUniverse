@@ -12,6 +12,8 @@ const profile = ref<any>();
 const sports = ref<any[]>([]);
 const photo = ref<File | null>(null);
 const preview = ref('');
+const cover = ref<File | null>(null);
+const coverPreview = ref('');
 const cropZoom = ref(1);
 const cropX = ref(50);
 const cropY = ref(50);
@@ -44,7 +46,10 @@ const api = async (url: string, options: RequestInit = {}) => {
         },
     });
     const payload = await response.json();
-    if (!response.ok) throw new Error(payload.message ?? Object.values(payload.errors ?? {}).flat().join(' '));
+    if (!response.ok) {
+        const validation = Object.values(payload.errors ?? {}).flat().join(' ');
+        throw new Error(validation || payload.message || 'Unable to update your profile.');
+    }
     return payload.data ?? payload;
 };
 
@@ -78,6 +83,12 @@ const pick = (file?: File) => {
     cropZoom.value = 1; cropX.value = 50; cropY.value = 50;
 };
 
+const pickCover = (file?: File) => {
+    if (!file) return;
+    cover.value = file;
+    coverPreview.value = URL.createObjectURL(file);
+};
+
 const croppedPhoto = async () => {
     if (!photo.value) return null;
     const image = await createImageBitmap(photo.value);
@@ -100,6 +111,13 @@ const save = async () => {
             const body = new FormData();
             body.append('photo', (await croppedPhoto())!);
             profile.value.images.profile = (await api('/api/v1/profile/photo', { method: 'POST', body })).url;
+        }
+        if (cover.value) {
+            const body = new FormData();
+            body.append('cover', cover.value);
+            profile.value.images.cover = (await api('/api/v1/profile/cover', { method: 'POST', body })).url;
+            cover.value = null;
+            coverPreview.value = '';
         }
         await api('/api/v1/profile/role', { method: 'PATCH', body: JSON.stringify({ role: form.value.role }) });
         await api('/api/v1/profile', {
@@ -174,6 +192,12 @@ onMounted(async () => {
             </header>
             <form v-if="profile" @submit.prevent="save">
                 <aside>
+                    <div class="edit-cover">
+                        <img v-if="coverPreview || profile.images?.cover" :src="coverPreview || profile.images.cover" :alt="`${form.name} cover photo`" />
+                        <span v-else>Profile banner</span>
+                        <label><Camera /><span>Change banner</span><input hidden type="file" accept="image/jpeg,image/png,image/webp" @change="pickCover(($event.target as HTMLInputElement).files?.[0])" /></label>
+                    </div>
+                    <small class="cover-help">JPEG, PNG or WebP · at least 800 × 300</small>
                     <div class="edit-avatar">
                         <img v-if="preview || profile.images?.profile" :src="preview || profile.images.profile" :alt="`${form.name} profile photo`" :style="preview ? { transform: `scale(${cropZoom})`, objectPosition: `${cropX}% ${cropY}%` } : undefined" />
                         <span v-else>{{ form.name.slice(0, 2).toUpperCase() }}</span>
@@ -255,4 +279,9 @@ onMounted(async () => {
 
 <style scoped>
 .edit-avatar { overflow: hidden; }.edit-avatar img { width: 100%; height: 100%; object-fit: cover; transform-origin: center; }.profile-crop-controls { display: grid; gap: .55rem; width: 100%; margin-top: .8rem; padding: .8rem; border: 1px solid #dde5ef; border-radius: 12px; background: #f7f9fc; }.profile-crop-controls strong { font-size: .75rem; }.profile-crop-controls label { display: grid; gap: .2rem; color: #617087; font-size: .65rem; }.profile-crop-controls input { width: 100%; accent-color: #2563eb; }
+.edit-cover { position: relative; display: grid; width: 100%; aspect-ratio: 8/3; margin-bottom: 1rem; overflow: hidden; place-items: center; color: #fff; border-radius: 11px; background: linear-gradient(125deg,#172b47,#1b63f3 58%,#e646a2); font-size: .65rem; font-weight: 800; }
+.edit-cover img { width: 100%; height: 100%; object-fit: cover; }
+.edit-cover label { position: absolute; right: .45rem; bottom: .45rem; display: flex; align-items: center; gap: .3rem; padding: .38rem .55rem; color: #fff; border-radius: 999px; background: rgba(8,16,30,.72); cursor: pointer; font-size: .52rem; }
+.edit-cover label svg { width: 13px; }
+.cover-help { display: block; margin: -.55rem 0 .85rem; }
 </style>

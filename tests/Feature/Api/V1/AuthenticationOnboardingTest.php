@@ -23,10 +23,11 @@ class AuthenticationOnboardingTest extends TestCase
 
     public function test_user_can_register_and_receive_a_sanctum_token(): void
     {
-        $response = $this->postJson('/api/v1/auth/register', ['name' => 'Ada Athlete', 'email' => 'ada@example.com', 'password' => 'Password9', 'password_confirmation' => 'Password9', 'device_name' => 'ios']);
+        $response = $this->postJson('/api/v1/auth/register', ['name' => 'Ada Athlete', 'email' => 'ada@example.com', 'password' => 'Password9!', 'password_confirmation' => 'Password9!', 'device_name' => 'ios']);
         $response->assertCreated()->assertJsonPath('data.name', 'Ada Athlete')->assertJsonStructure(['token', 'data' => ['id', 'profile']]);
         $this->assertDatabaseHas('users', ['email' => 'ada@example.com']);
         $this->assertDatabaseHas('user_profiles', ['completeness' => 20]);
+        $this->assertDatabaseHas('login_histories', ['user_id' => User::where('email', 'ada@example.com')->value('id'), 'method' => 'registration', 'device_type' => 'desktop']);
     }
 
     public function test_mobile_registration_creates_the_selected_role_atomically(): void
@@ -36,8 +37,8 @@ class AuthenticationOnboardingTest extends TestCase
         $response = $this->postJson('/api/v1/auth/register', [
             'name' => 'Mobile Coach',
             'email' => 'mobile-coach@example.com',
-            'password' => 'Password9',
-            'password_confirmation' => 'Password9',
+            'password' => 'Password9!',
+            'password_confirmation' => 'Password9!',
             'role' => 'coach',
             'device_name' => 'android-mobile',
         ]);
@@ -50,7 +51,7 @@ class AuthenticationOnboardingTest extends TestCase
 
     public function test_athlete_can_complete_role_details_and_location_incrementally(): void
     {
-        $registration = $this->postJson('/api/v1/auth/register', ['name' => 'Ada Athlete', 'email' => 'ada@example.com', 'password' => 'Password9', 'password_confirmation' => 'Password9']);
+        $registration = $this->postJson('/api/v1/auth/register', ['name' => 'Ada Athlete', 'email' => 'ada@example.com', 'password' => 'Password9!', 'password_confirmation' => 'Password9!']);
         $token = $registration->json('token');
         $headers = ['Authorization' => 'Bearer '.$token];
         $this->putJson('/api/v1/onboarding/role', ['role' => 'athlete'], $headers)->assertOk()->assertJsonPath('data.roles.0', 'athlete');

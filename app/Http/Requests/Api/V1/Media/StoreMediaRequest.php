@@ -22,7 +22,7 @@ class StoreMediaRequest extends FormRequest
     {
         return [function ($validator) {
             $file = $this->file('file');
-            if (! $file) {
+            if (! $file || ! $file->isValid() || ! $file->getPathname() || ! is_readable($file->getPathname())) {
                 return;
             }$allowed = match ($this->input('kind')) {
                 'image' => ['image/jpeg', 'image/png', 'image/webp'],'video' => ['video/mp4', 'video/quicktime', 'video/webm'],'document' => ['application/pdf', 'image/jpeg', 'image/png'],default => []
@@ -37,6 +37,14 @@ class StoreMediaRequest extends FormRequest
                 $validator->errors()->add('trim_end_ms', 'Video clips can be up to 60 seconds long.');
             }
         }];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'file.uploaded' => 'The file could not be uploaded. It may exceed the PHP server upload limit.',
+            'file.max' => 'The selected file exceeds the maximum allowed size.',
+        ];
     }
 
     private function maxKilobytes(): int

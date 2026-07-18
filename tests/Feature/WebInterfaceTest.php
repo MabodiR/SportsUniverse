@@ -4,7 +4,10 @@ namespace Tests\Feature;
 
 use App\Domain\Feed\Models\Video;
 use App\Models\User;
+use App\Notifications\VerifyPendingRegistration;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\URL;
 use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -54,17 +57,49 @@ class WebInterfaceTest extends TestCase
 
     public function test_member_can_register_and_enter_feed(): void
     {
+        Notification::fake();
         $response = $this->post('/register', [
+            'name' => 'Lerato Athlete',
+            'email' => 'lerato@example.com',
+            'password' => 'Password9!',
+            'password_confirmation' => 'Password9!',
+            'role' => 'athlete',
+        ]);
+        $response->assertRedirect(route('register.verification-sent'));
+        $this->assertGuest();
+        $this->assertDatabaseMissing('users', ['email' => 'lerato@example.com']);
+        Notification::assertSentOnDemand(VerifyPendingRegistration::class);
+
+        $token = session('pending_registration_token');
+        $verificationUrl = URL::temporarySignedRoute('register.verify', now()->addMinutes(60), ['token' => $token]);
+        $this->get($verificationUrl)->assertRedirect('/feed');
+        $this->assertAuthenticated();
+        $this->assertDatabaseHas('users', ['email' => 'lerato@example.com']);
+        $this->assertDatabaseHas('user_profiles', ['slug' => 'lerato-athlete', 'completeness' => 35]);
+        $this->get('/feed')->assertOk()->assertInertia(fn (Assert $page) => $page->component('Feed/Index')->has('videos')->has('suggestions'));
+    }
+
+    public function test_registration_availability_reports_taken_email_and_phone(): void
+    {
+        User::factory()->create(['email' => 'taken@example.com', 'phone' => '+27820000000']);
+
+        $this->postJson('/register/check-availability', [
+            'email' => 'taken@example.com',
+            'phone' => '+27820000000',
+        ])->assertOk()
+            ->assertJsonPath('data.email_available', false)
+            ->assertJsonPath('data.phone_available', false);
+    }
+
+    public function test_registration_password_requires_a_letter_number_and_symbol(): void
+    {
+        $this->post('/register', [
             'name' => 'Lerato Athlete',
             'email' => 'lerato@example.com',
             'password' => 'Password9',
             'password_confirmation' => 'Password9',
             'role' => 'athlete',
-        ]);
-        $response->assertRedirect('/feed');
-        $this->assertAuthenticated();
-        $this->assertDatabaseHas('user_profiles', ['slug' => 'lerato-athlete', 'completeness' => 35]);
-        $this->get('/feed')->assertOk()->assertInertia(fn (Assert $page) => $page->component('Feed/Index')->has('videos')->has('suggestions'));
+        ])->assertSessionHasErrors('password');
     }
 
     public function test_member_can_login_and_logout_through_web_session(): void

@@ -42,6 +42,21 @@ class MediaModuleTest extends TestCase
         Queue::assertNothingPushed();
     }
 
+    public function test_php_rejected_upload_returns_validation_error_instead_of_crashing(): void
+    {
+        $user = User::factory()->create();
+        $file = new UploadedFile('', 'too-large.mp4', 'video/mp4', UPLOAD_ERR_INI_SIZE, true);
+
+        $this->actingAs($user, 'sanctum')->post('/api/v1/media', [
+            'kind' => 'video',
+            'file' => $file,
+        ], ['Accept' => 'application/json'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('file');
+
+        Queue::assertNothingPushed();
+    }
+
     public function test_video_trim_selection_is_queued_with_the_upload(): void
     {
         $user = User::factory()->create();

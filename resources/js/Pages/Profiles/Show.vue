@@ -53,9 +53,9 @@ onMounted(() => {
     <AppShell>
         <main class="public-profile-page">
             <section class="public-profile-header">
-                <div class="profile-cover" />
+                <div class="profile-cover"><img v-if="athlete.cover" :src="athlete.cover" :alt="`${athlete.name} cover photo`" /></div>
                 <div class="public-profile-info">
-                    <div class="public-avatar">{{ athlete.name.slice(0,2).toUpperCase() }}</div>
+                    <div class="public-avatar"><img v-if="athlete.image" :src="athlete.image" :alt="`${athlete.name} profile photo`" /><span v-else>{{ athlete.name.slice(0,2).toUpperCase() }}</span></div>
                     <div class="profile-identity"><h1>{{ athlete.name }} <CheckCircle2 /></h1><strong>@{{ athlete.slug }}</strong><p>{{ athlete.sport || 'Athlete' }}<template v-if="athlete.position"> · {{ athlete.position }}</template><template v-if="athlete.city"> · {{ athlete.city }}</template></p></div>
                     <div class="profile-actions"><button class="su-btn su-btn-primary" :disabled="busy" @click="follow"><UserPlus :size="16" /> {{ busy ? 'Updating…' : following ? 'Following' : 'Follow' }}</button><button class="su-btn su-btn-ghost" @click="saveProfile"><Bookmark :size="16" :fill="saved?'currentColor':'none'" /> {{ saved ? 'Saved' : 'Save' }}</button><Link href="/message-requests" class="su-btn su-btn-ghost"><MessageCircle :size="16" /> Message</Link><small v-if="followError" class="follow-error">{{ followError }}</small></div>
                 </div>

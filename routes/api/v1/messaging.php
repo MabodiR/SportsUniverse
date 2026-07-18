@@ -24,6 +24,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('conversations/{conversation}/report', [ConversationController::class, 'report']);
     Route::get('conversations/{conversation}/messages', [MessageController::class, 'index']);
     Route::post('conversations/{conversation}/messages', [MessageController::class, 'store'])->middleware('throttle:60,1');
+    Route::patch('conversations/{conversation}/messages/{message}', [MessageController::class, 'update']);
+    Route::delete('conversations/{conversation}/messages/{message}', [MessageController::class, 'destroy']);
     Route::post('profiles/{user}/block', [BlockController::class, 'store']);
     Route::delete('profiles/{user}/block', [BlockController::class, 'destroy']);
 });

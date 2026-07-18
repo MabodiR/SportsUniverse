@@ -86,9 +86,11 @@ class DiscoveryModuleTest extends TestCase
     {
         $viewer=$this->member('Discovery Viewer','fan',['city'=>'Soweto']);
         $athlete=$this->member('Soweto Striker','athlete',['city'=>'Soweto','bio'=>'Fast football talent']);
-        \App\Domain\Feed\Models\Video::factory()->for($athlete)->create(['caption'=>'Football training','hashtags'=>['football','training'],'published_at'=>now()]);
+        \App\Domain\Feed\Models\Video::factory()->for($athlete)->create(['caption'=>'Football training','hashtags'=>['football','training'],'location_name'=>'Orlando Stadium','published_at'=>now()]);
         $response=$this->actingAs($viewer,'sanctum')->getJson('/api/v1/search/all?q=football')->assertOk();
         $response->assertJsonPath('data.athletes.0.name','Soweto Striker')->assertJsonPath('data.videos.0.caption','Football training')->assertJsonPath('discovery.trending_hashtags.0.tag','football');
+        $this->getJson('/api/v1/search/all?q='.urlencode('#training'))->assertOk()->assertJsonPath('data.videos.0.caption','Football training');
+        $this->getJson('/api/v1/search/all?q='.urlencode('Orlando Stadium'))->assertOk()->assertJsonPath('data.videos.0.location','Orlando Stadium');
     }
 
     public function test_user_can_save_reuse_and_delete_searches(): void

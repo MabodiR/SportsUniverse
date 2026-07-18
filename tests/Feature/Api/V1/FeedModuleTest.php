@@ -6,11 +6,27 @@ use App\Domain\Feed\Models\Video;
 use App\Domain\Media\Models\Media;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class FeedModuleTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_for_you_feed_uses_precomputed_recommendation_order_when_available(): void
+    {
+        $viewer = User::factory()->create();
+        $first = Video::factory()->create(['likes_count' => 0]);
+        $second = Video::factory()->create(['likes_count' => 999]);
+        $generation = (string) \Illuminate\Support\Str::ulid();
+        DB::table('recommendation_feed_items')->insert([
+            ['user_id' => $viewer->id, 'video_id' => $first->id, 'score' => 10, 'position' => 0, 'generation' => $generation, 'generated_at' => now()],
+            ['user_id' => $viewer->id, 'video_id' => $second->id, 'score' => 9, 'position' => 1, 'generation' => $generation, 'generated_at' => now()],
+        ]);
+
+        $response = $this->actingAs($viewer, 'sanctum')->getJson('/api/v1/feed/for-you')->assertOk();
+        $response->assertJsonPath('data.0.id', $first->public_id)->assertJsonPath('data.1.id', $second->public_id);
+    }
 
     public function test_user_can_publish_processed_approved_video(): void
     {
@@ -21,11 +37,44 @@ class FeedModuleTest extends TestCase
         $this->assertDatabaseHas('videos', ['user_id' => $user->id, 'media_id' => $media->id, 'status' => 'published']);
     }
 
+    public function test_video_post_accepts_an_explicit_empty_image_list(): void
+    {
+        $user = User::factory()->create();
+        $media = Media::factory()->for($user)->create(['kind' => 'video']);
+
+        $this->actingAs($user, 'sanctum')->postJson('/api/v1/videos', [
+            'media_id' => $media->public_id,
+            'image_media_ids' => [],
+            'publish' => true,
+        ])->assertCreated()->assertJsonPath('data.type', 'video');
+    }
+
     public function test_unprocessed_media_cannot_be_published(): void
     {
         $user = User::factory()->create();
         $media = Media::factory()->for($user)->create(['kind' => 'video', 'processing_status' => 'pending']);
         $this->actingAs($user, 'sanctum')->postJson('/api/v1/videos', ['media_id' => $media->public_id, 'publish' => true])->assertUnprocessable()->assertJsonValidationErrors('media_id');
+    }
+
+    public function test_media_cannot_be_published_as_multiple_posts(): void
+    {
+        $user = User::factory()->create();
+        $video = Media::factory()->for($user)->create(['kind' => 'video']);
+        $image = Media::factory()->for($user)->create(['kind' => 'image']);
+
+        $this->actingAs($user, 'sanctum')->postJson('/api/v1/videos', [
+            'media_id' => $video->public_id,
+            'image_media_ids' => [$image->public_id],
+            'publish' => true,
+        ])->assertCreated();
+
+        $this->postJson('/api/v1/videos', ['media_id' => $video->public_id, 'publish' => true])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('media_id');
+        $this->postJson('/api/v1/videos', ['image_media_ids' => [$image->public_id], 'publish' => true])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('image_media_ids');
+        $this->assertDatabaseCount('videos', 1);
     }
 
     public function test_video_post_can_include_two_images_and_select_a_cover(): void

@@ -315,19 +315,18 @@ export default function UploadScreen() {
                                     />
                                 </View>
                                 <View style={styles.trimField}>
-                                    <Text style={styles.trimLabel}>
-                                        Clip length
-                                    </Text>
-                                    <TextInput
-                                        value={trimLength}
-                                        onChangeText={(value) =>
-                                            setTrimLength(
-                                                value.replace(/[^\d.]/g, ""),
-                                            )
-                                        }
-                                        keyboardType="decimal-pad"
-                                        style={styles.input}
-                                    />
+                                    <Text style={styles.trimLabel}>Post length</Text>
+                                    <View style={styles.lengthOptions}>
+                                        {[30, 60].map((seconds) => (
+                                            <Pressable
+                                                key={seconds}
+                                                onPress={() => setTrimLength(String(Math.min(seconds, Math.max(1, Math.floor((assets[0]?.duration ?? 60000) / 1000) - (Number(trimStart) || 0)))))}
+                                                style={[styles.lengthOption, Number(trimLength) === seconds && styles.lengthOptionActive]}
+                                            >
+                                                <Text style={styles.lengthOptionText}>{seconds === 30 ? "30 sec" : "1 min max"}</Text>
+                                            </Pressable>
+                                        ))}
+                                    </View>
                                 </View>
                             </View>
                         </View>
@@ -592,6 +591,10 @@ const styles = StyleSheet.create({
     },
     trimFields: { flexDirection: "row", gap: 10 },
     trimField: { flex: 1 },
+    lengthOptions: { flexDirection: "row", gap: 7 },
+    lengthOption: { flex: 1, minHeight: 50, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, backgroundColor: "rgba(255,255,255,.04)" },
+    lengthOptionActive: { borderColor: colors.blue, backgroundColor: "rgba(27,99,243,.22)" },
+    lengthOptionText: { color: colors.white, fontSize: 10, fontWeight: "800" },
     trimLabel: {
         color: "#DCE7F5",
         fontSize: 11,

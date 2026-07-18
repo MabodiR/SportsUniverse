@@ -3,23 +3,25 @@
 namespace App\Http\Controllers\Api\V1\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Domain\Auth\Services\LoginHistoryRecorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class SessionController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, LoginHistoryRecorder $recorder): JsonResponse
     {
         if ($currentToken = $request->user()->currentAccessToken()) {
-            return response()->json(['data' => $request->user()->tokens()->latest()->get()->map(fn ($token) => [
+            $sessions = $request->user()->tokens()->latest()->get()->map(fn ($token) => [
                 ...$this->tokenDevice((string) $token->name),
                 'id' => (string) $token->id,
                 'ip_address' => null,
                 'current' => (int) $currentToken->id === (int) $token->id,
                 'last_active_at' => ($token->last_used_at ?? $token->created_at)->toISOString(),
                 'active_now' => $token->last_used_at?->greaterThanOrEqualTo(now()->subMinutes(5)) ?? false,
-            ])->values()]);
+            ])->values();
+            return response()->json(['data' => $sessions, 'recent_logins' => $this->history($request)]);
         }
 
         $current = $request->session()->getId();
@@ -31,7 +33,7 @@ class SessionController extends Controller
             $sessions->prepend((object) ['id' => $current, 'ip_address' => $request->ip(), 'user_agent' => $request->userAgent(), 'last_activity' => now()->timestamp]);
         }
 
-        return response()->json(['data' => $sessions->map(fn ($session) => [...$this->device((string) $session->user_agent), 'id' => $session->id, 'ip_address' => $session->ip_address, 'current' => hash_equals($current, $session->id), 'last_active_at' => now()->setTimestamp($session->last_activity)->toISOString(), 'active_now' => $session->last_activity >= now()->subMinutes(5)->timestamp])->values()]);
+        return response()->json(['data' => $sessions->map(fn ($session) => [...$recorder->device((string) $session->user_agent), 'id' => $session->id, 'ip_address' => $session->ip_address, 'current' => hash_equals($current, $session->id), 'last_active_at' => now()->setTimestamp($session->last_activity)->toISOString(), 'active_now' => $session->last_activity >= now()->subMinutes(5)->timestamp])->values(), 'recent_logins' => $this->history($request)]);
     }
 
     public function destroy(Request $request, string $session): JsonResponse
@@ -78,5 +80,15 @@ class SessionController extends Controller
         $platform = str_contains(strtolower($name), 'ios') ? 'iOS' : (str_contains(strtolower($name), 'android') ? 'Android' : 'Mobile app');
 
         return ['browser' => 'SportUniverse', 'platform' => $platform, 'type' => 'mobile'];
+    }
+
+    private function history(Request $request): array
+    {
+        return DB::table('login_histories')->where('user_id', $request->user()->id)->latest('logged_in_at')->limit(5)->get()->map(fn ($login) => [
+            'id' => $login->id, 'browser' => $login->browser ?: 'Browser', 'platform' => $login->platform ?: 'Unknown',
+            'type' => $login->device_type ?: 'desktop', 'ip_address' => $login->ip_address, 'method' => $login->method,
+            'location' => collect([$login->city, $login->region, $login->country ?: $login->country_code])->filter()->join(', ') ?: ($login->ip_address === '127.0.0.1' || $login->ip_address === '::1' ? 'Local device' : 'Location unavailable'),
+            'logged_in_at' => \Illuminate\Support\Carbon::parse($login->logged_in_at)->toISOString(),
+        ])->all();
     }
 }

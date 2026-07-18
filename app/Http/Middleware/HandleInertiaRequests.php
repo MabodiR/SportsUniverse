@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -17,13 +18,13 @@ class HandleInertiaRequests extends Middleware
             $feedSeen = $request->session()->get('nav_seen.feed', now()->subDay());
             $followingSeen = $request->session()->get('nav_seen.following', now()->subDays(7));
             $opportunitiesSeen = $request->session()->get('nav_seen.opportunities', now()->subDays(7));
-            $counts = [
+            $counts = Cache::remember("nav-counts:{$user->id}", now()->addSeconds(20), fn () => [
                 'feed' => DB::table('videos')->where('status', 'published')->where('visibility', 'public')->where('published_at', '>', $feedSeen)->count(),
-                'following' => DB::table('videos')->join('follows', 'follows.followed_id', '=', 'videos.user_id')->where('follows.follower_id', $user->id)->where('videos.status', 'published')->where('videos.published_at', '>', $followingSeen)->count(),
+                'following' => DB::table('videos')->join('follows', 'follows.followed_id', '=', 'videos.user_id')->where('follows.follower_id', $user->id)->where('videos.status', 'published')->where('videos.visibility', 'public')->where('videos.published_at', '>', $followingSeen)->count(),
                 'opportunities' => DB::table('opportunities')->where('status', 'published')->where('published_at', '>', $opportunitiesSeen)->where(fn ($query) => $query->whereNull('deadline')->orWhere('deadline', '>', now()))->count(),
                 'messages' => DB::table('messages')->join('conversation_participants as mine', 'mine.conversation_id', '=', 'messages.conversation_id')->where('mine.user_id', $user->id)->where('messages.sender_id', '!=', $user->id)->where(fn ($query) => $query->whereNull('mine.last_read_at')->orWhereColumn('messages.created_at', '>', 'mine.last_read_at'))->count() + DB::table('message_requests')->where('recipient_id', $user->id)->where('status', 'pending')->count(),
                 'notifications' => $user->unreadNotifications()->count(),
-            ];
+            ]);
             $path = '/'.$request->path();
             if ($path === '/feed') $request->session()->put('nav_seen.feed', now());
             if ($path === '/following') $request->session()->put('nav_seen.following', now());

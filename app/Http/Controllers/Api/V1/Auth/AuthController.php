@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Auth;
 
 use App\Domain\Profiles\Actions\EnsureProfileSlug;
+use App\Domain\Auth\Services\LoginHistoryRecorder;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Auth\LoginRequest;
 use App\Http\Requests\Api\V1\Auth\RegisterRequest;
@@ -20,7 +21,7 @@ use Spatie\Permission\Models\Role;
 
 class AuthController extends Controller
 {
-    public function register(RegisterRequest $request, EnsureProfileSlug $slugs): JsonResponse
+    public function register(RegisterRequest $request, EnsureProfileSlug $slugs, LoginHistoryRecorder $logins): JsonResponse
     {
         $user = DB::transaction(function () use ($request) {
             $role = $request->validated('role');
@@ -46,10 +47,12 @@ class AuthController extends Controller
             report($exception);
         }
 
-        return response()->json(['message' => 'Account created. Continue onboarding.', 'token' => $user->createToken($request->string('device_name')->value() ?: 'api')->plainTextToken, 'data' => new UserResource($user->load('roles', 'profile'))], 201);
+        $token = $user->createToken($request->string('device_name')->value() ?: 'api');
+        $logins->record($user, $request, 'registration', $token->accessToken->id);
+        return response()->json(['message' => 'Account created. Continue onboarding.', 'token' => $token->plainTextToken, 'data' => new UserResource($user->load('roles', 'profile'))], 201);
     }
 
-    public function login(LoginRequest $request): JsonResponse
+    public function login(LoginRequest $request, LoginHistoryRecorder $logins): JsonResponse
     {
         $field = filter_var($request->login, FILTER_VALIDATE_EMAIL) ? 'email' : 'phone';
         $user = User::where($field, $request->login)->first();
@@ -58,7 +61,9 @@ class AuthController extends Controller
         }
         abort_if($user->status !== 'active', 403, 'This account is not active.');
 
-        return response()->json(['token' => $user->createToken($request->string('device_name')->value() ?: 'api')->plainTextToken, 'data' => new UserResource($user->load('roles', 'profile'))]);
+        $token = $user->createToken($request->string('device_name')->value() ?: 'api');
+        $logins->record($user, $request, 'password', $token->accessToken->id);
+        return response()->json(['token' => $token->plainTextToken, 'data' => new UserResource($user->load('roles', 'profile'))]);
     }
 
     public function forgotPassword(Request $request): JsonResponse
@@ -102,7 +107,7 @@ class AuthController extends Controller
         return response()->json(['message' => 'Email verified successfully.', 'data' => ['verified' => true]]);
     }
 
-    public function socialExchange(Request $request): JsonResponse
+    public function socialExchange(Request $request, LoginHistoryRecorder $logins): JsonResponse
     {
         $data = $request->validate(['code' => ['required', 'string', 'size:64'], 'device_name' => ['nullable', 'string', 'max:120']]);
         $handoff = Cache::pull('mobile-social:'.$data['code']);
@@ -111,7 +116,9 @@ class AuthController extends Controller
         abort_if($user->status !== 'active', 403, 'This account is not active.');
         $device = $data['device_name'] ?? $handoff['device_name'] ?? 'mobile';
 
-        return response()->json(['token' => $user->createToken($device)->plainTextToken, 'data' => new UserResource($user->load('roles', 'profile'))]);
+        $token = $user->createToken($device);
+        $logins->record($user, $request, 'social', $token->accessToken->id);
+        return response()->json(['token' => $token->plainTextToken, 'data' => new UserResource($user->load('roles', 'profile'))]);
     }
 
     public function me(Request $request): UserResource

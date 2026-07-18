@@ -10,6 +10,8 @@ const authenticated = computed(() => Boolean((page.props.auth as any)?.user));
 const gateVisible = ref(false);
 const videoElements = new Map<string, HTMLVideoElement>();
 const soundEnabled = ref(false);
+const videoVolume = ref(.75);
+const audioControlsPost = ref<string | null>(null);
 const liveStreams = ref<any[]>([]);
 const activeMedia = ref<Record<string, number>>({});
 let touchX = 0;
@@ -138,9 +140,11 @@ const sendMessage = async () => {
 };
 const followSuggestion = async (person: any) => {
     actionBusy.value = `follow:${person.id}`;
-    await request(`/athletes/${person.id}/follow`);
-    window.dispatchEvent(new CustomEvent('following-count-changed', { detail: (page.props.auth as any)?.user?.following_count + 1 }));
-    router.reload({ only: ['videos', 'suggestions'] });
+    try {
+        const data = await request(`/athletes/${person.id}/follow`);
+        window.dispatchEvent(new CustomEvent('following-count-changed', { detail: data.viewer_following_count }));
+        router.reload({ only: ['videos', 'suggestions'] });
+    } finally { actionBusy.value = null; }
 };
 const followCreator = async (item: any) => {
     if (!authenticated.value) return showGate();
@@ -174,14 +178,30 @@ const closeGate = () => {
 const requireAuth = () => { if (!authenticated.value) showGate(); };
 const registerVideo = (element: HTMLVideoElement | null, id: string) => {
     if (!element) return;
-    element.muted = !soundEnabled.value;
+    element.volume = videoVolume.value;
+    element.muted = !soundEnabled.value || videoVolume.value === 0;
     videoElements.set(id, element);
     observer?.observe(element);
 };
 const toggleSound = async (video: HTMLVideoElement) => {
+    if (!soundEnabled.value && videoVolume.value === 0) videoVolume.value = .5;
     soundEnabled.value = !soundEnabled.value;
-    videoElements.forEach(element => { element.muted = !soundEnabled.value; });
+    videoElements.forEach(element => {
+        element.volume = videoVolume.value;
+        element.muted = !soundEnabled.value || videoVolume.value === 0;
+    });
     if (soundEnabled.value && video.paused) await video.play().catch(() => undefined);
+};
+const changeVolume = (event: Event, video: HTMLVideoElement) => {
+    const nextVolume = Number((event.target as HTMLInputElement).value);
+    videoVolume.value = Math.min(1, Math.max(0, nextVolume));
+    soundEnabled.value = videoVolume.value > 0;
+    videoElements.forEach(element => {
+        element.volume = videoVolume.value;
+        element.muted = videoVolume.value === 0;
+    });
+    localStorage.setItem('sportuniverse-video-volume', String(videoVolume.value));
+    if (videoVolume.value > 0 && video.paused) video.play().catch(() => undefined);
 };
 const toggleVideo = (event: Event) => {
     const video = event.currentTarget as HTMLVideoElement;
@@ -189,6 +209,8 @@ const toggleVideo = (event: Event) => {
 };
 
 onMounted(() => {
+    const savedVolume = Number(localStorage.getItem('sportuniverse-video-volume'));
+    if (Number.isFinite(savedVolume) && savedVolume >= 0 && savedVolume <= 1) videoVolume.value = savedVolume;
     fetch('/api/v1/live', { headers: { Accept: 'application/json' } }).then(response => response.json()).then(payload => { liveStreams.value = payload.data ?? []; }).catch(() => undefined);
     window.addEventListener('scroll', onScroll, { passive: true });
     observer = new IntersectionObserver((entries) => entries.forEach(entry => {
@@ -224,10 +246,15 @@ onUnmounted(() => { window.removeEventListener('scroll', onScroll); observer?.di
                                 <template v-for="(slide,slideIndex) in slides(item)" :key="slide.url"><img v-if="slide.type==='image' && mediaIndex(item)===slideIndex" :src="slide.url" :alt="item.caption||'SportUniverse post image'"/><video v-else-if="slide.type==='video' && mediaIndex(item)===slideIndex" :ref="element => registerVideo(element as HTMLVideoElement,item.id)" class="feed-video" :src="slide.url" :muted="!soundEnabled" loop playsinline preload="metadata" @click="toggleVideo" @timeupdate="recordView(item,$event.currentTarget as HTMLVideoElement)"/></template>
                                 <template v-if="slides(item).length>1"><button class="carousel-arrow previous" @click="changeMedia(item,-1)"><ChevronLeft/></button><button class="carousel-arrow next" @click="changeMedia(item,1)"><ChevronRight/></button><div class="carousel-dots"><i v-for="(_,dot) in slides(item)" :class="{active:mediaIndex(item)===dot}"/></div></template>
                             </div>
-                            <button v-if="item.url && slides(item)[mediaIndex(item)]?.type==='video'" class="video-sound-toggle" :aria-label="soundEnabled ? 'Mute video' : 'Turn on sound'" @click.stop="toggleSound(videoElements.get(item.id)!)"><Volume2 v-if="soundEnabled" /><VolumeX v-else /><span>{{ soundEnabled ? 'Sound on' : 'Sound off' }}</span></button>
-                            <div class="featured-video-label"><strong>{{ item.caption || 'SportUniverse video' }}</strong><small>{{ index === 0 ? '00:15' : `00:${22 + index * 7}` }} · HD</small></div>
-                            <button v-if="!item.url" class="featured-play" aria-label="Play video">▶</button>
-                            <div class="featured-athlete"><div class="feed-creator-line"><Link :href="item.creator.slug ? `/@${item.creator.slug}` : '/explore'"><h2>{{ item.creator.name }}</h2></Link><button v-if="authenticated && item.creator.id !== (page.props.auth as any)?.user?.id && !item.viewer?.following_creator" :disabled="actionBusy === `follow:${item.creator.id}`" @click="followCreator(item)"><UserPlus :size="14" />{{ actionBusy === `follow:${item.creator.id}` ? 'Following…' : 'Follow' }}</button></div><small><Link v-if="item.creator.sport" :href="`/feed/sport/${encodeURIComponent(item.creator.sport)}`" class="metadata-link">{{ item.creator.sport }}</Link><template v-else>Sport</template> · <Link v-if="item.creator.position" :href="`/feed/position/${encodeURIComponent(item.creator.position)}`" class="metadata-link">{{ item.creator.position }}</Link><template v-else>Athlete</template> · <Link v-if="item.creator.city" :href="`/feed/location/${encodeURIComponent(item.creator.city)}`" class="metadata-link">{{ item.creator.city }}</Link><template v-else>South Africa</template></small><p>{{ item.caption }}</p><span /></div>
+                            <div v-if="item.url && slides(item)[mediaIndex(item)]?.type==='video'" class="video-audio-control" @click.stop>
+                                <button class="mobile-video-audio-menu" aria-label="Video sound controls" :aria-expanded="audioControlsPost === item.id" @click="audioControlsPost = audioControlsPost === item.id ? null : item.id"><Ellipsis /></button>
+                                <div class="video-audio-options" :class="{ open: audioControlsPost === item.id }">
+                                    <button class="video-sound-toggle" :aria-label="soundEnabled ? 'Mute video' : 'Turn on sound'" @click="toggleSound(videoElements.get(item.id)!)"><Volume2 v-if="soundEnabled && videoVolume > 0" /><VolumeX v-else /><span>{{ soundEnabled && videoVolume > 0 ? 'Sound on' : 'Sound off' }}</span></button>
+                                    <label class="video-volume-control"><Volume2 aria-hidden="true" /><span class="sr-only">Video volume</span><input type="range" min="0" max="1" step="0.05" :value="videoVolume" aria-label="Video volume" @input="changeVolume($event, videoElements.get(item.id)!)"/><output>{{ Math.round(videoVolume * 100) }}%</output></label>
+                                </div>
+                            </div>
+                            <div class="featured-video-label"><strong>{{ item.caption || 'SportUniverse post' }}</strong><small>{{ slides(item)[mediaIndex(item)]?.type === 'video' ? `${index === 0 ? '00:15' : `00:${22 + index * 7}`} · HD` : slides(item).length > 1 ? `Photo ${mediaIndex(item) + 1} of ${slides(item).length}` : 'Photo' }}</small></div>
+                            <div class="featured-athlete"><div class="feed-creator-line"><Link class="feed-creator-identity" :href="item.creator.slug ? `/@${item.creator.slug}` : '/explore'"><span class="feed-creator-avatar"><img v-if="item.creator.profile_image" :src="item.creator.profile_image" :alt="`${item.creator.name} profile picture`"/><span v-else>{{ item.creator.name.slice(0, 2).toUpperCase() }}</span></span><h2>{{ item.creator.name }}</h2></Link><button v-if="authenticated && item.creator.id !== (page.props.auth as any)?.user?.id && !item.viewer?.following_creator" :disabled="actionBusy === `follow:${item.creator.id}`" @click="followCreator(item)"><UserPlus :size="14" />{{ actionBusy === `follow:${item.creator.id}` ? 'Following…' : 'Follow' }}</button></div><small><Link v-if="item.creator.sport" :href="`/feed/sport/${encodeURIComponent(item.creator.sport)}`" class="metadata-link">{{ item.creator.sport }}</Link><template v-else>Sport</template> · <Link v-if="item.creator.position" :href="`/feed/position/${encodeURIComponent(item.creator.position)}`" class="metadata-link">{{ item.creator.position }}</Link><template v-else>Athlete</template><template v-if="item.location?.name"> · <Link :href="`/feed/location/${encodeURIComponent(item.location.name)}`" class="metadata-link">{{ item.location.name }}</Link></template></small><p class="feed-caption">{{ item.caption }}</p><div v-if="item.hashtags?.length" class="feed-post-tags"><Link v-for="tag in item.hashtags" :key="tag" :href="`/explore?q=${encodeURIComponent(`#${String(tag).replace(/^#/, '')}`)}`">#{{ String(tag).replace(/^#/, '') }}</Link></div><span /></div>
                         </article>
                         <div class="featured-actions">
                             <button class="view-count" data-tooltip="Views" aria-label="Views" disabled><span><Eye /></span><small>{{ compact(item.counts.views) }}</small></button>

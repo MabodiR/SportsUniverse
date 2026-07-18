@@ -52,6 +52,16 @@ class NotificationModuleTest extends TestCase
         $this->assertSame('new_follower', $notification->data['event']);
     }
 
+    public function test_follower_notification_reports_when_viewer_already_follows_actor(): void
+    {
+        $actor = User::factory()->create();
+        $viewer = User::factory()->create();
+        $this->actingAs($actor, 'sanctum')->postJson('/api/v1/profiles/'.$viewer->id.'/follow')->assertOk();
+        $this->actingAs($viewer, 'sanctum')->postJson('/api/v1/profiles/'.$actor->id.'/follow')->assertOk();
+
+        $this->getJson('/api/v1/notifications')->assertOk()->assertJsonPath('data.0.viewer.following_actor', true);
+    }
+
     public function test_user_cannot_modify_another_users_notification(): void
     {
         $owner = User::factory()->create();

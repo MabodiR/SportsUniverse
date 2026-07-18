@@ -14,3 +14,7 @@ Schedule::call(fn () => AggregateDailyMetrics::dispatch(yesterday()->toDateStrin
     ->dailyAt('00:15')
     ->onOneServer()
     ->withoutOverlapping();
+
+Schedule::command('db:partition-video-views --months=3')->monthlyOn(1, '00:05')->onOneServer();
+Schedule::command('feed:precompute')->hourly()->onOneServer()->withoutOverlapping();
+Schedule::command('feed:flush-counters --limit=5000')->everyMinute()->onOneServer()->withoutOverlapping();

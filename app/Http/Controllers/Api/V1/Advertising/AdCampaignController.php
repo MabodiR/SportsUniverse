@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Advertising;
 
 use App\Domain\Advertising\Models\AdCampaign;
+use App\Domain\Advertising\Services\PayFastGateway;
 use App\Domain\Feed\Models\Video;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +20,7 @@ class AdCampaignController extends Controller
         return response()->json(['data' => $campaigns]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, PayFastGateway $payments): JsonResponse
     {
         $data = $this->validated($request);
         $video = $this->video($request, $data['video_id'] ?? null);
@@ -29,11 +30,12 @@ class AdCampaignController extends Controller
             ...collect($data)->except(['video_id', 'submit'])->all(), 'public_id' => (string) Str::ulid(),
             'video_id' => $video?->id, 'daily_budget_cents' => $data['daily_budget_cents'],
             'total_budget_cents' => $data['daily_budget_cents'] * $days,
-            'status' => $request->boolean('submit') ? 'pending_review' : 'draft',
-            'submitted_at' => $request->boolean('submit') ? now() : null,
+            'status' => $request->boolean('submit') ? 'awaiting_payment' : 'draft',
+            'submitted_at' => null,
         ]);
-
-        return response()->json(['message' => $request->boolean('submit') ? 'Campaign submitted for review.' : 'Campaign draft saved.', 'data' => $this->data($campaign->load('video.media'))], 201);
+        $result = $this->data($campaign->load('video.media'));
+        if ($request->boolean('submit')) $result['checkout'] = $payments->checkout($campaign, $request->user());
+        return response()->json(['message' => $request->boolean('submit') ? 'Campaign created. Complete payment securely with PayFast.' : 'Campaign draft saved.', 'data' => $result], 201);
     }
 
     public function update(Request $request, AdCampaign $campaign): JsonResponse
@@ -44,7 +46,7 @@ class AdCampaignController extends Controller
         $video = $this->video($request, $data['video_id'] ?? null);
         abort_if($data['campaign_type'] === 'post_promotion' && ! $video, 422, 'Select a published post to promote.');
         $days = now()->parse($data['starts_on'])->diffInDays(now()->parse($data['ends_on'])) + 1;
-        $campaign->update([...collect($data)->except(['video_id', 'submit'])->all(), 'video_id' => $video?->id, 'total_budget_cents' => $data['daily_budget_cents'] * $days, 'status' => $request->boolean('submit') ? 'pending_review' : 'draft', 'submitted_at' => $request->boolean('submit') ? now() : null, 'review_notes' => null]);
+        $campaign->update([...collect($data)->except(['video_id', 'submit'])->all(), 'video_id' => $video?->id, 'total_budget_cents' => $data['daily_budget_cents'] * $days, 'status' => $request->boolean('submit') ? 'awaiting_payment' : 'draft', 'submitted_at' => null, 'review_notes' => null]);
 
         return response()->json(['message' => 'Campaign updated.', 'data' => $this->data($campaign->fresh()->load('video.media'))]);
     }
@@ -71,6 +73,7 @@ class AdCampaignController extends Controller
     {
         abort_unless($request->user()->hasRole('admin'), 403);
         $data = $request->validate(['status' => ['required', Rule::in(['active', 'rejected'])], 'review_notes' => ['nullable', 'string', 'max:2000']]);
+        abort_if($data['status'] === 'active' && ! $campaign->payments()->where('status', 'paid')->exists(), 409, 'Campaign payment has not been confirmed.');
         $campaign->update([...$data, 'reviewed_at' => now()]);
 
         return response()->json(['message' => 'Campaign reviewed.', 'data' => $this->data($campaign)]);
@@ -103,6 +106,6 @@ class AdCampaignController extends Controller
 
     private function data(AdCampaign $campaign): array
     {
-        return ['id' => $campaign->public_id, 'campaign_type' => $campaign->campaign_type, 'title' => $campaign->title, 'description' => $campaign->description, 'goal' => $campaign->goal, 'audience' => $campaign->audience ?? [], 'destination_url' => $campaign->destination_url, 'daily_budget_cents' => $campaign->daily_budget_cents, 'total_budget_cents' => $campaign->total_budget_cents, 'starts_on' => $campaign->starts_on?->toDateString(), 'ends_on' => $campaign->ends_on?->toDateString(), 'status' => $campaign->status, 'review_notes' => $campaign->review_notes, 'metrics' => ['impressions' => $campaign->impressions_count, 'clicks' => $campaign->clicks_count, 'click_rate' => $campaign->impressions_count ? round($campaign->clicks_count / $campaign->impressions_count * 100, 2) : 0, 'spent_cents' => $campaign->spent_cents], 'video' => $campaign->video ? ['id' => $campaign->video->public_id, 'caption' => $campaign->video->caption, 'url' => $campaign->video->media ? route('media.download', $campaign->video->media) : null] : null, 'created_at' => $campaign->created_at];
+        return ['id' => $campaign->public_id, 'campaign_type' => $campaign->campaign_type, 'title' => $campaign->title, 'description' => $campaign->description, 'goal' => $campaign->goal, 'audience' => $campaign->audience ?? [], 'destination_url' => $campaign->destination_url, 'daily_budget_cents' => $campaign->daily_budget_cents, 'total_budget_cents' => $campaign->total_budget_cents, 'starts_on' => $campaign->starts_on?->toDateString(), 'ends_on' => $campaign->ends_on?->toDateString(), 'status' => $campaign->status, 'payment_status' => $campaign->payments()->latest()->value('status'), 'review_notes' => $campaign->review_notes, 'metrics' => ['impressions' => $campaign->impressions_count, 'clicks' => $campaign->clicks_count, 'click_rate' => $campaign->impressions_count ? round($campaign->clicks_count / $campaign->impressions_count * 100, 2) : 0, 'spent_cents' => $campaign->spent_cents], 'video' => $campaign->video ? ['id' => $campaign->video->public_id, 'caption' => $campaign->video->caption, 'url' => $campaign->video->media ? route('media.download', $campaign->video->media) : null] : null, 'created_at' => $campaign->created_at];
     }
 }

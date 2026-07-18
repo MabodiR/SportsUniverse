@@ -44,16 +44,17 @@ class MediaProcessor
         try {
             $startMs = max(0, (int) ($media->metadata['trim_start_ms'] ?? 0));
             $endMs = (int) ($media->metadata['trim_end_ms'] ?? 0);
-            if ($endMs > $startMs) {
-                $trimmed = tempnam(sys_get_temp_dir(), 'su-trim-').'.mp4';
-                $trim = new Process([config('media.ffmpeg_binary'), '-y', '-ss', number_format($startMs / 1000, 3, '.', ''), '-i', $source, '-t', number_format(min(60000, $endMs - $startMs) / 1000, 3, '.', ''), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', $trimmed]);
-                $trim->setTimeout(900);
-                $trim->mustRun();
-                $working = $trimmed;
-                $stream = fopen($trimmed, 'rb');
-                Storage::disk($media->disk)->put($media->path, $stream, ['visibility' => 'private']);
-                fclose($stream);
-            }
+            $clipDurationMs = $endMs > $startMs ? min(60000, $endMs - $startMs) : 60000;
+            // Every published video is normalised through FFmpeg, even when a
+            // client omits trim metadata. This guarantees a hard 60s maximum.
+            $trimmed = tempnam(sys_get_temp_dir(), 'su-trim-').'.mp4';
+            $trim = new Process([config('media.ffmpeg_binary'), '-y', '-ss', number_format($startMs / 1000, 3, '.', ''), '-i', $source, '-t', number_format($clipDurationMs / 1000, 3, '.', ''), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', $trimmed]);
+            $trim->setTimeout(900);
+            $trim->mustRun();
+            $working = $trimmed;
+            $stored = fopen($trimmed, 'rb');
+            Storage::disk($media->disk)->put($media->path, $stored, ['visibility' => 'private']);
+            fclose($stored);
             $probe = new Process([config('media.ffprobe_binary'), '-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', $working]);
             $probe->setTimeout(120);
             $probe->mustRun();
@@ -77,7 +78,7 @@ class MediaProcessor
                 $renditions["{$width}p"] = ['path'=>$path,'width'=>$width,'size_bytes'=>filesize($output)];
             }
 
-            return ['thumbnail_path' => $thumbPath, 'duration_ms' => (int) round(((float) ($data['format']['duration'] ?? 0)) * 1000), 'width' => $stream['width'] ?? null, 'height' => $stream['height'] ?? null, 'size_bytes' => $trimmed ? filesize($trimmed) : $media->size_bytes, 'metadata' => ['codec' => $stream['codec_name'] ?? null, 'trim_start_ms' => $startMs, 'trim_end_ms' => $endMs ?: null, 'renditions'=>$renditions]];
+            return ['thumbnail_path' => $thumbPath, 'duration_ms' => (int) round(((float) ($data['format']['duration'] ?? 0)) * 1000), 'width' => $stream['width'] ?? null, 'height' => $stream['height'] ?? null, 'size_bytes' => filesize($trimmed), 'metadata' => ['codec' => $stream['codec_name'] ?? null, 'trim_start_ms' => $startMs, 'trim_end_ms' => $startMs + $clipDurationMs, 'renditions'=>$renditions]];
         } finally {
             @unlink($source);
             if ($trimmed) @unlink($trimmed);

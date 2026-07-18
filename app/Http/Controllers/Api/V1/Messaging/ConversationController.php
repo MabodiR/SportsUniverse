@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class ConversationController extends Controller
@@ -21,9 +22,15 @@ class ConversationController extends Controller
         $query = $request->user()->belongsToMany(Conversation::class, 'conversation_participants');
         $request->boolean('archived') ? $query->wherePivotNotNull('archived_at') : $query->wherePivotNull('archived_at');
         $page = $query->with('participants.profile', 'latestMessage.sender.profile', 'latestMessage.media')->orderByDesc('last_message_at')->paginate(20);
+        $conversationIds = $page->getCollection()->pluck('id');
+        $reported = Report::where('reporter_id', $request->user()->id)->where('reportable_type', (new Conversation)->getMorphClass())->whereIn('reportable_id', $conversationIds)->pluck('reportable_id')->flip();
+        $participantIds = $page->getCollection()->flatMap(fn ($conversation) => $conversation->participants->pluck('id'))->unique();
+        $blocked = DB::table('user_blocks')->where('blocker_id', $request->user()->id)->whereIn('blocked_id', $participantIds)->pluck('blocked_id')->flip();
         foreach ($page as $conversation) {
             $lastRead = $conversation->participants->firstWhere('id', $request->user()->id)?->pivot?->last_read_at;
             $conversation->unread_count = $conversation->messages()->where('sender_id', '!=', $request->user()->id)->when($lastRead, fn ($q) => $q->where('created_at', '>', $lastRead))->count();
+            $conversation->reported_by_viewer = $reported->has($conversation->id);
+            $conversation->blocked_by_viewer = $conversation->participants->where('id', '!=', $request->user()->id)->contains(fn ($participant) => $blocked->has($participant->id));
         }
 
 return ConversationResource::collection($page);

@@ -16,6 +16,7 @@ use App\Http\Controllers\Web\MessagingContextController;
 use App\Http\Controllers\Web\ModulePageController;
 use App\Http\Controllers\Web\VideoStreamController;
 use App\Http\Controllers\Web\WebAuthController;
+use App\Http\Controllers\Api\V1\Advertising\PayFastController;
 use App\Domain\Opportunities\Models\Opportunity;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
@@ -27,7 +28,11 @@ Route::middleware('guest')->group(function () {
     Route::get('/login', [WebAuthController::class, 'loginPage'])->name('login');
     Route::post('/login', [WebAuthController::class, 'login']);
     Route::get('/register', [WebAuthController::class, 'registerPage'])->name('register');
+    Route::post('/register/check-availability', [WebAuthController::class, 'checkAvailability'])->middleware('throttle:20,1');
     Route::post('/register', [WebAuthController::class, 'register']);
+    Route::get('/register/verification-sent', [WebAuthController::class, 'pendingVerification'])->name('register.verification-sent');
+    Route::post('/register/resend-verification', [WebAuthController::class, 'resendPendingVerification'])->middleware('throttle:3,1');
+    Route::get('/register/verify/{token}', [WebAuthController::class, 'verifyPendingRegistration'])->middleware('signed')->name('register.verify');
     Route::get('/password/reset', [WebAuthController::class, 'forgotPasswordPage'])->name('password.request');
     Route::post('/password/email', [WebAuthController::class, 'sendPasswordResetLink'])->name('password.email');
     Route::get('/password/reset/{token}', [WebAuthController::class, 'resetPasswordPage'])->name('password.reset');
@@ -39,6 +44,8 @@ Route::middleware('guest')->group(function () {
 Route::get('/', fn () => redirect('/feed'));
 Route::get('/about', fn () => Inertia::render('Public/About'))->name('about');
 Route::get('/privacy-policy', fn () => Inertia::render('Public/PrivacyPolicy'))->name('privacy-policy');
+Route::get('/payments/payfast/return/{payment}', [PayFastController::class, 'returned'])->name('payfast.return');
+Route::get('/payments/payfast/cancel/{payment}', [PayFastController::class, 'cancelled'])->name('payfast.cancel');
 Route::get('/mobile-app', fn () => Inertia::render('MobileApp/Download', [
     'downloads' => [
         'ios' => config('services.mobile_app.ios_url'),

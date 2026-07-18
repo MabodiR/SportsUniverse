@@ -3,13 +3,16 @@
 namespace App\Http\Controllers\Api\V1\Messaging;
 
 use App\Domain\Media\Models\Media;
+use App\Domain\Messaging\Events\MessageChanged;
 use App\Domain\Messaging\Events\MessageSent;
 use App\Domain\Messaging\Models\Conversation;
+use App\Domain\Messaging\Models\Message;
 use App\Domain\Notifications\Services\NotificationDispatcher;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Messaging\StoreMessageRequest;
 use App\Http\Resources\Api\V1\Messaging\MessageResource;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -52,5 +55,44 @@ class MessageController extends Controller
         $conversation->participants()->where('users.id', '!=', $request->user()->id)->wherePivotNull('muted_at')->each(fn ($recipient) => $notifications->send($recipient, 'messages', ['event' => 'new_message', 'message_id' => $message->public_id, 'conversation_id' => $conversation->public_id, 'sender_id' => $request->user()->id, 'sender_name' => $request->user()->name, 'preview' => str($message->body ?: 'Sent an attachment')->limit(120)->value()]));
 
         return response()->json(['message' => 'Message sent.', 'data' => new MessageResource($message)], 201);
+    }
+
+    public function update(Request $request, Conversation $conversation, Message $message): JsonResponse
+    {
+        Gate::authorize('view', $conversation);
+        abort_unless($message->conversation_id === $conversation->id, 404);
+        abort_unless($message->sender_id === $request->user()->id, 403);
+
+        if ($message->deleted_at) {
+            throw ValidationException::withMessages(['message' => ['Deleted messages cannot be edited.']]);
+        }
+
+        $otherReadAt = $conversation->participants()
+            ->where('users.id', '!=', $request->user()->id)
+            ->first()?->pivot?->last_read_at;
+
+        if ($otherReadAt && $message->created_at->lte($otherReadAt)) {
+            throw ValidationException::withMessages(['message' => ['This message has already been seen and can no longer be edited.']]);
+        }
+
+        $body = $request->validate(['body' => ['required', 'string', 'max:5000']])['body'];
+        $message->update(['body' => $body, 'edited_at' => now()]);
+        MessageChanged::dispatch($message->load('conversation', 'media'));
+
+        return response()->json(['message' => 'Message updated.', 'data' => new MessageResource($message->load('sender.profile', 'media'))]);
+    }
+
+    public function destroy(Request $request, Conversation $conversation, Message $message): JsonResponse
+    {
+        Gate::authorize('view', $conversation);
+        abort_unless($message->conversation_id === $conversation->id, 404);
+        abort_unless($message->sender_id === $request->user()->id, 403);
+
+        if (! $message->deleted_at) {
+            $message->update(['body' => null, 'media_id' => null, 'deleted_at' => now()]);
+            MessageChanged::dispatch($message->load('conversation', 'media'));
+        }
+
+        return response()->json(['message' => 'Message deleted.', 'data' => new MessageResource($message->load('sender.profile'))]);
     }
 }

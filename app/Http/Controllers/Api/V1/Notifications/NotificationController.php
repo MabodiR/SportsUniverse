@@ -14,8 +14,17 @@ class NotificationController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = $request->user()->notifications()->when($request->boolean('unread'), fn ($q) => $q->whereNull('read_at'))->when($request->filled('category'), fn ($q) => $q->where('data->category', $request->string('category')));
+        $page = $query->paginate(min($request->integer('per_page', 30), 100));
+        $actorIds = $page->getCollection()->pluck('data.actor_id')->filter()->unique();
+        $followedIds = $actorIds->isEmpty()
+            ? collect()
+            : $request->user()->following()->whereKey($actorIds)->pluck('users.id')->flip();
+        $page->getCollection()->each(fn ($notification) => $notification->setAttribute(
+            'viewer_following_actor',
+            $followedIds->has($notification->data['actor_id'] ?? null),
+        ));
 
-        return NotificationResource::collection($query->paginate(min($request->integer('per_page', 30), 100)));
+        return NotificationResource::collection($page);
     }
 
     public function unreadCount(Request $request): JsonResponse

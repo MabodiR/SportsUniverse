@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Web;
 
 use App\Domain\Profiles\Actions\EnsureProfileSlug;
+use App\Domain\Auth\Services\LoginHistoryRecorder;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\SocialAccount;
+use App\Notifications\VerifyPendingRegistration;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +17,9 @@ use Illuminate\Support\Facades\Password as PasswordBroker;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
@@ -37,7 +43,7 @@ class WebAuthController extends Controller
     public function resetPassword(Request $request): RedirectResponse { $data=$request->validate(['token'=>['required'],'email'=>['required','email'],'password'=>['required','confirmed',Password::min(8)->letters()->numbers()]]);$status=PasswordBroker::reset($data,function(User $user,string $password):void{$user->forceFill(['password'=>$password,'remember_token'=>Str::random(60)])->save();event(new PasswordReset($user));});return $status===PasswordBroker::PASSWORD_RESET?redirect('/login')->with('status',__($status)):back()->withErrors(['email'=>__($status)]); }
     public function verificationPage(Request $request): Response { return Inertia::render('Auth/VerifyEmail',['verified'=>$request->user()->hasVerifiedEmail(),'status'=>session('success')]); }
 
-    public function login(Request $request): RedirectResponse
+    public function login(Request $request, LoginHistoryRecorder $logins): RedirectResponse
     {
         $data = $request->validate(['login' => ['required', 'string'], 'password' => ['required', 'string'], 'remember' => ['nullable', 'boolean']]);
         $field = filter_var($data['login'], FILTER_VALIDATE_EMAIL) ? 'email' : 'phone';
@@ -45,6 +51,7 @@ class WebAuthController extends Controller
             return back()->withErrors(['login' => 'The supplied credentials are invalid.'])->onlyInput('login');
         }
         $request->session()->regenerate();
+        $logins->record($request->user(), $request, 'password');
 
         return redirect()->intended('/feed');
     }
@@ -68,7 +75,7 @@ class WebAuthController extends Controller
         return Socialite::driver($provider)->redirect();
     }
 
-    public function socialCallback(Request $request, string $provider, EnsureProfileSlug $slugs): RedirectResponse
+    public function socialCallback(Request $request, string $provider, EnsureProfileSlug $slugs, LoginHistoryRecorder $logins): RedirectResponse
     {
         if (! in_array($provider, self::SOCIAL_PROVIDERS, true)) {
             abort(404);
@@ -126,6 +133,7 @@ class WebAuthController extends Controller
 
         Auth::login($user, true);
         $request->session()->regenerate();
+        $logins->record($user, $request, $provider);
 
         return redirect()->intended('/feed');
     }
@@ -135,13 +143,26 @@ class WebAuthController extends Controller
         return Inertia::render('Auth/Register');
     }
 
-    public function register(Request $request, EnsureProfileSlug $slugs): RedirectResponse
+    public function checkAvailability(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'email' => ['nullable', 'email', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:32'],
+        ]);
+
+        return response()->json(['data' => [
+            'email_available' => empty($data['email']) || ! User::whereRaw('LOWER(email) = ?', [strtolower($data['email'])])->exists(),
+            'phone_available' => empty($data['phone']) || ! User::where('phone', $data['phone'])->exists(),
+        ]]);
+    }
+
+    public function register(Request $request): RedirectResponse
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'email', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:32', 'unique:users,phone'],
-            'password' => ['required', 'confirmed', Password::min(8)->letters()->numbers()],
+            'password' => ['required', 'confirmed', Password::min(8)->letters()->numbers()->symbols()],
             'role' => ['required', Rule::in(['athlete', 'fan', 'coach', 'referee', 'linesman', 'scout', 'agent', 'club', 'academy', 'business', 'sponsor'])],
             'interested_sports' => ['nullable', 'array', 'max:20'],
             'interested_sports.*' => ['string', 'max:100'],
@@ -159,8 +180,67 @@ class WebAuthController extends Controller
             'city' => ['nullable', 'string', 'max:120'],
             'locality' => ['nullable', 'string', 'max:120'],
         ]);
+        $token = (string) Str::uuid();
+        $data['password'] = Hash::make($data['password']);
+        unset($data['password_confirmation']);
+        Cache::put('pending-registration:'.$token, $data, now()->addMinutes(60));
+        $request->session()->put('pending_registration_token', $token);
+        $request->session()->put('pending_registration_email', $data['email']);
+        $this->sendPendingVerification($token, $data);
+
+        return redirect()->route('register.verification-sent');
+    }
+
+    public function pendingVerification(Request $request): Response|RedirectResponse
+    {
+        $email = $request->session()->get('pending_registration_email');
+        if (! $email) {
+            return redirect('/register');
+        }
+
+        return Inertia::render('Auth/PendingRegistration', ['email' => $email, 'status' => session('success')]);
+    }
+
+    public function resendPendingVerification(Request $request): RedirectResponse
+    {
+        $token = $request->session()->get('pending_registration_token');
+        $data = $token ? Cache::get('pending-registration:'.$token) : null;
+        if (! $token || ! $data) {
+            return redirect('/register')->withErrors(['email' => 'Your registration request expired. Please register again.']);
+        }
+        $this->sendPendingVerification($token, $data);
+
+        return back()->with('success', 'A new verification email has been sent.');
+    }
+
+    public function verifyPendingRegistration(Request $request, string $token, EnsureProfileSlug $slugs, LoginHistoryRecorder $logins): RedirectResponse
+    {
+        $data = Cache::pull('pending-registration:'.$token);
+        if (! $data) {
+            return redirect('/register')->withErrors(['email' => 'This verification link has expired or has already been used.']);
+        }
+        if (User::whereRaw('LOWER(email) = ?', [strtolower($data['email'])])->exists()) {
+            return redirect('/login')->withErrors(['login' => 'This email address is already registered. Please sign in.']);
+        }
+        if (! empty($data['phone']) && User::where('phone', $data['phone'])->exists()) {
+            return redirect('/register')->withErrors(['phone' => 'This phone number is already registered.']);
+        }
+
+        $data['email_verified_at'] = now();
+        $user = $this->createRegisteredUser($data, $slugs);
+        Auth::login($user);
+        $request->session()->forget(['pending_registration_token', 'pending_registration_email']);
+        $request->session()->regenerate();
+        $logins->record($user, $request, 'registration');
+
+        return redirect('/feed')->with('success', 'Email verified. Welcome to SportUniverse.');
+    }
+
+    private function createRegisteredUser(array $data, EnsureProfileSlug $slugs): User
+    {
         $user = DB::transaction(function () use ($data) {
             $user = User::create(collect($data)->only(['name','email','phone','password'])->all());
+            $user->forceFill(['email_verified_at' => $data['email_verified_at']])->save();
             $user->profile()->create(['completeness' => 35, 'bio' => $data['bio'] ?? null, 'date_of_birth' => $data['date_of_birth'] ?? null, 'country' => 'ZA', 'province' => $data['province'] ?? null, 'city' => $data['city'] ?? null, 'locality' => $data['locality'] ?? null]);
             Role::findOrCreate($data['role'], 'web');
             $user->assignRole($data['role']);
@@ -172,15 +252,14 @@ class WebAuthController extends Controller
             return $user;
         });
         $slugs->execute($user->load('profile'));
-        try {
-            $user->sendEmailVerificationNotification();
-        } catch (Throwable $exception) {
-            report($exception);
-        }
-        Auth::login($user);
-        $request->session()->regenerate();
 
-        return redirect('/feed')->with('success', 'Welcome to SportUniverse. Complete your profile when you are ready.');
+        return $user;
+    }
+
+    private function sendPendingVerification(string $token, array $data): void
+    {
+        $url = URL::temporarySignedRoute('register.verify', now()->addMinutes(60), ['token' => $token]);
+        Notification::route('mail', $data['email'])->notify(new VerifyPendingRegistration($data['name'], $url));
     }
 
     public function logout(Request $request): RedirectResponse

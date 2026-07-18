@@ -4,6 +4,7 @@ namespace Tests\Feature\Api\V1;
 
 use App\Domain\Messaging\Events\MessageSent;
 use App\Domain\Messaging\Models\Conversation;
+use App\Domain\Messaging\Models\Message;
 use App\Domain\Messaging\Models\MessageRequest;
 use App\Models\User;
 use App\Domain\Media\Models\Media;
@@ -38,6 +39,32 @@ class MessagingModuleTest extends TestCase
         Event::assertDispatched(MessageSent::class);
         $this->assertDatabaseHas('notifications', ['notifiable_id' => $recipient->id]);
         $this->assertDatabaseHas('conversations', ['id' => $conversation->id]);
+    }
+
+    public function test_sender_can_edit_an_unseen_text_message_but_not_after_it_is_read(): void
+    {
+        [$sender, $recipient] = $this->users();
+        $conversation = $this->conversation($sender, $recipient);
+        $message = Message::create(['public_id' => (string) Str::ulid(), 'conversation_id' => $conversation->id, 'sender_id' => $sender->id, 'body' => 'Original']);
+
+        $this->actingAs($sender, 'sanctum')->patchJson('/api/v1/conversations/'.$conversation->public_id.'/messages/'.$message->public_id, ['body' => 'Corrected'])
+            ->assertOk()->assertJsonPath('data.body', 'Corrected');
+
+        $conversation->participants()->updateExistingPivot($recipient->id, ['last_read_at' => now()]);
+        $this->patchJson('/api/v1/conversations/'.$conversation->public_id.'/messages/'.$message->public_id, ['body' => 'Too late'])
+            ->assertUnprocessable()->assertJsonValidationErrors('message');
+    }
+
+    public function test_sender_can_delete_their_message_but_recipient_cannot(): void
+    {
+        [$sender, $recipient] = $this->users();
+        $conversation = $this->conversation($sender, $recipient);
+        $message = Message::create(['public_id' => (string) Str::ulid(), 'conversation_id' => $conversation->id, 'sender_id' => $sender->id, 'body' => 'Remove me']);
+
+        $this->actingAs($recipient, 'sanctum')->deleteJson('/api/v1/conversations/'.$conversation->public_id.'/messages/'.$message->public_id)->assertForbidden();
+        $this->actingAs($sender, 'sanctum')->deleteJson('/api/v1/conversations/'.$conversation->public_id.'/messages/'.$message->public_id)
+            ->assertOk()->assertJsonPath('data.body', null);
+        $this->assertNotNull($message->fresh()->deleted_at);
     }
 
     public function test_outsider_cannot_read_conversation(): void
@@ -87,7 +114,10 @@ class MessagingModuleTest extends TestCase
         $this->postJson('/api/v1/conversations/'.$conversation->public_id.'/report',['reason'=>'spam'])->assertCreated();
         $this->postJson('/api/v1/conversations/'.$conversation->public_id.'/archive')->assertOk();
         $this->getJson('/api/v1/conversations')->assertOk()->assertJsonCount(0, 'data');
-        $this->getJson('/api/v1/conversations?archived=1')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.archived', true);
+        $this->getJson('/api/v1/conversations?archived=1')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.archived', true)->assertJsonPath('data.0.reported', true);
+        $this->getJson('/api/v1/profiles/'.$recipient->id.'/messaging-context')->assertOk()->assertJsonPath('data.conversation.archived', true);
+        $this->postJson('/api/v1/profiles/'.$recipient->id.'/block', ['reason' => 'Safety'])->assertOk();
+        $this->getJson('/api/v1/conversations?archived=1')->assertOk()->assertJsonPath('data.0.blocked', true);
         $this->deleteJson('/api/v1/conversations/'.$conversation->public_id.'/archive')->assertOk();
         $this->assertDatabaseHas('conversation_participants',['conversation_id'=>$conversation->id,'user_id'=>$sender->id]);
         $this->assertDatabaseHas('reports',['reportable_type'=>$conversation->getMorphClass(),'reportable_id'=>$conversation->id]);

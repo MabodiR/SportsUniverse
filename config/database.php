@@ -87,6 +87,13 @@ return [
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DB_URL'),
+            'read' => [
+                'host' => array_values(array_filter(explode(',', env('DB_READ_HOSTS', env('DB_HOST', '127.0.0.1'))))),
+            ],
+            'write' => [
+                'host' => env('DB_WRITE_HOST', env('DB_HOST', '127.0.0.1')),
+            ],
+            'sticky' => true,
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '5432'),
             'database' => env('DB_DATABASE', 'laravel'),
@@ -97,6 +104,7 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            'application_name' => env('DB_APPLICATION_NAME', 'sportuniverse-web'),
         ],
 
         'sqlsrv' => [

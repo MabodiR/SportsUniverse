@@ -57,10 +57,16 @@ class VideoController extends Controller
         if ($request->filled('media_id') && (! $media || $media->kind !== 'video' || $media->processing_status !== 'ready' || $media->moderation_status !== 'approved')) {
             throw ValidationException::withMessages(['media_id' => ['Use an owned, approved video that has finished processing.']]);
         }
+        if ($media && Video::where('media_id', $media->id)->exists()) {
+            throw ValidationException::withMessages(['media_id' => ['This video has already been published in another post.']]);
+        }
         $imageIds = $request->validated('image_media_ids', []);
         $images = Media::whereIn('public_id', $imageIds)->where('user_id', $request->user()->id)->get();
         if ($images->count() !== count($imageIds) || $images->contains(fn (Media $image) => $image->kind !== 'image' || $image->processing_status !== 'ready' || $image->moderation_status !== 'approved')) {
             throw ValidationException::withMessages(['image_media_ids' => ['Use owned, approved images that have finished processing.']]);
+        }
+        if ($images->isNotEmpty() && DB::table('video_images')->whereIn('media_id', $images->pluck('id'))->exists()) {
+            throw ValidationException::withMessages(['image_media_ids' => ['One or more pictures have already been published in another post.']]);
         }
         $publish = $request->boolean('publish');
         $video = DB::transaction(function () use ($request, $media, $images, $publish) {
@@ -166,7 +172,9 @@ class VideoController extends Controller
         $liked = $user->id ? \DB::table('video_likes')->where('user_id', $user->id)->whereIn('video_id', $ids)->pluck('video_id')->flip() : collect();
         $saved = \DB::table('saved_videos')->where('user_id', $user->id)->whereIn('video_id', $ids)->pluck('video_id')->flip();
         $reposted = \DB::table('video_shares')->where('user_id', $user->id)->where('channel', 'repost')->whereIn('video_id', $ids)->pluck('video_id')->flip();
-        $following = $user->following()->pluck('users.id')->flip();
+        $creatorIds = $videos->pluck('user_id')->filter()->unique();
+        $following = DB::table('follows')->where('follower_id', $user->id)
+            ->whereIn('followed_id', $creatorIds)->pluck('followed_id')->flip();
         foreach ($videos as $video) {
             $video->liked_by_viewer_exists = $liked->has($video->id);
             $video->saved_by_viewer_exists = $saved->has($video->id);

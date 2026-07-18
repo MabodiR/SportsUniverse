@@ -60,6 +60,19 @@ return [
             'report' => false,
         ],
 
+        'media' => [
+            'driver' => 's3',
+            'key' => env('MEDIA_ACCESS_KEY_ID', env('AWS_ACCESS_KEY_ID')),
+            'secret' => env('MEDIA_SECRET_ACCESS_KEY', env('AWS_SECRET_ACCESS_KEY')),
+            'region' => env('MEDIA_REGION', env('AWS_DEFAULT_REGION')),
+            'bucket' => env('MEDIA_BUCKET', env('AWS_BUCKET')),
+            'url' => env('MEDIA_CDN_URL', env('AWS_URL')),
+            'endpoint' => env('MEDIA_ENDPOINT', env('AWS_ENDPOINT')),
+            'use_path_style_endpoint' => env('MEDIA_PATH_STYLE', env('AWS_USE_PATH_STYLE_ENDPOINT', false)),
+            'throw' => true,
+            'visibility' => 'private',
+        ],
+
     ],
 
     /*
