@@ -115,10 +115,10 @@ const logout = () => user ? router.post('/logout') : router.visit('/login');
                     </div>
                 </form>
                 <span class="top-spacer" />
-                <button v-if="installPrompt" class="install-app-button" type="button" @click="installApp"><Download/><span>Install</span></button>
                 <template v-if="!user"><Link href="/login" class="su-btn su-btn-ghost" style="min-height:40px">Sign in</Link><Link href="/register" class="su-btn su-btn-primary" style="min-height:40px">Join now</Link></template>
                 <Link href="/mobile-app" class="icon-button mobile-app-link" aria-label="Get the SportUniverse mobile app" title="Get the mobile app"><Smartphone :size="18" /></Link>
                 <Link :href="user ? '/notifications' : '/login'" class="icon-button" aria-label="Notifications"><Bell :size="19" /></Link>
+                <button v-if="installPrompt" class="install-app-button" type="button" @click="installApp"><Download/><span>Install</span></button>
             </header>
             <slot />
         </div>

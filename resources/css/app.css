@@ -695,17 +695,19 @@ html,body { background: #fff; color: #111827; color-scheme: light; }
     .nav-list .nav-item.active{color:#fff;border-bottom-color:#4b8cff;box-shadow:inset 0 -2px #2469f5;background:linear-gradient(90deg,rgba(36,105,245,.2),transparent 82%)}
     .sidebar-logout{display:flex;width:100%;min-height:46px;margin-top:auto;justify-content:flex-start;padding-inline:.15rem;text-align:left;border-bottom:1px solid rgba(230,70,162,.45);border-radius:0}
     .nav-section-label{display:block}
-    .topbar{z-index:40;display:grid;min-height:132px;grid-template-columns:42px minmax(0,1fr) 42px;gap:.55rem;padding:.5rem .75rem;background:rgba(244,246,250,.94)}
-    .mobile-menu-button{color:#26364a;background:#fff;box-shadow:0 3px 12px rgba(20,36,55,.08)}
-    .mobile-topbar-brand{display:block;width:min(100%,190px);justify-self:start}
+    .topbar{z-index:40;display:grid;min-height:112px;grid-template-columns:42px minmax(0,1fr) 42px auto;grid-template-areas:"menu logo notification install" "search search search search";align-items:center;gap:.55rem;padding:.5rem .75rem;background:rgba(244,246,250,.94)}
+    .mobile-menu-button{grid-area:menu;color:#26364a;background:#fff;box-shadow:0 3px 12px rgba(20,36,55,.08)}
+    .mobile-topbar-brand{grid-area:logo;display:block;width:min(100%,190px);justify-self:start}
     .mobile-topbar-brand img{display:block;width:100%;height:70px;object-fit:contain;object-position:left center}
-    .topbar>.search{grid-column:1/-1;grid-row:2;width:100%;min-width:0}
+    .topbar>.search{grid-area:search;width:100%;min-width:0}
     .topbar>.search input{height:42px;padding-left:2.25rem;font-size:.72rem}
     .topbar>.search svg{left:.7rem;width:16px}
     .topbar>.top-spacer,.topbar>.su-btn{display:none}
-    .topbar>.icon-button{width:42px;height:42px;color:#3b4a5e;background:#fff}
+    .topbar>.icon-button:not(.mobile-app-link){grid-area:notification;width:42px;height:42px;color:#3b4a5e;background:#fff}
     .topbar>.mobile-app-link{display:none}
-    .global-search-results{position:fixed;z-index:100;top:132px;right:.75rem;left:.75rem;max-height:70dvh;overflow:auto}
+    .topbar>.install-app-button{grid-area:install;max-width:76px;min-height:42px;padding:.5rem .65rem;overflow:hidden;justify-content:center;white-space:nowrap}
+    .topbar>.install-app-button svg{display:none}
+    .global-search-results{position:fixed;z-index:100;top:112px;right:.75rem;left:.75rem;max-height:70dvh;overflow:auto}
 
     .module-page,.feed-page,.for-you-page,.messages-page,.upload-studio,.self-profile,.discover-page,.notifications-page,.saved-page,.profile-edit-page,.create-opportunity,.opportunities-page,.public-profile-page{width:100%;max-width:100%;padding:1rem .85rem 2rem}
     .module-layout,.module-content,.module-sidebar,.messages-layout,.upload-card,.profile-edit-page form,.edit-fields,.create-opp-fields,.opp-filters,.for-you-layout{grid-template-columns:minmax(0,1fr)}
@@ -730,8 +732,8 @@ html,body { background: #fff; color: #111827; color-scheme: light; }
     .mobile-bottom-nav .mobile-create{color:#fff}.mobile-bottom-nav .mobile-create svg{box-sizing:content-box;width:25px;height:25px;margin-top:-25px;padding:13px;border:5px solid #f4f6fa;border-radius:50%;background:linear-gradient(135deg,#126cf3,#eb3f9a);box-shadow:0 5px 16px rgba(24,105,237,.3)}.mobile-bottom-nav .mobile-create span{color:#1769ed;font-weight:700}
     .mobile-sheet-action{display:flex!important}
     .desktop-sheet-save{display:none!important}
-    .featured-video-label{top:1rem;left:1rem;right:1rem}
-    .video-audio-control{top:3.8rem;right:.8rem;display:grid;justify-items:end}
+    .featured-video-label{top:1rem;left:1rem;right:4rem}
+    .video-audio-control{top:.8rem;right:.8rem;display:grid;justify-items:end}
     .mobile-video-audio-menu{display:grid;width:36px;height:36px;padding:0;place-items:center;color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:50%;background:rgba(5,12,24,.66);backdrop-filter:blur(8px)}
     .mobile-video-audio-menu svg{width:19px}
     .video-audio-options{position:absolute;top:42px;right:0;display:none;min-width:190px;padding:.45rem;border:1px solid rgba(255,255,255,.2);border-radius:14px;background:rgba(5,12,24,.88);box-shadow:0 10px 30px rgba(0,0,0,.32);backdrop-filter:blur(12px)}
