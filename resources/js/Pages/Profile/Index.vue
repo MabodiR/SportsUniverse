@@ -117,7 +117,7 @@ onMounted(async () => {
                     <div class="self-name"><h1>{{ profile?.name ?? auth?.name }}</h1><span>{{ handle }}</span></div>
                     <div class="self-stats"><span><strong>{{ auth?.following_count ?? 0 }}</strong> Following</span><span><strong>{{ auth?.followers_count ?? 0 }}</strong> Followers</span><span><strong>{{ media.reduce((sum, video) => sum + (video.counts?.likes ?? 0), 0) }}</strong> Likes</span><span><strong>{{ profileViews }}</strong> Profile views</span></div>
                     <div class="self-actions"><Link href="/profile/edit">Edit profile</Link><Link v-if="profile?.roles?.includes('athlete')" href="/profile/statistics">Career</Link><Link href="/profile/gallery">Library</Link><button>Promote post</button><Link class="round" href="/settings/devices" aria-label="Settings"><Settings :size="18" /></Link><button class="round" aria-label="Share profile"><Share2 :size="18" /></button></div>
-                    <p>{{ profile?.bio || 'Add a bio to tell the SportUniverse community about yourself.' }}</p>
+                    <p>{{ profile?.bio || 'Add a bio to tell the SportsUniverse community about yourself.' }}</p>
                 </div>
             </section>
             <nav class="profile-tabs">

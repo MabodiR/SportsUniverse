@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Club;
 
-use App\Domain\Notifications\Services\NotificationDispatcher;
+use App\Events\NotificationRequested;
 use App\Domain\Opportunities\Models\OpportunityApplication;
 use App\Http\Controllers\Controller;
 use App\Models\User;
@@ -94,12 +94,12 @@ class ClubWorkspaceController extends Controller
         return response()->json(['data' => $items]);
     }
 
-    public function invite(Request $r, NotificationDispatcher $notifications): JsonResponse
+    public function invite(Request $r): JsonResponse
     {
         $w = $this->workspace($r);
         $d = $r->validate(['athlete_id' => ['required', 'exists:users,id'], 'opportunity_id' => ['nullable', 'exists:opportunities,id'], 'title' => ['required', 'string', 'max:200'], 'message' => ['required', 'string', 'max:5000']]);
         $id = DB::table('trial_invitations')->insertGetId(['public_id' => (string) Str::ulid(), 'workspace_id' => $w->id, 'athlete_id' => $d['athlete_id'], 'sent_by_id' => $r->user()->id, 'opportunity_id' => $d['opportunity_id'] ?? null, 'title' => $d['title'], 'message' => $d['message'], 'status' => 'sent', 'sent_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
-        $notifications->send(User::findOrFail($d['athlete_id']), 'opportunities', ['event' => 'trial_invitation', 'invitation_id' => $id, 'club_name' => $w->name, 'title' => $d['title']]);
+        NotificationRequested::dispatch((int) $d['athlete_id'], 'opportunities', ['event' => 'trial_invitation', 'invitation_id' => $id, 'club_name' => $w->name, 'title' => $d['title']]);
 
         return response()->json(['data' => ['id' => $id, 'status' => 'sent']], 201);
     }
@@ -145,13 +145,13 @@ class ClubWorkspaceController extends Controller
         return response()->json(['data' => $items]);
     }
 
-    public function move(Request $r, OpportunityApplication $application, NotificationDispatcher $notifications): JsonResponse
+    public function move(Request $r, OpportunityApplication $application): JsonResponse
     {
         $w = $this->workspace($r);
         abort_unless($application->opportunity()->where('posted_by_id', $w->owner_id)->exists(), 403);
         $d = $r->validate(['status' => ['required', 'in:submitted,reviewing,shortlisted,accepted,rejected']]);
         $application->update(['status' => $d['status'], 'reviewed_at' => now()]);
-        $notifications->send($application->user,'opportunities',['event' => 'opportunity_application_status', 'application_id' => $application->public_id, 'status' => $d['status']]);
+        NotificationRequested::dispatch($application->user_id,'opportunities',['event' => 'opportunity_application_status', 'application_id' => $application->public_id, 'status' => $d['status']]);
 
         return response()->json(['data' => ['status' => $d['status']]]);
     }

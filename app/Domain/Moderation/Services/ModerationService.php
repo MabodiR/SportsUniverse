@@ -2,38 +2,34 @@
 
 namespace App\Domain\Moderation\Services;
 
-use App\Domain\Feed\Models\Video;
-use App\Domain\Media\Models\Media;
 use App\Domain\Moderation\Models\ModerationAction;
 use App\Domain\Moderation\Models\Report;
-use App\Domain\Notifications\Services\NotificationDispatcher;
+use App\Events\NotificationRequested;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
 class ModerationService
 {
-    public function __construct(private NotificationDispatcher $notifications) {}
-
-    public function media(User $moderator, Media $media, string $status, ?string $notes = null): Media
+    public function media(User $moderator, Model $media, string $status, ?string $notes = null): Model
     {
         return DB::transaction(function () use ($moderator, $media, $status, $notes) {
             $previous = $media->moderation_status;
             $media->update(['moderation_status' => $status]);
             $this->log($moderator, $media, 'moderate_media', $previous, $status, $notes);
-            $this->notifications->send($media->user, 'moderation', ['event' => 'media_moderated', 'media_id' => $media->public_id, 'status' => $status, 'notes' => $notes]);
+            NotificationRequested::dispatch($media->user_id, 'moderation', ['event' => 'media_moderated', 'media_id' => $media->public_id, 'status' => $status, 'notes' => $notes]);
 
             return $media;
         });
     }
 
-    public function video(User $moderator, Video $video, string $status, ?string $notes = null): Video
+    public function video(User $moderator, Model $video, string $status, ?string $notes = null): Model
     {
         return DB::transaction(function () use ($moderator, $video, $status, $notes) {
             $previous = $video->status;
             $video->update(['status' => $status]);
             $this->log($moderator, $video, 'moderate_video', $previous, $status, $notes);
-            $this->notifications->send($video->user, 'moderation', ['event' => 'video_moderated', 'video_id' => $video->public_id, 'status' => $status, 'notes' => $notes]);
+            NotificationRequested::dispatch($video->user_id, 'moderation', ['event' => 'video_moderated', 'video_id' => $video->public_id, 'status' => $status, 'notes' => $notes]);
 
             return $video;
         });
@@ -55,7 +51,7 @@ class ModerationService
         return DB::transaction(function () use ($moderator, $user, $verified, $notes) {
             $user->profile()->updateOrCreate([], ['verified_at' => $verified ? now() : null, 'verified_by_id' => $verified ? $moderator->id : null]);
             $this->log($moderator, $user, $verified ? 'verify_profile' : 'remove_verification', null, $verified ? 'verified' : 'unverified', $notes);
-            $this->notifications->send($user, 'moderation', ['event' => $verified ? 'profile_verified' : 'profile_verification_removed', 'notes' => $notes]);
+            NotificationRequested::dispatch($user->id, 'moderation', ['event' => $verified ? 'profile_verified' : 'profile_verification_removed', 'notes' => $notes]);
 
             return $user;
         });
@@ -67,7 +63,7 @@ class ModerationService
             $previous = $user->status;
             $user->update(['status' => $status]);
             $this->log($moderator, $user, 'change_user_status', $previous, $status, $notes);
-            $this->notifications->send($user, 'moderation', ['event' => 'account_status_changed', 'status' => $status, 'notes' => $notes]);
+            NotificationRequested::dispatch($user->id, 'moderation', ['event' => 'account_status_changed', 'status' => $status, 'notes' => $notes]);
 
             return $user;
         });

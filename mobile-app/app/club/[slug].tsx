@@ -25,13 +25,13 @@ export default function PublicClubScreen() {
   const website = item.website ? (/^https?:\/\//i.test(item.website) ? item.website : `https://${item.website}`) : null;
 
   return <SafeAreaView edges={['top']} style={styles.safe}>
-    <TopBar share={() => shareLink(item.name, `View ${item.name} on SportUniverse`, `/clubs/${item.slug}`)} />
+    <TopBar share={() => shareLink(item.name, `View ${item.name} on SportsUniverse`, `/clubs/${item.slug}`)} />
     <ScrollView refreshControl={<RefreshControl refreshing={club.isRefetching} onRefresh={() => club.refetch()} tintColor={colors.blue} />} contentContainerStyle={styles.content}>
       <View style={styles.hero}>
         {cover ? <Image source={{ uri: cover }} style={styles.cover} /> : <View style={styles.coverFallback}><Ionicons name="business" size={68} color="rgba(121,163,255,.28)" /></View>}
         <View style={styles.heroBody}>
           {logo ? <Image source={{ uri: logo }} style={styles.logo} /> : <View style={[styles.logo, styles.logoFallback]}><Text style={styles.initials}>{initials(item.name)}</Text></View>}
-          <Text style={styles.eyebrow}>SPORTUNIVERSE CLUB</Text>
+          <Text style={styles.eyebrow}>SPORTSUNIVERSE CLUB</Text>
           <Text style={styles.title}>{item.name}</Text>
           {location ? <Text style={styles.location}><Ionicons name="location-outline" size={14} /> {location}</Text> : null}
           <View style={styles.metrics}><Metric value={item.staff_count} label="Staff" /><Metric value={item.opportunities_count} label="Open opportunities" /></View>

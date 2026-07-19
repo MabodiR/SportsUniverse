@@ -27,7 +27,7 @@ export function ConnectivityBanner({ queryClient }: { queryClient: QueryClient }
 
   return <View accessibilityLiveRegion="assertive" accessibilityRole="alert" style={styles.banner}>
     <Ionicons name="cloud-offline-outline" size={18} color="#fff" />
-    <Text style={styles.text}>You’re offline or SportUniverse cannot be reached.</Text>
+    <Text style={styles.text}>You’re offline or SportsUniverse cannot be reached.</Text>
     <Pressable accessibilityRole="button" disabled={checking} hitSlop={8} onPress={retry} style={styles.retry}>
       {checking ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.retryText}>Retry</Text>}
     </Pressable>

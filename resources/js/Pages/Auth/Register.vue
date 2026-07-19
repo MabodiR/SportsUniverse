@@ -26,7 +26,7 @@ const roles = [
     { value: 'sponsor', label: 'Sponsor', hint: 'Support talent and campaigns', icon: BriefcaseBusiness },
 ];
 const positions = computed(() => sports.value.find(s => String(s.id) === form.sport_id)?.positions ?? []);
-const title = computed(() => ['Create your SportUniverse account.', 'Choose how you belong.', form.role === 'fan' ? 'Choose the sports you love.' : 'Build your sporting identity.', 'Tell us where your journey is happening.'][step.value - 1]);
+const title = computed(() => ['Create your SportsUniverse account.', 'Choose how you belong.', form.role === 'fan' ? 'Choose the sports you love.' : 'Build your sporting identity.', 'Tell us where your journey is happening.'][step.value - 1]);
 const csrf = () => document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
 const errorFor = (field: string) => localErrors.value[field] || (form.errors as Record<string, string>)[field] || '';
 const invalid = (field: string) => !!errorFor(field);
@@ -88,9 +88,9 @@ onMounted(async () => { const response = await fetch('/api/v1/sports', { headers
 </script>
 
 <template>
-    <Head title="Join SportUniverse" />
+    <Head title="Join SportsUniverse" />
     <div class="design-auth">
-        <aside class="design-auth-hero"><BrandLogo/><div><h1>{{ title }}</h1><p>{{ step === 1 ? 'Start with your account details.' : step === 2 ? 'Your role personalises your feed and opportunities.' : step === 3 ? 'Tell us what should shape your SportUniverse experience.' : 'Location helps surface nearby talent, clubs and opportunities.' }}</p></div><small>Step {{ step }} of 4</small></aside>
+        <aside class="design-auth-hero"><BrandLogo/><div><h1>{{ title }}</h1><p>{{ step === 1 ? 'Start with your account details.' : step === 2 ? 'Your role personalises your feed and opportunities.' : step === 3 ? 'Tell us what should shape your SportsUniverse experience.' : 'Location helps surface nearby talent, clubs and opportunities.' }}</p></div><small>Step {{ step }} of 4</small></aside>
         <section class="design-auth-form">
             <div class="design-auth-top"><div class="design-dots"><i v-for="n in 4" :key="n" :class="{ on: n <= step }"/></div><p>Step {{ step }} of 4</p></div>
             <div class="design-form-inner">

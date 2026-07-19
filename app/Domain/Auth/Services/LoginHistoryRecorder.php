@@ -32,7 +32,7 @@ class LoginHistoryRecorder
 
     public function device(string $agent): array
     {
-        $browser = str_contains($agent, 'Edg/') ? 'Edge' : (str_contains($agent, 'Chrome/') ? 'Chrome' : (str_contains($agent, 'Firefox/') ? 'Firefox' : (str_contains($agent, 'Safari/') ? 'Safari' : (str_contains($agent, 'SportUniverse') ? 'SportUniverse' : 'Browser'))));
+        $browser = str_contains($agent, 'Edg/') ? 'Edge' : (str_contains($agent, 'Chrome/') ? 'Chrome' : (str_contains($agent, 'Firefox/') ? 'Firefox' : (str_contains($agent, 'Safari/') ? 'Safari' : (str_contains($agent, 'SportsUniverse') ? 'SportsUniverse' : 'Browser'))));
         $platform = preg_match('/iPhone|iPad/', $agent) ? 'iOS' : (str_contains($agent, 'Android') ? 'Android' : (str_contains($agent, 'Windows') ? 'Windows' : (str_contains($agent, 'Macintosh') ? 'macOS' : (str_contains($agent, 'Linux') ? 'Linux' : 'Unknown'))));
         $type = preg_match('/Mobile|Android|iPhone/', $agent) ? 'mobile' : (str_contains($agent, 'iPad') ? 'tablet' : 'desktop');
         return compact('browser', 'platform', 'type');

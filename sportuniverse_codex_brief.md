@@ -1,7 +1,7 @@
-# SportUniverse Web Application - Codex Build Brief
+# SportsUniverse Web Application - Codex Build Brief
 
 ## 1. Product summary
-SportUniverse is a sports-focused social ecosystem that connects athletes, coaches, scouts, clubs, sponsors, businesses and fans. The web application should feel like a sports version of a short-video platform: users scroll through athlete videos, interact with posts, follow profiles, and request messages, while admin users can manage content, users and moderation.
+SportsUniverse is a sports-focused social ecosystem that connects athletes, coaches, scouts, clubs, sponsors, businesses and fans. The web application should feel like a sports version of a short-video platform: users scroll through athlete videos, interact with posts, follow profiles, and request messages, while admin users can manage content, users and moderation.
 
 ## 2. Core product direction
 Build a web application with a dark, modern, video-first interface. The main user experience should be a TikTok-style sports feed, but with professional sports profile details, discovery filters and admin controls.
@@ -14,7 +14,7 @@ Primary goals:
 - Support admin moderation and platform management.
 
 ## 3. Brand direction
-Use the existing SportUniverse design direction:
+Use the existing SportsUniverse design direction:
 - Deep Navy / almost black background: #050816 or #07070A
 - Universe Blue: #2563EB
 - Community Pink: #FF2D55
@@ -34,7 +34,7 @@ Design style:
 - Dark immersive background.
 - Rounded cards and video containers.
 - TikTok-inspired left sidebar and right action rail.
-- SportUniverse branding, not a copy of TikTok.
+- SportsUniverse branding, not a copy of TikTok.
 - Clear admin-friendly dashboards for management pages.
 
 ## 4. User roles
@@ -74,7 +74,7 @@ Purpose:
 Allow returning users to access the platform.
 
 Elements:
-- SportUniverse logo
+- SportsUniverse logo
 - Email or phone input
 - Password input
 - Login button
@@ -456,7 +456,7 @@ Build the application from this specification.
 
 Start with:
 1. Create project structure.
-2. Create theme tokens using the SportUniverse colors.
+2. Create theme tokens using the SportsUniverse colors.
 3. Build reusable layout components.
 4. Build authentication pages.
 5. Build multi-step registration with skip support and profile completeness calculation.
@@ -482,4 +482,4 @@ Use mock data first. Keep code clean and component-based. Make sure the UI is re
 - Message Request appears when users are not connected.
 - Admin page shows moderation stats and tables.
 - Upload page supports video metadata and visibility controls.
-- Dark theme matches SportUniverse brand.
+- Dark theme matches SportsUniverse brand.

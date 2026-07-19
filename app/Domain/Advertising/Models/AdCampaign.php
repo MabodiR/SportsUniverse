@@ -36,4 +36,9 @@ class AdCampaign extends Model
     {
         return $this->hasMany(CampaignPayment::class, 'campaign_id');
     }
+
+    public function deliveries(): HasMany
+    {
+        return $this->hasMany(CampaignDelivery::class, 'campaign_id');
+    }
 }

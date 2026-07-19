@@ -32,7 +32,7 @@ class DashboardController extends Controller
 
         $activities = $recentPosts->map(fn ($post) => [
             'type' => 'post',
-            'title' => $post->caption ?: 'SportUniverse post',
+            'title' => $post->caption ?: 'SportsUniverse post',
             'meta' => ucfirst($post->status).' · '.$post->created_at->diffForHumans(),
             'route' => '/profile/my-posts',
         ])->concat($recentCareer->map(fn ($entry) => [

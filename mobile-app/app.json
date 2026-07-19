@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "SportUniverse",
+    "name": "SportsUniverse",
     "slug": "sports-universe",
     "scheme": "sportuniverse",
     "version": "1.0.0",
@@ -15,7 +15,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "SportUniverse accesses photos and videos only when you choose media to upload."
+          "photosPermission": "SportsUniverse accesses photos and videos only when you choose media to upload."
         }
       ],
       "@config-plugins/react-native-webrtc",
@@ -31,8 +31,8 @@
         "applinks:www.sportsuniverse.co.za"
       ],
       "infoPlist": {
-        "NSCameraUsageDescription": "SportUniverse uses your camera when you choose to broadcast live sport.",
-        "NSMicrophoneUsageDescription": "SportUniverse uses your microphone when you choose to broadcast live sport."
+        "NSCameraUsageDescription": "SportsUniverse uses your camera when you choose to broadcast live sport.",
+        "NSMicrophoneUsageDescription": "SportsUniverse uses your microphone when you choose to broadcast live sport."
       },
       "bitcode": false
     },

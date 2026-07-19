@@ -15,20 +15,20 @@ const androidDownload = computed(() => props.downloads.android || props.download
         <main class="mobile-download-page">
             <section class="download-hero">
                 <div class="hero-copy">
-                    <span class="eyebrow"><Smartphone /> SPORTUNIVERSE MOBILE</span>
+                    <span class="eyebrow"><Smartphone /> SPORTSUNIVERSE MOBILE</span>
                     <h1>Your sporting world,<br><em>wherever you go.</em></h1>
-                    <p>Use the completed SportUniverse features from your phone: discover athletes, share highlights, follow opportunities and stay connected.</p>
+                    <p>Use the completed SportsUniverse features from your phone: discover athletes, share highlights, follow opportunities and stay connected.</p>
                     <div class="platform-heading"><strong>Choose your device</strong><span>One account works across web and mobile.</span></div>
                     <div class="platform-downloads">
-                        <article class="platform-card android"><span class="platform-icon"><Play fill="currentColor"/></span><div><small>ANDROID · DEVELOPMENT BUILD</small><h2>SportUniverse for Android</h2><p>Download the current APK directly to your Android phone. Allow installs from your browser when Android asks for permission.</p></div><a v-if="androidDownload" :href="androidDownload" class="platform-button" target="_blank" rel="noopener"><Download/>{{downloads.android?'Get it on Google Play':'Download Android APK'}}</a><span v-else class="platform-button unavailable" aria-disabled="true">Coming soon</span><p v-if="androidDownload" class="build-note"><CheckCircle2/>Version 1.0.0 · Build 3 · Internal testing</p></article>
-                        <article class="platform-card ios"><span class="platform-icon"><Apple fill="currentColor"/></span><div><small>IPHONE & IPAD</small><h2>SportUniverse for iOS</h2><p>Download the official iPhone and iPad app from the Apple App Store.</p></div><a v-if="downloads.ios" :href="downloads.ios" class="platform-button" target="_blank" rel="noopener"><Apple/>View on App Store</a><span v-else class="platform-button unavailable" aria-disabled="true">Coming soon</span></article>
+                        <article class="platform-card android"><span class="platform-icon"><Play fill="currentColor"/></span><div><small>ANDROID · DEVELOPMENT BUILD</small><h2>SportsUniverse for Android</h2><p>Download the current APK directly to your Android phone. Allow installs from your browser when Android asks for permission.</p></div><a v-if="androidDownload" :href="androidDownload" class="platform-button" target="_blank" rel="noopener"><Download/>{{downloads.android?'Get it on Google Play':'Download Android APK'}}</a><span v-else class="platform-button unavailable" aria-disabled="true">Coming soon</span><p v-if="androidDownload" class="build-note"><CheckCircle2/>Version 1.0.0 · Build 3 · Internal testing</p></article>
+                        <article class="platform-card ios"><span class="platform-icon"><Apple fill="currentColor"/></span><div><small>IPHONE & IPAD</small><h2>SportsUniverse for iOS</h2><p>Download the official iPhone and iPad app from the Apple App Store.</p></div><a v-if="downloads.ios" :href="downloads.ios" class="platform-button" target="_blank" rel="noopener"><Apple/>View on App Store</a><span v-else class="platform-button unavailable" aria-disabled="true">Coming soon</span></article>
                     </div>
                     <div v-if="!available" class="release-note" role="status"><Sparkles /><div><strong>Native app release coming soon</strong><p>The store builds are not public yet. Keep using the mobile-friendly web app—your account and content will carry over.</p></div></div>
                     <div class="web-actions"><Link href="/feed" class="primary-link">Continue on web</Link><Link href="/login" class="secondary-link">Sign in</Link></div>
                 </div>
-                <div class="phone-preview" aria-label="SportUniverse mobile app preview">
+                <div class="phone-preview" aria-label="SportsUniverse mobile app preview">
                     <div class="phone-frame">
-                        <div class="phone-top"><img :src="'/images/logo/sportuniverse-icon.svg'" alt=""><b>SportUniverse</b></div>
+                        <div class="phone-top"><img :src="'/images/logo/sportuniverse-icon.svg'" alt=""><b>SportsUniverse</b></div>
                         <div class="preview-card"><span>FOR YOU</span><h2>Discover the next<br>generation of talent.</h2><div class="preview-player"><span>SU</span><div><strong>Featured athlete</strong><small>Football · Johannesburg</small></div></div></div>
                         <div class="preview-stats"><div><Users/><b>Discover</b></div><div><MessageCircle/><b>Connect</b></div><div><ShieldCheck/><b>Safe</b></div></div>
                     </div>

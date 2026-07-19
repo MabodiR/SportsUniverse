@@ -25,7 +25,7 @@ export function AppUpdateGate() {
       <View accessibilityRole="alert" style={styles.card}>
         <View style={[styles.icon, required && styles.iconRequired]}><Ionicons name={required ? 'warning' : 'sparkles'} size={27} color={required ? colors.orange : '#79A3FF'} /></View>
         <Text style={styles.eyebrow}>{required ? 'UPDATE REQUIRED' : 'UPDATE AVAILABLE'}</Text>
-        <Text style={styles.title}>{required ? 'Update SportUniverse to continue' : 'A new SportUniverse version is ready'}</Text>
+        <Text style={styles.title}>{required ? 'Update SportsUniverse to continue' : 'A new SportsUniverse version is ready'}</Text>
         <Text style={styles.copy}>{required ? 'This version is no longer supported. Update now to keep your account secure and features working correctly.' : config.data.release_notes || 'Update for the latest features, fixes and performance improvements.'}</Text>
         <Text style={styles.version}>Installed {current} · Latest {platform.latest_version}</Text>
         {platform.download_url ? <Pressable accessibilityRole="link" onPress={() => Linking.openURL(platform.download_url!)} style={styles.primary}><Text style={styles.primaryText}>Update now</Text></Pressable> : <Text style={styles.missing}>The download link is being prepared. Please check again shortly.</Text>}

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Discovery;
 
 use App\Domain\Feed\Models\Video;
 use App\Domain\Opportunities\Models\Opportunity;
+use App\Domain\Profiles\Models\AthleteProfile;
 use App\Domain\Sports\Models\Sport;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\V1\Profiles\ProfileResource;
@@ -27,7 +28,17 @@ class WomenInSportsController extends Controller
             ->where(fn ($query) => $query->whereRaw('LOWER(title) LIKE ?', ['%women%'])->orWhereRaw('LOWER(title) LIKE ?', ['%female%'])->orWhereRaw('LOWER(title) LIKE ?', ['%girls%'])->orWhereRaw('LOWER(description) LIKE ?', ['%women%'])->orWhereRaw('LOWER(description) LIKE ?', ['%female%'])->orWhereRaw('LOWER(description) LIKE ?', ['%girls%'])->orWhereRaw('LOWER(CAST(requirements AS TEXT)) LIKE ?', ['%women%'])->orWhereRaw('LOWER(CAST(requirements AS TEXT)) LIKE ?', ['%female%'])->orWhereRaw('LOWER(CAST(requirements AS TEXT)) LIKE ?', ['%girls%']))
             ->when($sportId, fn ($query) => $query->where('sport_id', $sportId))->with('poster.organisationProfile', 'sport')->orderBy('deadline')->limit(12)->get()
             ->map(fn (Opportunity $item) => ['id' => $item->public_id, 'title' => $item->title, 'type' => $item->type, 'description' => $item->description, 'poster' => $item->poster->organisationProfile?->organisation_name ?? $item->poster->name, 'sport' => $item->sport?->name, 'city' => $item->city, 'is_remote' => $item->is_remote, 'deadline' => $item->deadline]);
-        $sports = Sport::query()->whereHas('athleteProfiles.user.profile', fn ($query) => $query->where('gender', 'female')->where('is_public', true))->withCount(['athleteProfiles' => fn ($query) => $query->whereHas('user.profile', fn ($profile) => $profile->where('gender', 'female')->where('is_public', true))])->orderByDesc('athlete_profiles_count')->get(['id', 'name', 'slug']);
+        $womenAthletes = fn () => AthleteProfile::query()
+            ->whereHas('user.profile', fn ($profile) => $profile->where('gender', 'female')->where('is_public', true));
+        $sports = Sport::query()
+            ->whereIn('id', $womenAthletes()->select('sport_id'))
+            ->select(['id', 'name', 'slug'])
+            ->selectSub(
+                $womenAthletes()->selectRaw('COUNT(*)')->whereColumn('athlete_profiles.sport_id', 'sports.id'),
+                'athlete_profiles_count',
+            )
+            ->orderByDesc('athlete_profiles_count')
+            ->get();
         $saved = $request->user()->savedProfiles()->pluck('users.id')->all();
         $profileData = ProfileResource::collection($profiles)->resolve($request);
         foreach ($profileData as &$profile) $profile['saved'] = in_array($profile['id'], $saved, true);

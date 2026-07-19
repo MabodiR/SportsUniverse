@@ -31,7 +31,7 @@ function ConnectionRow({ item }: { item: Profile }) {
   const photo = absoluteMediaUrl(item.images.profile);
   const initials = item.name.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
   const detail = [item.athlete?.sport?.name || item.roles[0], item.athlete?.position?.name, item.location.city].filter(Boolean).join(' · ');
-  return <Pressable onPress={() => router.push(`/profile/${item.slug}` as never)} style={styles.card}>{photo ? <Image source={{ uri: photo }} style={styles.avatar} /> : <View style={[styles.avatar, styles.fallback]}><Text style={styles.initials}>{initials}</Text></View>}<View style={styles.copy}><Text numberOfLines={1} style={styles.name}>{item.name}</Text><Text numberOfLines={1} style={styles.detail}>{detail || 'SportUniverse member'}</Text><Text style={styles.followers}>{item.connections?.followers ?? 0} followers</Text></View><Ionicons name="chevron-forward" size={20} color={colors.muted} /></Pressable>;
+  return <Pressable onPress={() => router.push(`/profile/${item.slug}` as never)} style={styles.card}>{photo ? <Image source={{ uri: photo }} style={styles.avatar} /> : <View style={[styles.avatar, styles.fallback]}><Text style={styles.initials}>{initials}</Text></View>}<View style={styles.copy}><Text numberOfLines={1} style={styles.name}>{item.name}</Text><Text numberOfLines={1} style={styles.detail}>{detail || 'SportsUniverse member'}</Text><Text style={styles.followers}>{item.connections?.followers ?? 0} followers</Text></View><Ionicons name="chevron-forward" size={20} color={colors.muted} /></Pressable>;
 }
 
 const styles = StyleSheet.create({

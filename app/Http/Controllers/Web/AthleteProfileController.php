@@ -44,8 +44,8 @@ class AthleteProfileController extends Controller
                 'url' => $video->media ? route('videos.stream', $video) : null,
             ]);
 
-        $seoTitle = $user->name.' — '.implode(' · ', array_filter([$user->athleteProfile?->sport?->name, $user->athleteProfile?->taxonomyPosition?->name, $user->profile->city])).' | SportUniverse';
-        $seoDescription = str($user->profile->bio ?: 'View '.$user->name."'s sports profile, highlights and achievements on SportUniverse.")->squish()->limit(160)->value();
+        $seoTitle = $user->name.' — '.implode(' · ', array_filter([$user->athleteProfile?->sport?->name, $user->athleteProfile?->taxonomyPosition?->name, $user->profile->city])).' | SportsUniverse';
+        $seoDescription = str($user->profile->bio ?: 'View '.$user->name."'s sports profile, highlights and achievements on SportsUniverse.")->squish()->limit(160)->value();
         return Inertia::render('Profiles/Show', [
             'athlete' => [
                 'id' => $user->id,

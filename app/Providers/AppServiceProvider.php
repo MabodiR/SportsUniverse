@@ -2,6 +2,16 @@
 
 namespace App\Providers;
 
+use App\Contracts\Feed\SponsoredPostProvider;
+use App\Contracts\Media\MediaLibrary;
+use App\Contracts\Media\MediaUrlGenerator;
+use App\Contracts\Moderation\ReportableContentResolver;
+use App\Domain\Advertising\Services\SponsoredFeedDelivery;
+use App\Domain\Media\Services\EloquentMediaLibrary;
+use App\Domain\Media\Services\MediaUrlAdapter;
+use App\Domain\Notifications\Listeners\SendRequestedNotification;
+use App\Domain\Moderation\Adapters\EloquentReportableContentResolver;
+use App\Events\NotificationRequested;
 use App\Domain\Discovery\Contracts\ProfileIndexer;
 use App\Domain\Discovery\Contracts\ProfileSearchEngine;
 use App\Domain\Discovery\Jobs\IndexUserProfile;
@@ -28,6 +38,10 @@ class AppServiceProvider extends ServiceProvider
         $implementation = config('discovery.driver') === 'opensearch' ? OpenSearchProfileSearch::class : DatabaseProfileSearch::class;
         $this->app->bind(ProfileSearchEngine::class, $implementation);
         $this->app->bind(ProfileIndexer::class, $implementation);
+        $this->app->bind(SponsoredPostProvider::class, SponsoredFeedDelivery::class);
+        $this->app->bind(MediaLibrary::class, EloquentMediaLibrary::class);
+        $this->app->bind(MediaUrlGenerator::class, MediaUrlAdapter::class);
+        $this->app->bind(ReportableContentResolver::class, EloquentReportableContentResolver::class);
     }
 
     /**
@@ -35,6 +49,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Event::listen(NotificationRequested::class, SendRequestedNotification::class);
+
         Event::listen(function (SocialiteWasCalled $event): void {
             $event->extendSocialite('apple', \SocialiteProviders\Apple\Provider::class);
             $event->extendSocialite('microsoft', \SocialiteProviders\Microsoft\Provider::class);

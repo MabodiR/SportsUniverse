@@ -20,9 +20,9 @@ class VerifyPendingRegistration extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Verify your SportUniverse email address')
+            ->subject('Verify your SportsUniverse email address')
             ->greeting('Hello '.$this->name.',')
-            ->line('Confirm your email address to finish creating your SportUniverse account.')
+            ->line('Confirm your email address to finish creating your SportsUniverse account.')
             ->action('Verify email and create account', $this->verificationUrl)
             ->line('This verification link expires in 60 minutes. If you did not request this account, you can ignore this email.');
     }

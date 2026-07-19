@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Advertising;
 
 use App\Domain\Advertising\Models\AdCampaign;
+use App\Domain\Advertising\Models\BoostSetting;
 use App\Domain\Advertising\Models\CampaignPayment;
 use App\Domain\Advertising\Services\PayFastGateway;
 use App\Http\Controllers\Controller;
@@ -40,8 +41,9 @@ class PayFastController extends Controller
                 'status' => $complete ? 'paid' : 'failed', 'provider_payload' => $payload,
                 'paid_at' => $complete ? now() : null,
             ]);
+            $settings = BoostSetting::current();
             $payment->campaign()->update($complete
-                ? ['status' => 'pending_review', 'submitted_at' => now()]
+                ? ['status' => $settings->require_review ? 'pending_review' : 'active', 'submitted_at' => now(), 'reviewed_at' => $settings->require_review ? null : now()]
                 : ['status' => 'payment_failed']);
         });
         return response()->json(['message' => 'PayFast notification accepted.']);

@@ -15,7 +15,7 @@ class ErrorPagesTest extends TestCase
         $this->get('/a-page-that-does-not-exist')
             ->assertNotFound()
             ->assertSee('This page is out of play.')
-            ->assertSee('SportUniverse');
+            ->assertSee('SportsUniverse');
     }
 
     public function test_forbidden_and_server_errors_use_branded_pages(): void

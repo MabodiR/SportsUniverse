@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\Analytics\Jobs\AggregateDailyMetrics;
+use App\Domain\Advertising\Models\AdCampaign;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -18,3 +19,7 @@ Schedule::call(fn () => AggregateDailyMetrics::dispatch(yesterday()->toDateStrin
 Schedule::command('db:partition-video-views --months=3')->monthlyOn(1, '00:05')->onOneServer();
 Schedule::command('feed:precompute')->hourly()->onOneServer()->withoutOverlapping();
 Schedule::command('feed:flush-counters --limit=5000')->everyMinute()->onOneServer()->withoutOverlapping();
+Schedule::call(fn () => AdCampaign::query()->where('status', 'active')
+    ->where(fn ($campaigns) => $campaigns->whereDate('ends_on', '<', today())->orWhereColumn('spent_cents', '>=', 'total_budget_cents'))
+    ->update(['status' => 'completed', 'updated_at' => now()]))
+    ->name('campaigns:complete-finished')->hourly()->onOneServer()->withoutOverlapping();

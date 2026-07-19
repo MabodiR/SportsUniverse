@@ -2,7 +2,6 @@
 
 namespace App\Domain\Feed\Models;
 
-use App\Domain\Media\Models\Media;
 use App\Domain\Sports\Models\Sport;
 use App\Models\User;
 use Database\Factories\VideoFactory;
@@ -41,12 +40,12 @@ class Video extends Model
 
     public function media(): BelongsTo
     {
-        return $this->belongsTo(Media::class);
+        return $this->belongsTo(config('modules.media_model'));
     }
 
     public function images(): BelongsToMany
     {
-        return $this->belongsToMany(Media::class, 'video_images')->withPivot(['position', 'is_cover'])->orderByPivot('position');
+        return $this->belongsToMany(config('modules.media_model'), 'video_images')->withPivot(['position', 'is_cover'])->orderByPivot('position');
     }
 
     public function sport(): BelongsTo

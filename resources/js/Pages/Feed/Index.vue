@@ -17,6 +17,10 @@ const activeMedia = ref<Record<string, number>>({});
 let touchX = 0;
 const recordedViews = new Set<string>();
 let observer: IntersectionObserver | null = null;
+let sponsoredObserver: IntersectionObserver | null = null;
+const sponsoredElements = new Map<Element, any>();
+const sponsoredTimers = new Map<Element, ReturnType<typeof setTimeout>>();
+const recordedSponsored = new Set<string>();
 const demos = [
     { id: 'demo-1', creator: { name: 'Thabo Mokoena', sport: 'Football', position: 'Midfielder', city: 'Johannesburg', completeness: 70 }, caption: 'Turning pressure into possibility. One touch, one chance, one goal.', hashtags: ['Football', 'RisingTalent', 'SouthAfrica'], counts: { views: 12840, likes: 2840, comments: 196, shares: 84, saves: 310 } },
     { id: 'demo-2', creator: { name: 'Naledi Dlamini', sport: 'Netball', position: 'Goal Attack', city: 'Pretoria', completeness: 82 }, caption: 'Speed, vision and the courage to take the shot.', hashtags: ['Netball', 'WomenInSport', 'NextGeneration'], counts: { views: 9200, likes: 1840, comments: 122, shares: 64, saves: 205 } },
@@ -99,7 +103,7 @@ const share = async (item: any, channel = 'copy_link') => {
     item.counts.shares = data.shares_count;
     if (channel === 'repost') { item.viewer ??= {}; item.viewer.reposted = data.reposted; sharePost.value = null; return; }
     const url = `${window.location.origin}/feed#${item.id}`;
-    const encoded = encodeURIComponent(url); const text = encodeURIComponent(item.caption ?? 'SportUniverse highlight');
+    const encoded = encodeURIComponent(url); const text = encodeURIComponent(item.caption ?? 'SportsUniverse highlight');
     if (channel === 'whatsapp' || channel === 'status') window.open(`https://wa.me/?text=${text}%20${encoded}`, '_blank');
     else if (channel === 'facebook') window.open(`https://www.facebook.com/sharer/sharer.php?u=${encoded}`, '_blank');
     else if (channel === 'telegram') window.open(`https://t.me/share/url?url=${encoded}&text=${text}`, '_blank');
@@ -152,13 +156,14 @@ const followCreator = async (item: any) => {
     try {
         const data = await request(`/athletes/${item.creator.id}/follow`);
         feed.value.filter(video => video.creator.id === item.creator.id).forEach(video => { video.viewer ??= {}; video.viewer.following_creator = true; });
+        if (item.sponsored?.delivery_id) request(`/api/v1/campaign-deliveries/${item.sponsored.delivery_id}/conversion`, { event: 'follow' }).catch(() => undefined);
         window.dispatchEvent(new CustomEvent('following-count-changed', { detail: data.viewer_following_count }));
     } finally { actionBusy.value = null; }
 };
 const recordView = async (item: any, video: HTMLVideoElement) => {
     if (!authenticated.value || recordedViews.has(item.id) || video.currentTime < 3) return;
     recordedViews.add(item.id);
-    try { const data = await request(`/api/v1/videos/${item.id}/views`, { watched_ms: Math.round(video.currentTime * 1000), completed: video.duration > 0 && video.currentTime / video.duration >= .9 }); item.counts.views = data.views_count; }
+    try { const data = await request(`/api/v1/videos/${item.id}/views`, { watched_ms: Math.round(video.currentTime * 1000), completed: video.duration > 0 && video.currentTime / video.duration >= .9 }); item.counts.views = data.views_count; if (item.sponsored?.delivery_id) request(`/api/v1/campaign-deliveries/${item.sponsored.delivery_id}/conversion`, { event: 'video_view' }).catch(() => undefined); }
     catch { recordedViews.delete(item.id); }
 };
 
@@ -182,6 +187,18 @@ const registerVideo = (element: HTMLVideoElement | null, id: string) => {
     element.muted = !soundEnabled.value || videoVolume.value === 0;
     videoElements.set(id, element);
     observer?.observe(element);
+};
+const registerSponsored = (element: Element | null, item: any) => {
+    if (!element || !item.sponsored?.delivery_id) return;
+    sponsoredElements.set(element, item);
+    sponsoredObserver?.observe(element);
+};
+const openSponsored = async (item: any) => {
+    const sponsored = item.sponsored;
+    if (!sponsored?.delivery_id) return;
+    await request(`/api/v1/campaign-deliveries/${sponsored.delivery_id}/click`).catch(() => undefined);
+    if (sponsored.goal === 'followers') await request(`/api/v1/campaign-deliveries/${sponsored.delivery_id}/conversion`, { event: 'profile_visit' }).catch(() => undefined);
+    if (sponsored.destination_url) window.open(sponsored.destination_url, '_blank', 'noopener,noreferrer');
 };
 const toggleSound = async (video: HTMLVideoElement) => {
     if (!soundEnabled.value && videoVolume.value === 0) videoVolume.value = .5;
@@ -221,9 +238,22 @@ onMounted(() => {
             video.play().catch(() => undefined);
         } else video.pause();
     }), { threshold: [.25, .65, .9] });
+    sponsoredObserver = new IntersectionObserver(entries => entries.forEach(entry => {
+        const item = sponsoredElements.get(entry.target);
+        const delivery = item?.sponsored?.delivery_id;
+        if (!delivery || recordedSponsored.has(delivery)) return;
+        if (entry.isIntersecting && entry.intersectionRatio >= .6) {
+            if (!sponsoredTimers.has(entry.target)) sponsoredTimers.set(entry.target, setTimeout(() => {
+                recordedSponsored.add(delivery); sponsoredTimers.delete(entry.target);
+                request(`/api/v1/campaign-deliveries/${delivery}/impression`).catch(() => recordedSponsored.delete(delivery));
+            }, 1000));
+        } else if (sponsoredTimers.has(entry.target)) {
+            clearTimeout(sponsoredTimers.get(entry.target)); sponsoredTimers.delete(entry.target);
+        }
+    }), { threshold: [.25, .6, .9] });
     requestAnimationFrame(() => videoElements.forEach(video => observer?.observe(video)));
 });
-onUnmounted(() => { window.removeEventListener('scroll', onScroll); observer?.disconnect(); videoElements.forEach(video => video.pause()); document.body.style.overflow = ''; });
+onUnmounted(() => { window.removeEventListener('scroll', onScroll); observer?.disconnect(); sponsoredObserver?.disconnect(); sponsoredTimers.forEach(timer => clearTimeout(timer)); videoElements.forEach(video => video.pause()); document.body.style.overflow = ''; });
 </script>
 
 <template>
@@ -240,10 +270,10 @@ onUnmounted(() => { window.removeEventListener('scroll', onScroll); observer?.di
             <div class="for-you-layout">
                 <template v-if="feed.length">
                 <div class="feed-stream">
-                    <div v-for="(item, index) in feed" :id="item.id" :key="item.id" class="featured-video-wrap">
+                    <div v-for="(item, index) in feed" :id="item.id" :key="`${item.id}:${item.sponsored?.delivery_id ?? 'organic'}`" :ref="element => registerSponsored(element as Element,item)" class="featured-video-wrap" :class="{ 'sponsored-post': item.sponsored }">
                         <article class="featured-video-card" :class="`feed-card-${(index % 3) + 1}`">
                             <div class="post-carousel" @touchstart.passive="swipeStart" @touchend.passive="swipeEnd(item,$event)">
-                                <template v-for="(slide,slideIndex) in slides(item)" :key="slide.url"><img v-if="slide.type==='image' && mediaIndex(item)===slideIndex" :src="slide.url" :alt="item.caption||'SportUniverse post image'"/><video v-else-if="slide.type==='video' && mediaIndex(item)===slideIndex" :ref="element => registerVideo(element as HTMLVideoElement,item.id)" class="feed-video" :src="slide.url" :muted="!soundEnabled" loop playsinline preload="metadata" @click="toggleVideo" @timeupdate="recordView(item,$event.currentTarget as HTMLVideoElement)"/></template>
+                                <template v-for="(slide,slideIndex) in slides(item)" :key="slide.url"><img v-if="slide.type==='image' && mediaIndex(item)===slideIndex" :src="slide.url" :alt="item.caption||'SportsUniverse post image'"/><video v-else-if="slide.type==='video' && mediaIndex(item)===slideIndex" :ref="element => registerVideo(element as HTMLVideoElement,item.id)" class="feed-video" :src="slide.url" :muted="!soundEnabled" loop playsinline preload="metadata" @click="toggleVideo" @timeupdate="recordView(item,$event.currentTarget as HTMLVideoElement)"/></template>
                                 <template v-if="slides(item).length>1"><button class="carousel-arrow previous" @click="changeMedia(item,-1)"><ChevronLeft/></button><button class="carousel-arrow next" @click="changeMedia(item,1)"><ChevronRight/></button><div class="carousel-dots"><i v-for="(_,dot) in slides(item)" :class="{active:mediaIndex(item)===dot}"/></div></template>
                             </div>
                             <div v-if="item.url && slides(item)[mediaIndex(item)]?.type==='video'" class="video-audio-control" @click.stop>
@@ -253,8 +283,8 @@ onUnmounted(() => { window.removeEventListener('scroll', onScroll); observer?.di
                                     <label class="video-volume-control"><Volume2 aria-hidden="true" /><span class="sr-only">Video volume</span><input type="range" min="0" max="1" step="0.05" :value="videoVolume" aria-label="Video volume" @input="changeVolume($event, videoElements.get(item.id)!)"/><output>{{ Math.round(videoVolume * 100) }}%</output></label>
                                 </div>
                             </div>
-                            <div class="featured-video-label"><strong>{{ item.caption || 'SportUniverse post' }}</strong><small>{{ slides(item)[mediaIndex(item)]?.type === 'video' ? `${index === 0 ? '00:15' : `00:${22 + index * 7}`} · HD` : slides(item).length > 1 ? `Photo ${mediaIndex(item) + 1} of ${slides(item).length}` : 'Photo' }}</small></div>
-                            <div class="featured-athlete"><div class="feed-creator-line"><Link class="feed-creator-identity" :href="item.creator.slug ? `/@${item.creator.slug}` : '/explore'"><span class="feed-creator-avatar"><img v-if="item.creator.profile_image" :src="item.creator.profile_image" :alt="`${item.creator.name} profile picture`"/><span v-else>{{ item.creator.name.slice(0, 2).toUpperCase() }}</span></span><h2>{{ item.creator.name }}</h2></Link><button v-if="authenticated && item.creator.id !== (page.props.auth as any)?.user?.id && !item.viewer?.following_creator" :disabled="actionBusy === `follow:${item.creator.id}`" @click="followCreator(item)"><UserPlus :size="14" />{{ actionBusy === `follow:${item.creator.id}` ? 'Following…' : 'Follow' }}</button></div><small><Link v-if="item.creator.sport" :href="`/feed/sport/${encodeURIComponent(item.creator.sport)}`" class="metadata-link">{{ item.creator.sport }}</Link><template v-else>Sport</template> · <Link v-if="item.creator.position" :href="`/feed/position/${encodeURIComponent(item.creator.position)}`" class="metadata-link">{{ item.creator.position }}</Link><template v-else>Athlete</template><template v-if="item.location?.name"> · <Link :href="`/feed/location/${encodeURIComponent(item.location.name)}`" class="metadata-link">{{ item.location.name }}</Link></template></small><p class="feed-caption">{{ item.caption }}</p><div v-if="item.hashtags?.length" class="feed-post-tags"><Link v-for="tag in item.hashtags" :key="tag" :href="`/explore?q=${encodeURIComponent(`#${String(tag).replace(/^#/, '')}`)}`">#{{ String(tag).replace(/^#/, '') }}</Link></div><span /></div>
+                            <div class="featured-video-label"><span v-if="item.sponsored" class="sponsored-label"><Megaphone/> Sponsored</span><strong>{{ item.caption || 'SportsUniverse post' }}</strong><small>{{ slides(item)[mediaIndex(item)]?.type === 'video' ? `${index === 0 ? '00:15' : `00:${22 + index * 7}`} · HD` : slides(item).length > 1 ? `Photo ${mediaIndex(item) + 1} of ${slides(item).length}` : 'Photo' }}</small></div>
+                            <div class="featured-athlete"><div class="feed-creator-line"><Link class="feed-creator-identity" :href="item.creator.slug ? `/@${item.creator.slug}` : '/explore'"><span class="feed-creator-avatar"><img v-if="item.creator.profile_image" :src="item.creator.profile_image" :alt="`${item.creator.name} profile picture`"/><span v-else>{{ item.creator.name.slice(0, 2).toUpperCase() }}</span></span><h2>{{ item.creator.name }}</h2></Link><button v-if="authenticated && item.creator.id !== (page.props.auth as any)?.user?.id && !item.viewer?.following_creator" :disabled="actionBusy === `follow:${item.creator.id}`" @click="followCreator(item)"><UserPlus :size="14" />{{ actionBusy === `follow:${item.creator.id}` ? 'Following…' : 'Follow' }}</button></div><small><Link v-if="item.creator.sport" :href="`/feed/sport/${encodeURIComponent(item.creator.sport)}`" class="metadata-link">{{ item.creator.sport }}</Link><template v-else>Sport</template> · <Link v-if="item.creator.position" :href="`/feed/position/${encodeURIComponent(item.creator.position)}`" class="metadata-link">{{ item.creator.position }}</Link><template v-else>Athlete</template><template v-if="item.location?.name"> · <Link :href="`/feed/location/${encodeURIComponent(item.location.name)}`" class="metadata-link">{{ item.location.name }}</Link></template></small><p class="feed-caption">{{ item.caption }}</p><div v-if="item.hashtags?.length" class="feed-post-tags"><Link v-for="tag in item.hashtags" :key="tag" :href="`/explore?q=${encodeURIComponent(`#${String(tag).replace(/^#/, '')}`)}`">#{{ String(tag).replace(/^#/, '') }}</Link></div><button v-if="item.sponsored" class="sponsored-cta" @click="openSponsored(item)">{{ item.sponsored.cta }}<ChevronRight/></button><span /></div>
                         </article>
                         <div class="featured-actions">
                             <button class="view-count" data-tooltip="Views" aria-label="Views" disabled><span><Eye /></span><small>{{ compact(item.counts.views) }}</small></button>

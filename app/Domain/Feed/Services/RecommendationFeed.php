@@ -2,6 +2,8 @@
 
 namespace App\Domain\Feed\Services;
 
+use App\Domain\Feed\Models\FeedSetting;
+use App\Domain\Feed\Models\Video;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -12,23 +14,32 @@ class RecommendationFeed
 {
     public function ids(User $user): Collection
     {
+        $size = FeedSetting::current()->recommendation_size;
         return Cache::remember($this->key($user->id), config('scale.feed_cache_seconds'), fn () =>
             DB::table('recommendation_feed_items')->where('user_id', $user->id)
-                ->orderBy('position')->limit(config('scale.recommendation_size'))->pluck('video_id')
+                ->orderBy('position')->limit($size)->pluck('video_id')
         );
     }
 
     public function rebuild(User $user): int
     {
-        $limit = config('scale.recommendation_size');
+        $settings = FeedSetting::current();
+        $limit = $settings->recommendation_size;
         $generation = (string) Str::ulid();
-        $candidates = DB::table('videos')
+        $score = '(likes_count * CAST(? AS DECIMAL(12,4)) + comments_count * CAST(? AS DECIMAL(12,4)) + shares_count * CAST(? AS DECIMAL(12,4)) + views_count * CAST(? AS DECIMAL(12,4)))';
+        $scoreBindings = [$settings->like_weight, $settings->comment_weight, $settings->share_weight, $settings->view_weight];
+        if ($settings->ranking_mode === 'personalized') {
+            $score .= ' + CASE WHEN EXISTS (SELECT 1 FROM follows WHERE follows.follower_id = ? AND follows.followed_id = videos.user_id) THEN CAST(? AS DECIMAL(12,4)) ELSE 0 END';
+            array_push($scoreBindings, $user->id, $settings->follow_boost);
+        }
+
+        $candidates = app(ApplyFeedPreferences::class)->execute(Video::query(), $user)
             ->where('videos.status', 'published')->where('videos.visibility', 'public')
-            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('feed_preferences')
-                ->where('feed_preferences.user_id', $user->id)->whereColumn('feed_preferences.video_id', 'videos.id'))
+            ->where(fn ($post) => $post
+                ->whereHas('media', fn ($media) => $media->where('processing_status', 'ready')->where('moderation_status', 'approved'))
+                ->orWhereHas('images', fn ($media) => $media->where('processing_status', 'ready')->where('moderation_status', 'approved')))
             ->select('videos.id')
-            ->selectRaw('(likes_count * 3 + comments_count * 4 + shares_count * 5 + views_count * 0.05)
-                + CASE WHEN EXISTS (SELECT 1 FROM follows WHERE follows.follower_id = ? AND follows.followed_id = videos.user_id) THEN 1000 ELSE 0 END AS recommendation_score', [$user->id])
+            ->selectRaw("{$score} AS recommendation_score", $scoreBindings)
             ->orderByDesc('recommendation_score')->orderByDesc('published_at')->orderByDesc('videos.id')
             ->limit($limit)->get();
 
@@ -47,5 +58,9 @@ class RecommendationFeed
     }
 
     public function invalidate(int $userId): void { Cache::forget($this->key($userId)); }
-    private function key(int $userId): string { return "feed:recommended:{$userId}"; }
+    private function key(int $userId): string
+    {
+        $version = FeedSetting::current()->updated_at?->getTimestamp() ?? 0;
+        return "feed:recommended:{$version}:{$userId}";
+    }
 }

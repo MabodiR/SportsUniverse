@@ -59,7 +59,7 @@ export default function PublicProfileScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={styles.safe}>
-      <TopBar share={() => shareLink(item.name, `View ${item.name} on SportUniverse`, `/@${item.slug}`)} save={me?.id !== item.id ? () => save.mutate() : undefined} saved={item.viewer?.saved} report={me?.id !== item.id ? () => router.push({ pathname: '/report', params: { type: 'user', id: String(item.id), label: item.name } }) : undefined} block={me?.id !== item.id ? toggleBlock : undefined} blocked={item.viewer?.blocked} />
+      <TopBar share={() => shareLink(item.name, `View ${item.name} on SportsUniverse`, `/@${item.slug}`)} save={me?.id !== item.id ? () => save.mutate() : undefined} saved={item.viewer?.saved} report={me?.id !== item.id ? () => router.push({ pathname: '/report', params: { type: 'user', id: String(item.id), label: item.name } }) : undefined} block={me?.id !== item.id ? toggleBlock : undefined} blocked={item.viewer?.blocked} />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.hero}>
           {cover ? <Image source={{ uri: cover }} style={styles.cover} /> : <View style={styles.coverFallback} />}

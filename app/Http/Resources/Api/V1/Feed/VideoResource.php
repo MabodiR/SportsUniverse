@@ -1,6 +1,6 @@
 <?php
 namespace App\Http\Resources\Api\V1\Feed;
-use App\Domain\Media\Services\MediaDelivery;
+use App\Contracts\Media\MediaUrlGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 class VideoResource extends JsonResource {
@@ -13,8 +13,8 @@ class VideoResource extends JsonResource {
             'comments_enabled'=>(bool)$this->comments_enabled,'visibility'=>$this->visibility,'status'=>$this->status,'published_at'=>$this->published_at,'updated_at'=>$this->updated_at,
             'creator'=>['id'=>$this->user->id,'name'=>$this->user->name,'slug'=>$this->user->profile?->slug,'profile_image'=>$this->user->profile?->profile_image_path],
             'sport'=>$this->sport?->only(['id','name','slug']),
-            'media'=>$this->media?['id'=>$this->media->public_id,'mime_type'=>$this->media->mime_type,'duration_ms'=>$this->media->duration_ms,'width'=>$this->media->width,'height'=>$this->media->height,'download_url'=>MediaDelivery::url($this->media),'renditions'=>$this->renditions($this->media)]:null,
-            'images'=>$this->whenLoaded('images',fn()=>$this->images->map(fn($image)=>['id'=>$image->public_id,'download_url'=>MediaDelivery::url($image),'is_cover'=>(bool)$image->pivot->is_cover,'position'=>$image->pivot->position])->values()),
+            'media'=>$this->media?['id'=>$this->media->public_id,'mime_type'=>$this->media->mime_type,'duration_ms'=>$this->media->duration_ms,'width'=>$this->media->width,'height'=>$this->media->height,'download_url'=>app(MediaUrlGenerator::class)->url($this->media),'renditions'=>$this->renditions($this->media)]:null,
+            'images'=>$this->whenLoaded('images',fn()=>$this->images->map(fn($image)=>['id'=>$image->public_id,'download_url'=>app(MediaUrlGenerator::class)->url($image),'is_cover'=>(bool)$image->pivot->is_cover,'position'=>$image->pivot->position])->values()),
             'counts'=>['views'=>$this->views_count,'likes'=>$this->likes_count,'comments'=>$this->comments_count,'shares'=>$this->shares_count,'saves'=>$this->saves_count],
             'viewer'=>[
                 'liked'=>(bool)($this->liked_by_viewer_exists??false),
@@ -24,7 +24,8 @@ class VideoResource extends JsonResource {
                 'is_owner'=>$request->user()?->id===$this->user_id,
                 'can_manage'=>$request->user()?->id===$this->user_id,
             ],
+            'sponsored'=>$this->getAttribute('sponsored'),
         ];
     }
-    private function renditions($media): array { return collect($media->metadata['renditions']??[])->map(fn($item)=>[...$item,'url'=>isset($item['path'])?MediaDelivery::url($media,$item['path']):null])->all(); }
+    private function renditions($media): array { return collect($media->metadata['renditions']??[])->map(fn($item)=>[...$item,'url'=>isset($item['path'])?app(MediaUrlGenerator::class)->url($media,$item['path']):null])->all(); }
 }

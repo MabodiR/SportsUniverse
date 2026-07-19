@@ -1,6 +1,18 @@
-# SportUniverse Architecture
+# SportsUniverse Architecture
 
-SportUniverse is a modular Laravel monolith with versioned REST APIs. Domain logic lives under `app/Domain`, transport concerns under `app/Http`, and API routes under `routes/api/v1`. This keeps module boundaries explicit without introducing distributed-system overhead prematurely.
+SportsUniverse is a modular Laravel monolith with versioned REST APIs. Domain logic lives under `app/Domain`, transport concerns under `app/Http`, and API routes under `routes/api/v1`. This keeps module boundaries explicit without introducing distributed-system overhead prematurely.
+
+## Module boundaries
+
+Modules may own their models, migrations, actions, and services, but they must not reach into another module's implementation for operational work. Cross-module reads use interfaces under `app/Contracts`; cross-module side effects use application events under `app/Events`. Concrete adapters are registered in `AppServiceProvider`, keeping callers replaceable and independently testable.
+
+- Feed consumes sponsored delivery through `SponsoredPostProvider`; advertising failures fall back to the organic feed.
+- Feed, messaging, opportunities, and moderation access media through Media contracts or the configured media model boundary.
+- Product modules request notifications by emitting `NotificationRequested`; delivery failures are contained by the notification listener and dispatcher.
+- Moderation resolves reportable records through `ReportableContentResolver`, with model knowledge isolated in its adapter.
+- Profiles may consume the sports taxonomy, but Sports does not depend on Profiles.
+
+`ModuleBoundaryTest` protects these dependency rules. New integrations should add a contract or event and a corresponding boundary assertion rather than importing another module's concrete service or model. These boundaries provide failure isolation inside the monolith and are the extraction seams if a module later becomes a separate service.
 
 ## Runtime services
 
@@ -88,6 +100,6 @@ Creator and admin dashboards cache five-minute summaries and accept fixed 7, 30,
 
 ## Web interface
 
-The web client uses Inertia, Vue 3, TypeScript, Tailwind CSS 4, and the same Laravel session/Sanctum identity. Its visual tokens come from the supplied SportUniverse concept: Deep Navy `#0D1B2A`, Universe Blue `#1B63F3`, Community Pink `#E646A2`, Opportunity Orange `#FFB020`, and Growth Green `#18B26B`.
+The web client uses Inertia, Vue 3, TypeScript, Tailwind CSS 4, and the same Laravel session/Sanctum identity. Its visual tokens come from the supplied SportsUniverse concept: Deep Navy `#0D1B2A`, Universe Blue `#1B63F3`, Community Pink `#E646A2`, Opportunity Orange `#FFB020`, and Growth Green `#18B26B`.
 
 The first web slice provides responsive login and role registration plus the desktop/mobile video-first application shell. The shell follows the concept's fixed left navigation, global search, central immersive video, right interaction rail, athlete completeness card, and suggested-talent panel.

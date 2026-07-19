@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Opportunities;
 
-use App\Domain\Notifications\Services\NotificationDispatcher;
+use App\Events\NotificationRequested;
 use App\Domain\Opportunities\Actions\SubmitOpportunityApplication;
 use App\Domain\Opportunities\Models\Opportunity;
 use App\Domain\Opportunities\Models\OpportunityApplication;
@@ -37,13 +37,13 @@ class OpportunityApplicationController extends Controller
         return OpportunityApplicationResource::collection($opportunity->applications()->with('opportunity.poster.profile', 'opportunity.poster.organisationProfile', 'opportunity.sport', 'opportunity.position', 'user.profile', 'resume', 'documents', 'statusHistory')->latest()->paginate(30));
     }
 
-    public function review(ReviewApplicationRequest $request, OpportunityApplication $application, NotificationDispatcher $notifications): JsonResponse
+    public function review(ReviewApplicationRequest $request, OpportunityApplication $application): JsonResponse
     {
         Gate::authorize('review', $application);
         $application->update(['status' => $request->validated('status'), 'reviewer_notes' => $request->validated('reviewer_notes'), 'reviewed_at' => now()]);
         $application->statusHistory()->create(['changed_by_id' => $request->user()->id, 'status' => $application->status, 'notes' => $application->reviewer_notes]);
         $application->load('opportunity');
-        $notifications->send($application->user, 'opportunities', ['event' => 'opportunity_application_status', 'application_id' => $application->public_id, 'opportunity_id' => $application->opportunity->public_id, 'opportunity_title' => $application->opportunity->title, 'status' => $application->status]);
+        NotificationRequested::dispatch($application->user_id, 'opportunities', ['event' => 'opportunity_application_status', 'application_id' => $application->public_id, 'opportunity_id' => $application->opportunity->public_id, 'opportunity_title' => $application->opportunity->title, 'status' => $application->status]);
 
         return response()->json(['message' => 'Application status updated.', 'data' => new OpportunityApplicationResource($this->load($application))]);
     }

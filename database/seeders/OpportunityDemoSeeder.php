@@ -11,10 +11,10 @@ class OpportunityDemoSeeder extends Seeder
 {
     public function run(): void
     {
-        $club = User::factory()->create(['name' => 'SportUniverse Academy', 'email' => 'academy@sportuniverse.test']);
+        $club = User::factory()->create(['name' => 'SportsUniverse Academy', 'email' => 'academy@sportuniverse.test']);
         $club->assignRole('academy');
         $club->profile()->create(['slug' => 'sportuniverse-academy', 'country' => 'ZA', 'city' => 'Johannesburg', 'completeness' => 100]);
-        $club->organisationProfile()->create(['organisation_name' => 'SportUniverse Academy', 'organisation_type' => 'academy', 'contact_email' => $club->email]);
+        $club->organisationProfile()->create(['organisation_name' => 'SportsUniverse Academy', 'organisation_type' => 'academy', 'contact_email' => $club->email]);
         $sports = Sport::with('positions')->get();
         foreach (range(1, 5) as $index) {
             $sport = $sports->get(($index - 1) % $sports->count());

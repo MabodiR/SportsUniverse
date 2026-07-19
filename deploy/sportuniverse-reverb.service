@@ -1,5 +1,5 @@
 [Unit]
-Description=SportUniverse Laravel Reverb server
+Description=SportsUniverse Laravel Reverb server
 After=network.target redis-server.service
 
 [Service]

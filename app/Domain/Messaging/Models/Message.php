@@ -2,7 +2,6 @@
 
 namespace App\Domain\Messaging\Models;
 
-use App\Domain\Media\Models\Media;
 use App\Models\User;
 use Database\Factories\MessageFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -43,6 +42,6 @@ class Message extends Model
 
     public function media(): BelongsTo
     {
-        return $this->belongsTo(Media::class);
+        return $this->belongsTo(config('modules.media_model'));
     }
 }

@@ -13,7 +13,7 @@ export async function enablePushNotifications(): Promise<string> {
   const permission = current.granted ? current : await Notifications.requestPermissionsAsync();
   if (!permission.granted) throw new Error('Notification permission was not granted.');
   if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', { name: 'SportUniverse', importance: Notifications.AndroidImportance.HIGH, vibrationPattern: [0, 250, 200, 250], lightColor: '#1B63F3' });
+    await Notifications.setNotificationChannelAsync('default', { name: 'SportsUniverse', importance: Notifications.AndroidImportance.HIGH, vibrationPattern: [0, 250, 200, 250], lightColor: '#1B63F3' });
   }
   const projectId = Constants.easConfig?.projectId ?? Constants.expoConfig?.extra?.eas?.projectId;
   const token = (await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined)).data;

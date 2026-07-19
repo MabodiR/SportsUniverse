@@ -34,7 +34,7 @@ class PayFastGateway
             'email_address' => (string) $user->email,
             'm_payment_id' => $payment->merchant_reference,
             'amount' => number_format($payment->amount_cents / 100, 2, '.', ''),
-            'item_name' => Str::limit('SportUniverse campaign: '.$campaign->title, 100, ''),
+            'item_name' => Str::limit('SportsUniverse campaign: '.$campaign->title, 100, ''),
             'item_description' => Str::limit($campaign->description ?: $campaign->campaign_type.' campaign', 255, ''),
             'custom_str1' => $campaign->public_id,
             'custom_str2' => $payment->public_id,
@@ -75,6 +75,6 @@ class PayFastGateway
     private function names(string $name): array
     {
         $parts = preg_split('/\s+/', trim($name), 2);
-        return [$parts[0] ?: 'SportUniverse', $parts[1] ?? 'Member'];
+        return [$parts[0] ?: 'SportsUniverse', $parts[1] ?? 'Member'];
     }
 }

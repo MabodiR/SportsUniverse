@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api\V1\Feed;
 
 use App\Domain\Feed\Models\Video;
 use App\Domain\Feed\Jobs\FinalizeQueuedPost;
-use App\Domain\Media\Models\Media;
+use App\Contracts\Media\MediaLibrary;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Feed\StoreVideoRequest;
 use App\Http\Requests\Api\V1\Feed\UpdateVideoRequest;
@@ -52,9 +52,9 @@ class VideoController extends Controller
         return VideoResource::collection($videos);
     }
 
-    public function store(StoreVideoRequest $request): JsonResponse
+    public function store(StoreVideoRequest $request, MediaLibrary $mediaLibrary): JsonResponse
     {
-        $media = $request->filled('media_id') ? Media::where('public_id', $request->validated('media_id'))->where('user_id', $request->user()->id)->first() : null;
+        $media = $request->filled('media_id') ? $mediaLibrary->findOwned($request->user()->id, $request->validated('media_id')) : null;
         if ($request->filled('media_id') && (! $media || $media->kind !== 'video' || $media->processing_status === 'failed' || $media->moderation_status === 'rejected')) {
             throw ValidationException::withMessages(['media_id' => ['Use an owned video that has not failed processing or moderation.']]);
         }
@@ -62,8 +62,8 @@ class VideoController extends Controller
             throw ValidationException::withMessages(['media_id' => ['This video has already been published in another post.']]);
         }
         $imageIds = $request->validated('image_media_ids', []);
-        $images = Media::whereIn('public_id', $imageIds)->where('user_id', $request->user()->id)->get();
-        if ($images->count() !== count($imageIds) || $images->contains(fn (Media $image) => $image->kind !== 'image' || $image->processing_status === 'failed' || $image->moderation_status === 'rejected')) {
+        $images = $mediaLibrary->findOwnedMany($request->user()->id, $imageIds);
+        if ($images->count() !== count($imageIds) || $images->contains(fn ($image) => $image->kind !== 'image' || $image->processing_status === 'failed' || $image->moderation_status === 'rejected')) {
             throw ValidationException::withMessages(['image_media_ids' => ['Use owned images that have not failed processing or moderation.']]);
         }
         if ($images->isNotEmpty() && DB::table('video_images')->whereIn('media_id', $images->pluck('id'))->exists()) {
@@ -71,12 +71,12 @@ class VideoController extends Controller
         }
         $publish = $request->boolean('publish');
         $allMedia = collect([$media])->filter()->concat($images);
-        $ready = $allMedia->isNotEmpty() && $allMedia->every(fn (Media $item) => $item->processing_status === 'ready' && $item->moderation_status === 'approved');
+        $ready = $allMedia->isNotEmpty() && $allMedia->every(fn ($item) => $item->processing_status === 'ready' && $item->moderation_status === 'approved');
         $video = DB::transaction(function () use ($request, $media, $images, $publish, $ready) {
             $published = $publish && $ready;
             $video = Video::create(['public_id' => (string) Str::ulid(), 'user_id' => $request->user()->id, 'media_id' => $media?->id, 'sport_id' => $request->validated('sport_id'), 'caption' => $request->validated('caption'), 'hashtags' => $this->hashtags($request->validated('hashtags', [])), 'location_name' => $request->validated('location_name'), 'latitude' => $request->validated('latitude'), 'longitude' => $request->validated('longitude'), 'comments_enabled' => $request->boolean('comments_enabled', true), 'visibility' => $request->validated('visibility', 'public'), 'status' => $published ? 'published' : 'draft', 'published_at' => $published ? now() : null]);
             $coverId = $request->validated('cover_media_id') ?? $images->first()?->public_id;
-            $video->images()->attach($images->values()->mapWithKeys(fn (Media $image, int $position) => [$image->id => ['position' => $position, 'is_cover' => $image->public_id === $coverId]])->all());
+            $video->images()->attach($images->values()->mapWithKeys(fn ($image, int $position) => [$image->id => ['position' => $position, 'is_cover' => $image->public_id === $coverId]])->all());
             return $video;
         });
 
@@ -91,7 +91,7 @@ class VideoController extends Controller
         return response()->json(['message' => $message, 'queued' => ! $ready, 'data' => new VideoResource($this->load($video, $request))], $ready ? 201 : 202);
     }
 
-    public function update(UpdateVideoRequest $request, Video $video): VideoResource
+    public function update(UpdateVideoRequest $request, Video $video, MediaLibrary $mediaLibrary): VideoResource
     {
         Gate::authorize('update', $video);
         $video->update([
@@ -105,7 +105,8 @@ class VideoController extends Controller
             'visibility' => $request->validated('visibility', $video->visibility),
         ]);
         if ($request->filled('cover_media_id')) {
-            $cover = Media::where('public_id', $request->validated('cover_media_id'))->where('user_id', $request->user()->id)->firstOrFail();
+            $cover = $mediaLibrary->findOwned($request->user()->id, $request->validated('cover_media_id'));
+            abort_unless($cover, 404);
             abort_unless($video->images()->whereKey($cover->id)->exists(), 422);
             DB::table('video_images')->where('video_id', $video->id)->update(['is_cover' => false]);
             DB::table('video_images')->where('video_id', $video->id)->where('media_id', $cover->id)->update(['is_cover' => true]);

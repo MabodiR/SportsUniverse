@@ -138,7 +138,7 @@ const upload = async () => {
         const publishPayload = await responsePayload(publishResponse);
         if (!publishResponse.ok) throw new Error(publishPayload.message ?? Object.values(publishPayload.errors ?? {}).flat().join(' '));
         publishedPost.value = publishPayload.data;
-        progress.value = 100; notice.value = publishPayload.queued ? 'Upload received. You can leave this page—we’ll notify you when your post is ready.' : 'Your post is live on SportUniverse.'; await clearDraft();
+        progress.value = 100; notice.value = publishPayload.queued ? 'Upload received. You can leave this page—we’ll notify you when your post is ready.' : 'Your post is live on SportsUniverse.'; await clearDraft();
     } catch (e: any) { error.value = `${e.message ?? 'Upload failed.'} Your draft is saved and can be retried.`; navigator.serviceWorker?.ready.then((registration:any)=>registration.sync?.register('sportuniverse-upload')); }
     finally { saving.value = false; }
 };

@@ -274,7 +274,7 @@ a { color: inherit; text-decoration: none; }
     .form-actions { flex-direction: column; }
 }
 
-/* SportUniverse document-aligned light web application shell */
+/* SportsUniverse document-aligned light web application shell */
 html,body { background: #fff; color: #111827; color-scheme: light; }
 .su-app { background: #f4f6fa; }
 .app-shell { grid-template-columns: 240px minmax(0,1fr); }
@@ -527,6 +527,11 @@ html,body { background: #fff; color: #111827; color-scheme: light; }
 .featured-video-label { position: absolute; z-index: 1; top: 1.6rem; left: 1.7rem; display: grid; gap: .3rem; }
 .featured-video-label strong { display:block;max-width:360px;overflow:hidden;font-size:.82rem;line-height:1.35;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 2px 8px rgba(0,0,0,.85); }
 .featured-video-label small { color: rgba(255,255,255,.75); font-size: .58rem; }
+.sponsored-label { display: flex; width: max-content; margin-bottom: .15rem; padding: .3rem .55rem; align-items: center; gap: .3rem; color: #fff; border: 1px solid rgba(255,255,255,.35); border-radius: 999px; background: rgba(5,12,20,.76); font-size: .62rem; font-weight: 850; letter-spacing: .03em; text-transform: uppercase; }
+.sponsored-label svg { width: .8rem; height: .8rem; }
+.sponsored-post .featured-video-card { box-shadow: 0 0 0 2px rgba(236,47,115,.45), 0 22px 55px rgba(32,12,40,.22); }
+.sponsored-cta { display: flex; width: max-content; margin: .2rem 0 .7rem; padding: .55rem .8rem; align-items: center; gap: .35rem; color: #101827; border: 0; border-radius: .6rem; background: #fff; font-size: .72rem; font-weight: 850; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
+.sponsored-cta svg { width: .9rem; height: .9rem; }
 .featured-play { position: absolute; top: 48%; left: 50%; color: #fff; border: 0; background: transparent; font-size: 2.5rem; transform: translate(-50%,-50%); cursor: pointer; }
 .featured-athlete { position: absolute; right: 1.7rem; bottom: 1.2rem; left: 1.7rem; }
 .featured-athlete h2 { margin: 0 0 .2rem; color:#fff; font-size: 1.15rem; font-weight:850; text-shadow:0 2px 8px rgba(0,0,0,.8); }
@@ -825,7 +830,35 @@ html,body { background: #fff; color: #111827; color-scheme: light; }
 /* Full-width advertising and sponsorship workspace */
 .promote-page{width:100%;max-width:1240px;margin:0 auto;padding:2rem 2rem 5rem}.promote-page .campaign-summary,.promote-page .campaign-create-types,.promote-page .campaign-list{width:100%;max-width:none}.promote-page .campaign-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.promote-page .campaign-create-types{grid-template-columns:repeat(2,minmax(0,1fr))}.promote-page .campaign-list>article{padding:1.15rem}.promote-page .promote-progress,.promote-page>.promote-card{width:100%}
 @media(max-width:760px){.promote-page{padding:1.2rem .85rem 6rem}.promote-page .campaign-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.promote-page .campaign-summary article{display:grid}.promote-page .campaign-create-types{grid-template-columns:1fr}}
-@media(max-width:520px){.promote-page .campaign-summary{grid-template-columns:1fr}.promote-page .campaign-summary article{display:flex}}
+@media(max-width:520px){
+    .promote-page{padding:1rem .75rem 6.5rem}
+    .promote-head{display:grid;grid-template-columns:40px minmax(0,1fr);gap:.7rem .75rem;align-items:center}
+    .promote-head>a,.promote-head>button:not(.new-campaign){grid-column:1;grid-row:1;width:40px;height:40px;justify-content:center;padding:0;border:1px solid #dfe6ee;border-radius:12px;background:#fff}
+    .promote-head>div{grid-column:2;grid-row:1;min-width:0}
+    .promote-head h1{font-size:1.3rem;line-height:1.15}
+    .promote-head p{margin-top:.35rem;font-size:.68rem;line-height:1.45}
+    .promote-head .new-campaign{grid-column:1/-1;grid-row:2;justify-content:center;width:100%;min-height:46px;margin:0;border-radius:12px;font-size:.78rem}
+    .promote-head .new-campaign svg{width:18px}
+    .promote-page .campaign-summary{grid-template-columns:repeat(3,minmax(0,1fr));gap:.55rem;margin:1rem 0}
+    .promote-page .campaign-summary article{display:grid;justify-items:start;gap:.45rem;min-width:0;padding:.8rem .65rem;border-radius:13px}
+    .campaign-summary svg{width:20px;height:20px}
+    .campaign-summary strong{font-size:1.1rem;line-height:1}
+    .campaign-summary span{font-size:.58rem;line-height:1.25}
+    .promote-page .campaign-create-types{gap:.6rem;margin:.75rem 0 1.25rem}
+    .campaign-create-types>button{min-height:74px;padding:.85rem;border-radius:13px}
+    .campaign-create-types>button>svg:first-child{width:19px;padding:.5rem}
+    .campaign-create-types strong{font-size:.78rem}
+    .campaign-create-types span{font-size:.63rem;line-height:1.4}
+    .campaign-list{margin:0}
+    .campaign-list>header h2{margin:.25rem 0 .65rem;font-size:1rem}
+    .campaign-list>article{gap:.65rem;margin:.6rem 0;padding:.9rem!important;border-radius:13px}
+    .campaign-list article>i{justify-self:start}
+    .campaign-list dl{grid-template-columns:repeat(2,minmax(0,1fr));gap:.4rem}
+    .campaign-list dl>div{padding:.55rem}
+    .promote-card{padding:1rem;border-radius:15px}
+    .promote-card footer{display:grid;grid-template-columns:1fr 1fr}
+    .promote-card footer button{justify-content:center;min-width:0;padding:.6rem .5rem}
+}
 
 /* Full-width talent discovery workspace */
 .unified-discover{width:100%;max-width:1240px;margin:0 auto;padding:2rem 2rem 5rem}.unified-discover .account-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.unified-discover .discovery-video-grid{grid-template-columns:repeat(5,minmax(0,1fr))}.unified-discover .discovery-opps{grid-template-columns:repeat(3,minmax(0,1fr))}.unified-discover .search-library{grid-template-columns:repeat(2,minmax(0,1fr))}

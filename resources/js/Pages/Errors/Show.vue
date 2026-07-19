@@ -4,13 +4,13 @@ import BrandLogo from '../../Components/BrandLogo.vue';
 
 const props = defineProps<{ status: number }>();
 const pages: Record<number, any> = {
-    401: { title: 'Sign in required', label: 'Authentication required', heading: 'Please sign in to continue.', message: 'Your account is not currently authenticated. Sign in securely to return to SportUniverse.', action: 'Sign in', href: '/login' },
+    401: { title: 'Sign in required', label: 'Authentication required', heading: 'Please sign in to continue.', message: 'Your account is not currently authenticated. Sign in securely to return to SportsUniverse.', action: 'Sign in', href: '/login' },
     403: { title: 'Access denied', label: 'Restricted area', heading: 'You don’t have access to this.', message: 'This content may be private, restricted to another account, or unavailable with your current permissions.', action: 'Return to the feed', href: '/feed' },
     404: { title: 'Page not found', label: 'Off the field', heading: 'This page is out of play.', message: 'The link may be outdated, the post may have been removed, or the page may have moved somewhere new.', action: 'Return to the feed', href: '/feed' },
     419: { title: 'Session expired', label: 'Session timeout', heading: 'Your session has expired.', message: 'For your security, inactive sessions are closed automatically. Sign in again and you can continue where you left off.', action: 'Sign in again', href: '/login' },
-    429: { title: 'Too many requests', label: 'Take a quick timeout', heading: 'A few too many plays at once.', message: 'We temporarily slowed this action to keep SportUniverse safe and responsive. Please wait a moment before trying again.', action: 'Return to the feed', href: '/feed' },
+    429: { title: 'Too many requests', label: 'Take a quick timeout', heading: 'A few too many plays at once.', message: 'We temporarily slowed this action to keep SportsUniverse safe and responsive. Please wait a moment before trying again.', action: 'Return to the feed', href: '/feed' },
     500: { title: 'Something went wrong', label: 'Unexpected error', heading: 'We dropped the ball.', message: 'Something unexpected happened while completing your request. Our system has recorded the error so it can be investigated.', action: 'Return to the feed', href: '/feed' },
-    503: { title: 'Temporarily unavailable', label: 'Brief maintenance', heading: 'We’ll be back in the game shortly.', message: 'SportUniverse is temporarily unavailable while we improve the experience or restore a service.', action: 'Try again', href: '/' },
+    503: { title: 'Temporarily unavailable', label: 'Brief maintenance', heading: 'We’ll be back in the game shortly.', message: 'SportsUniverse is temporarily unavailable while we improve the experience or restore a service.', action: 'Try again', href: '/' },
 };
 const page = pages[props.status] ?? pages[500];
 const goBack = () => window.history.back();
@@ -28,7 +28,7 @@ const goBack = () => window.history.back();
             <section class="error-copy">
                 <span>{{ page.label }}</span><h1>{{ page.heading }}</h1><p>{{ page.message }}</p>
                 <div><Link :href="page.href">{{ page.action }}</Link><button v-if="status !== 419" @click="goBack">Go back</button></div>
-                <small v-if="status >= 500">Your account and saved content remain safe. If this continues, contact <a href="mailto:support@sportsuniverse.co.za">SportUniverse support</a>.</small>
+                <small v-if="status >= 500">Your account and saved content remain safe. If this continues, contact <a href="mailto:support@sportsuniverse.co.za">SportsUniverse support</a>.</small>
             </section>
         </article>
     </main>

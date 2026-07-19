@@ -2,7 +2,6 @@
 
 namespace App\Domain\Opportunities\Models;
 
-use App\Domain\Media\Models\Media;
 use App\Models\User;
 use Database\Factories\OpportunityApplicationFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -45,12 +44,12 @@ class OpportunityApplication extends Model
 
     public function resume(): BelongsTo
     {
-        return $this->belongsTo(Media::class, 'resume_media_id');
+        return $this->belongsTo(config('modules.media_model'), 'resume_media_id');
     }
 
     public function documents(): BelongsToMany
     {
-        return $this->belongsToMany(Media::class, 'opportunity_application_documents')
+        return $this->belongsToMany(config('modules.media_model'), 'opportunity_application_documents')
             ->withPivot('requirement_key')
             ->withTimestamps();
     }

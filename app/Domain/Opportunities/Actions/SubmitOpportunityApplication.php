@@ -2,7 +2,7 @@
 
 namespace App\Domain\Opportunities\Actions;
 
-use App\Domain\Media\Models\Media;
+use App\Contracts\Media\MediaLibrary;
 use App\Domain\Opportunities\Models\Opportunity;
 use App\Domain\Opportunities\Models\OpportunityApplication;
 use App\Models\User;
@@ -12,6 +12,8 @@ use Illuminate\Validation\ValidationException;
 
 class SubmitOpportunityApplication
 {
+    public function __construct(private MediaLibrary $media) {}
+
     public function execute(User $user, Opportunity $opportunity, array $data): OpportunityApplication
     {
         if (OpportunityApplication::where(['opportunity_id' => $opportunity->id, 'user_id' => $user->id])->exists()) {
@@ -23,7 +25,7 @@ class SubmitOpportunityApplication
             throw ValidationException::withMessages(['profile' => ['Your profile does not meet the maximum age requirement.']]);
         }$media = null;
         if (isset($data['resume_media_id'])) {
-            $media = Media::where('public_id', $data['resume_media_id'])->where('user_id', $user->id)->where('processing_status', 'ready')->where('moderation_status', 'approved')->first();
+            $media = $this->media->findOwnedReadyApproved($user->id, $data['resume_media_id']);
             if (! $media) {
                 throw ValidationException::withMessages(['resume_media_id' => ['Use an owned, approved document that has finished processing.']]);
             }
@@ -42,7 +44,7 @@ class SubmitOpportunityApplication
             if (! $requirement) {
                 throw ValidationException::withMessages(['documents' => ['An unknown document requirement was submitted.']]);
             }
-            $ownedMedia = Media::where('public_id', $document['media_id'])->where('user_id', $user->id)->where('processing_status', 'ready')->where('moderation_status', 'approved')->first();
+            $ownedMedia = $this->media->findOwnedReadyApproved($user->id, $document['media_id']);
             if (! $ownedMedia || ($requirement['collection'] ?? null) !== $ownedMedia->collection) {
                 throw ValidationException::withMessages(['documents' => ["Choose an approved {$requirement['label']} from your Library."]]);
             }
@@ -55,7 +57,7 @@ return DB::transaction(function () use ($user, $opportunity, $data, $media, $doc
                 throw ValidationException::withMessages(['opportunity' => ['This opportunity is no longer accepting applications.']]);
             }$application = $locked->applications()->create(['public_id' => (string) Str::ulid(), 'user_id' => $user->id, 'resume_media_id' => $media?->id, 'cover_letter' => $data['cover_letter'] ?? null, 'status' => 'submitted']);
             if ($documents->isNotEmpty()) {
-                $application->documents()->attach($documents->mapWithKeys(fn (Media $document, string $key) => [$document->id => ['requirement_key' => $key]])->all());
+                $application->documents()->attach($documents->mapWithKeys(fn ($document, string $key) => [$document->id => ['requirement_key' => $key]])->all());
             }
             $application->statusHistory()->create(['changed_by_id' => $user->id, 'status' => 'submitted']);
             $locked->increment('applications_count');

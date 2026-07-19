@@ -48,7 +48,7 @@ class ModulePageController extends Controller
                     'unread_notifications' => $user->unreadNotifications()->count(),
                 ],
                 'open_opportunities' => $openOpportunities,
-                'activities' => $recentPosts->map(fn ($post) => ['type' => 'post', 'title' => $post->caption ?: 'SportUniverse post', 'meta' => ucfirst($post->status).' · '.$post->created_at->diffForHumans(), 'href' => '/feed'])->concat($recentCareer->map(fn ($entry) => ['type' => 'career', 'title' => $entry->team_name, 'meta' => collect([$entry->sport?->name, $entry->position?->name ?? $entry->role, $entry->level])->filter()->join(' · '), 'href' => '/profile']))->take(6)->values(),
+                'activities' => $recentPosts->map(fn ($post) => ['type' => 'post', 'title' => $post->caption ?: 'SportsUniverse post', 'meta' => ucfirst($post->status).' · '.$post->created_at->diffForHumans(), 'href' => '/feed'])->concat($recentCareer->map(fn ($entry) => ['type' => 'career', 'title' => $entry->team_name, 'meta' => collect([$entry->sport?->name, $entry->position?->name ?? $entry->role, $entry->level])->filter()->join(' · '), 'href' => '/profile']))->take(6)->values(),
                 'actions' => $isAthlete ? [
                     ['title' => 'Complete your profile', 'description' => 'Improve how scouts and clubs discover you.', 'href' => '/profile/edit', 'kind' => 'profile'],
                     ['title' => 'Add career history', 'description' => 'Keep your teams, level and playing position current.', 'href' => '/profile', 'kind' => 'career'],

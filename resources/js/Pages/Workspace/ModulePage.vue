@@ -47,7 +47,7 @@ const request = async (url: string, options: RequestInit = {}) => {
     return payload;
 };
 
-const itemLabel = (item: any) => item.title ?? item.name ?? item.original_name ?? item.participants?.map((person: any) => person.name).join(', ') ?? item.status ?? 'SportUniverse item';
+const itemLabel = (item: any) => item.title ?? item.name ?? item.original_name ?? item.participants?.map((person: any) => person.name).join(', ') ?? item.status ?? 'SportsUniverse item';
 const itemMeta = (item: any) => item.description ?? item.bio ?? item.processing_status ?? item.type ?? item.last_message?.body ?? item.city ?? 'View and manage details';
 const start = () => quickForm.value?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
@@ -114,7 +114,7 @@ onMounted(load);
             <div class="module-layout">
                 <main class="module-content">
                     <section v-if="endpoint" class="workspace-section su-card live-data">
-                        <header><div><small>LIVE DATA</small><h2>Connected to SportUniverse</h2></div><span class="status-pill">{{ loading ? 'Loading' : `${liveItems.length} loaded` }}</span></header>
+                        <header><div><small>LIVE DATA</small><h2>Connected to SportsUniverse</h2></div><span class="status-pill">{{ loading ? 'Loading' : `${liveItems.length} loaded` }}</span></header>
                         <p v-if="error" class="form-message error">{{ error }}</p>
                         <p v-else-if="!loading && !liveItems.length" class="empty-state">No records yet. Use the form below to add your first one.</p>
                         <div v-else class="workspace-rows">

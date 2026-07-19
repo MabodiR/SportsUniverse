@@ -77,7 +77,7 @@ const logout = () => user ? router.post('/logout') : router.visit('/login');
     <div class="su-app app-shell">
         <button v-if="menuOpen" class="mobile-nav-backdrop" aria-label="Close navigation" @click="menuOpen = false" />
         <aside class="sidebar" :class="{ 'mobile-open': menuOpen }">
-            <div class="mobile-sidebar-head"><Link class="mobile-sidebar-brand" href="/feed" aria-label="SportUniverse home" @click="menuOpen = false"><img :src="'/images/logo/sportuniverse-logo-horizontal-dark.png'" alt="SportUniverse" /></Link><button aria-label="Close navigation" @click="menuOpen = false"><X /></button></div>
+            <div class="mobile-sidebar-head"><Link class="mobile-sidebar-brand" href="/feed" aria-label="SportsUniverse home" @click="menuOpen = false"><img :src="'/images/logo/sportuniverse-logo-horizontal-dark.png'" alt="SportsUniverse" /></Link><button aria-label="Close navigation" @click="menuOpen = false"><X /></button></div>
             <Link class="desktop-sidebar-brand" href="/feed"><BrandLogo /></Link>
             <nav class="nav-list" aria-label="Primary navigation">
                 <Link v-for="item in userItems.filter(item => !item.clubOnly || canUseClubTools)" :key="item.label" :href="item.href" class="nav-item" :class="{ active: page.url === item.href }" @click="menuOpen = false">
@@ -103,10 +103,10 @@ const logout = () => user ? router.post('/logout') : router.visit('/login');
         <div id="main-content" class="shell-main" role="main" tabindex="-1">
             <header class="topbar">
                 <button class="mobile-menu-button" aria-label="Open navigation" @click="menuOpen = true"><Menu /></button>
-                <Link class="mobile-topbar-brand" href="/feed" aria-label="SportUniverse home"><img :src="'/images/logo/sportuniverse-logo-horizontal-transparent-black.png'" alt="SportUniverse" /></Link>
+                <Link class="mobile-topbar-brand" href="/feed" aria-label="SportsUniverse home"><img :src="'/images/logo/sportuniverse-logo-horizontal-transparent-black.png'" alt="SportsUniverse" /></Link>
                 <form class="search global-search" role="search" @submit.prevent="submitSearch">
                     <Search />
-                    <input v-model="searchQuery" class="su-input" placeholder="Search players, clubs, trials, coaches..." aria-label="Search SportUniverse" autocomplete="off" @focus="searchOpen = !!searchQuery" @keydown.esc="searchOpen = false" />
+                    <input v-model="searchQuery" class="su-input" placeholder="Search players, clubs, trials, coaches..." aria-label="Search SportsUniverse" autocomplete="off" @focus="searchOpen = !!searchQuery" @keydown.esc="searchOpen = false" />
                     <div v-if="searchOpen" class="global-search-results">
                         <p v-if="searchLoading" class="global-search-status">Searching…</p>
                         <template v-else-if="searchResults.length"><Link v-for="result in searchResults" :key="result.id" :href="`/@${result.slug}`" class="global-search-result" @click="searchOpen = false"><span class="search-result-avatar"><img v-if="result.images?.profile" :src="result.images.profile" alt="" /><span v-else>{{ result.name?.slice(0,2).toUpperCase() }}</span></span><span><strong>{{ result.name }}</strong><small>{{ [result.athlete?.sport?.name, result.athlete?.position?.name, result.location?.city].filter(Boolean).join(' • ') || result.roles?.join(', ') }}</small></span></Link></template>
@@ -116,7 +116,7 @@ const logout = () => user ? router.post('/logout') : router.visit('/login');
                 </form>
                 <span class="top-spacer" />
                 <template v-if="!user"><Link href="/login" class="su-btn su-btn-ghost" style="min-height:40px">Sign in</Link><Link href="/register" class="su-btn su-btn-primary" style="min-height:40px">Join now</Link></template>
-                <Link href="/mobile-app" class="icon-button mobile-app-link" aria-label="Get the SportUniverse mobile app" title="Get the mobile app"><Smartphone :size="18" /></Link>
+                <Link href="/mobile-app" class="icon-button mobile-app-link" aria-label="Get the SportsUniverse mobile app" title="Get the mobile app"><Smartphone :size="18" /></Link>
                 <Link :href="user ? '/notifications' : '/login'" class="icon-button" aria-label="Notifications"><Bell :size="19" /></Link>
                 <button v-if="installPrompt" class="install-app-button" type="button" @click="installApp"><Download/><span>Install</span></button>
             </header>

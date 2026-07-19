@@ -3,7 +3,7 @@
 namespace App\Domain\Feed\Jobs;
 
 use App\Domain\Feed\Models\Video;
-use App\Domain\Notifications\Services\NotificationDispatcher;
+use App\Events\NotificationRequested;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
@@ -21,7 +21,7 @@ class FinalizeQueuedPost implements ShouldQueue
         $this->onQueue('media');
     }
 
-    public function handle(NotificationDispatcher $notifications): void
+    public function handle(): void
     {
         $video = $this->video->fresh(['user', 'media', 'images']);
         if (! $video) {
@@ -34,7 +34,7 @@ class FinalizeQueuedPost implements ShouldQueue
         }
 
         if ($media->contains(fn ($item) => $item->processing_status === 'failed')) {
-            $this->notifyFailure($notifications, $video, 'We could not process your media. Open your drafts to retry the upload.');
+            $this->notifyFailure($video, 'We could not process your media. Open your drafts to retry the upload.');
             return;
         }
 
@@ -44,7 +44,7 @@ class FinalizeQueuedPost implements ShouldQueue
         }
 
         if ($media->contains(fn ($item) => $item->moderation_status === 'rejected')) {
-            $this->notifyFailure($notifications, $video, 'Your upload could not be published because its media was not approved.');
+            $this->notifyFailure($video, 'Your upload could not be published because its media was not approved.');
             return;
         }
 
@@ -58,7 +58,7 @@ class FinalizeQueuedPost implements ShouldQueue
         }
 
         $published = $video->fresh()->status === 'published';
-        $notifications->send($video->user, 'moderation', [
+        NotificationRequested::dispatch($video->user_id, 'moderation', [
             'event' => 'post_upload_completed',
             'video_id' => $video->public_id,
             'message' => $published ? 'Your post uploaded successfully and is now live.' : 'Your media uploaded successfully and your draft is ready.',
@@ -71,13 +71,13 @@ class FinalizeQueuedPost implements ShouldQueue
     {
         $video = $this->video->fresh(['user']);
         if ($video) {
-            $this->notifyFailure(app(NotificationDispatcher::class), $video, 'Your upload is taking longer than expected. Open your drafts to check it.');
+            $this->notifyFailure($video, 'Your upload is taking longer than expected. Open your drafts to check it.');
         }
     }
 
-    private function notifyFailure(NotificationDispatcher $notifications, Video $video, string $message): void
+    private function notifyFailure(Video $video, string $message): void
     {
-        $notifications->send($video->user, 'moderation', [
+        NotificationRequested::dispatch($video->user_id, 'moderation', [
             'event' => 'post_upload_failed',
             'video_id' => $video->public_id,
             'message' => $message,

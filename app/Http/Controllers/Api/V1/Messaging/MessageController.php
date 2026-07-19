@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers\Api\V1\Messaging;
 
-use App\Domain\Media\Models\Media;
+use App\Contracts\Media\MediaLibrary;
 use App\Domain\Messaging\Events\MessageChanged;
 use App\Domain\Messaging\Events\MessageSent;
 use App\Domain\Messaging\Models\Conversation;
 use App\Domain\Messaging\Models\Message;
-use App\Domain\Notifications\Services\NotificationDispatcher;
+use App\Events\NotificationRequested;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Messaging\StoreMessageRequest;
 use App\Http\Resources\Api\V1\Messaging\MessageResource;
@@ -31,7 +31,7 @@ class MessageController extends Controller
         return MessageResource::collection($page);
     }
 
-    public function store(StoreMessageRequest $request, Conversation $conversation, NotificationDispatcher $notifications): JsonResponse
+    public function store(StoreMessageRequest $request, Conversation $conversation, MediaLibrary $mediaLibrary): JsonResponse
     {
         Gate::authorize('send', $conversation);
         $otherIds = $conversation->participants()->where('users.id', '!=', $request->user()->id)->pluck('users.id');
@@ -39,7 +39,7 @@ class MessageController extends Controller
             throw ValidationException::withMessages(['conversation' => ['Messaging is unavailable in this conversation.']]);
         }$media = null;
         if ($request->filled('media_id')) {
-            $media = Media::where('public_id', $request->validated('media_id'))->where('user_id', $request->user()->id)->where('processing_status', 'ready')->where('moderation_status', 'approved')->first();
+            $media = $mediaLibrary->findOwnedReadyApproved($request->user()->id, $request->validated('media_id'));
             if (! $media) {
                 throw ValidationException::withMessages(['media_id' => ['Use an owned, approved media item that has finished processing.']]);
             }
@@ -52,7 +52,7 @@ class MessageController extends Controller
         });
         $message->load('conversation', 'sender.profile', 'media');
         MessageSent::dispatch($message);
-        $conversation->participants()->where('users.id', '!=', $request->user()->id)->wherePivotNull('muted_at')->each(fn ($recipient) => $notifications->send($recipient, 'messages', ['event' => 'new_message', 'message_id' => $message->public_id, 'conversation_id' => $conversation->public_id, 'sender_id' => $request->user()->id, 'sender_name' => $request->user()->name, 'preview' => str($message->body ?: 'Sent an attachment')->limit(120)->value()]));
+        $conversation->participants()->where('users.id', '!=', $request->user()->id)->wherePivotNull('muted_at')->each(fn ($recipient) => NotificationRequested::dispatch($recipient->id, 'messages', ['event' => 'new_message', 'message_id' => $message->public_id, 'conversation_id' => $conversation->public_id, 'sender_id' => $request->user()->id, 'sender_name' => $request->user()->name, 'preview' => str($message->body ?: 'Sent an attachment')->limit(120)->value()]));
 
         return response()->json(['message' => 'Message sent.', 'data' => new MessageResource($message)], 201);
     }

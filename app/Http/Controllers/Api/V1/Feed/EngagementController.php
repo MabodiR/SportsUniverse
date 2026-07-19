@@ -6,7 +6,7 @@ use App\Domain\Feed\Actions\ToggleVideoEngagement;
 use App\Domain\Feed\Models\Comment;
 use App\Domain\Feed\Models\Video;
 use App\Domain\Feed\Services\BufferedVideoCounters;
-use App\Domain\Notifications\Services\NotificationDispatcher;
+use App\Events\NotificationRequested;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Feed\RecordViewRequest;
 use App\Http\Requests\Api\V1\Feed\StoreCommentRequest;
@@ -21,12 +21,12 @@ use Illuminate\Validation\ValidationException;
 
 class EngagementController extends Controller
 {
-    public function like(Request $request, Video $video, ToggleVideoEngagement $toggle, NotificationDispatcher $notifications): JsonResponse
+    public function like(Request $request, Video $video, ToggleVideoEngagement $toggle): JsonResponse
     {
         Gate::authorize('view', $video);
         $active = $toggle->execute($request->user(), $video, 'like');
         if ($active && $video->user_id !== $request->user()->id) {
-            $notifications->send($video->user, 'engagement', ['event' => 'video_liked', 'actor_id' => $request->user()->id, 'actor_name' => $request->user()->name, 'video_id' => $video->public_id]);
+            NotificationRequested::dispatch($video->user_id, 'engagement', ['event' => 'video_liked', 'actor_id' => $request->user()->id, 'actor_name' => $request->user()->name, 'video_id' => $video->public_id]);
         }
 
         return response()->json(['data' => ['liked' => $active, 'likes_count' => $video->fresh()->likes_count]]);
@@ -40,7 +40,7 @@ class EngagementController extends Controller
         return response()->json(['data' => ['saved' => $active, 'saves_count' => $video->fresh()->saves_count]]);
     }
 
-    public function comment(StoreCommentRequest $request, Video $video, NotificationDispatcher $notifications): JsonResponse
+    public function comment(StoreCommentRequest $request, Video $video): JsonResponse
     {
         Gate::authorize('view', $video);
         abort_unless($video->comments_enabled, 403, 'Comments are disabled for this post.');
@@ -57,7 +57,7 @@ class EngagementController extends Controller
             return $comment;
         });
         if ($video->user_id !== $request->user()->id) {
-            $notifications->send($video->user, 'engagement', ['event' => 'video_commented', 'actor_id' => $request->user()->id, 'actor_name' => $request->user()->name, 'video_id' => $video->public_id, 'comment_id' => $comment->public_id]);
+            NotificationRequested::dispatch($video->user_id, 'engagement', ['event' => 'video_commented', 'actor_id' => $request->user()->id, 'actor_name' => $request->user()->name, 'video_id' => $video->public_id, 'comment_id' => $comment->public_id]);
         }
 
         return response()->json(['message' => 'Comment added.', 'data' => new CommentResource($comment->load('user.profile', 'parent'))], 201);
@@ -114,12 +114,12 @@ class EngagementController extends Controller
         return response()->json(['data' => ['counted' => $created, 'views_count' => $views]]);
     }
 
-    public function follow(Request $request, User $user, NotificationDispatcher $notifications): JsonResponse
+    public function follow(Request $request, User $user): JsonResponse
     {
         abort_if($request->user()->is($user), 422, 'You cannot follow yourself.');
         $attached = $request->user()->following()->syncWithoutDetaching([$user->id]);
         if ($attached['attached'] !== []) {
-            $notifications->send($user, 'followers', ['event' => 'new_follower', 'actor_id' => $request->user()->id, 'actor_name' => $request->user()->name]);
+            NotificationRequested::dispatch($user->id, 'followers', ['event' => 'new_follower', 'actor_id' => $request->user()->id, 'actor_name' => $request->user()->name]);
         }
 
         return response()->json(['data' => [

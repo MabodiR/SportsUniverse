@@ -28,7 +28,7 @@ class FeedDemoSeeder extends Seeder
                 ['name' => 'Demo Athlete '.$index, 'password' => Hash::make('Password123!'), 'email_verified_at' => now(), 'status' => 'active'],
             );
             $user->syncRoles(['athlete']);
-            $user->profile()->updateOrCreate(['user_id' => $user->id], ['slug' => 'demo-athlete-'.$index, 'bio' => 'Demo SportUniverse athlete profile.', 'country' => 'ZA', 'city' => $index % 2 ? 'Johannesburg' : 'Pretoria', 'completeness' => 85]);
+            $user->profile()->updateOrCreate(['user_id' => $user->id], ['slug' => 'demo-athlete-'.$index, 'bio' => 'Demo SportsUniverse athlete profile.', 'country' => 'ZA', 'city' => $index % 2 ? 'Johannesburg' : 'Pretoria', 'completeness' => 85]);
             $sport = $sports->get(($index - 1) % $sports->count());
             $position = $sport->positions()->first();
             $user->athleteProfile()->updateOrCreate(['user_id' => $user->id], ['sport_id' => $sport->id, 'position_id' => $position?->id, 'primary_sport' => $sport->name, 'position' => $position?->name, 'playing_level' => 'Amateur']);

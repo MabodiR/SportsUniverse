@@ -238,7 +238,7 @@ class WebAuthController extends Controller
         $request->session()->regenerate();
         $logins->record($user, $request, 'registration');
 
-        return redirect('/feed')->with('success', 'Email verified. Welcome to SportUniverse.');
+        return redirect('/feed')->with('success', 'Email verified. Welcome to SportsUniverse.');
     }
 
     private function createRegisteredUser(array $data, EnsureProfileSlug $slugs): User

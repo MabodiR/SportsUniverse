@@ -1,6 +1,6 @@
-# SportUniverse Mobile
+# SportsUniverse Mobile
 
-Cross-platform Expo/React Native client for Android and iOS. It consumes the Laravel `/api/v1` backend and follows the supplied SportUniverse interface.
+Cross-platform Expo/React Native client for Android and iOS. It consumes the Laravel `/api/v1` backend and follows the supplied SportsUniverse interface.
 
 ## Included
 
@@ -15,7 +15,7 @@ Cross-platform Expo/React Native client for Android and iOS. It consumes the Lar
 - Two-video guest preview followed by an authentication gate
 - Protected engagement actions
 - Native tab navigation and authenticated profile/logout
-- Shared SportUniverse brand tokens
+- Shared SportsUniverse brand tokens
 
 ## Requirements
 

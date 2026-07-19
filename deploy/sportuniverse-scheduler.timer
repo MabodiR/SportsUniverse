@@ -1,5 +1,5 @@
 [Unit]
-Description=Run SportUniverse scheduler every minute
+Description=Run SportsUniverse scheduler every minute
 
 [Timer]
 OnCalendar=*-*-* *:*:00

@@ -1,5 +1,5 @@
 [Unit]
-Description=SportUniverse Laravel queue worker
+Description=SportsUniverse Laravel queue worker
 After=network.target redis-server.service
 
 [Service]

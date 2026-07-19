@@ -17,7 +17,7 @@ const greeting = () => {
     <AppShell>
         <main class="dynamic-dashboard">
             <header class="dashboard-welcome">
-                <div><span>YOUR OVERVIEW</span><h1>{{ greeting() }}, {{ dashboard.user.name.split(' ')[0] }}</h1><p>Here’s what is happening with your SportUniverse profile.</p></div>
+                <div><span>YOUR OVERVIEW</span><h1>{{ greeting() }}, {{ dashboard.user.name.split(' ')[0] }}</h1><p>Here’s what is happening with your SportsUniverse profile.</p></div>
                 <Link href="/profile" class="su-btn su-btn-primary">View profile <ArrowRight /></Link>
             </header>
 

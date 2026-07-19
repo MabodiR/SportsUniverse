@@ -79,7 +79,7 @@ class SessionController extends Controller
     {
         $platform = str_contains(strtolower($name), 'ios') ? 'iOS' : (str_contains(strtolower($name), 'android') ? 'Android' : 'Mobile app');
 
-        return ['browser' => 'SportUniverse', 'platform' => $platform, 'type' => 'mobile'];
+        return ['browser' => 'SportsUniverse', 'platform' => $platform, 'type' => 'mobile'];
     }
 
     private function history(Request $request): array

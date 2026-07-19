@@ -3,7 +3,11 @@
 namespace App\Http\Controllers\Web;
 
 use App\Domain\Feed\Models\Video;
+use App\Domain\Feed\Models\FeedSetting;
+use App\Domain\Feed\Services\SafeSponsoredPostProvider;
 use App\Domain\Feed\Services\ApplyFeedPreferences;
+use App\Domain\Feed\Services\RankFeed;
+use App\Domain\Feed\Services\RecommendationFeed;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -54,10 +58,13 @@ class FeedController extends Controller
 
     private function renderFeed(Request $request, ?string $location = null, bool $following = false, ?string $sport = null, ?string $position = null): Response
     {
-        $followedIds = $request->user()?->following()->pluck('users.id')->flip() ?? collect();
-        $fanSports = ! $following && $request->user()?->hasRole('fan') ? ($request->user()->fanProfile?->interested_sports ?? []) : [];
+        $settings = FeedSetting::current();
+        $fanSports = ! $following && $settings->use_fan_sports && $request->user()?->hasRole('fan') ? ($request->user()->fanProfile?->interested_sports ?? []) : [];
         $fanSports = collect($fanSports)->filter()->map(fn ($name) => mb_strtolower((string) $name))->values()->all();
-        $videos = app(ApplyFeedPreferences::class)->execute(Video::query()->where('status', 'published')->where('visibility', 'public'), $request->user())
+        $query = app(ApplyFeedPreferences::class)->execute(Video::query()->select('videos.*')->where('status', 'published')->where('visibility', 'public'), $request->user())
+            ->where(fn ($post) => $post
+                ->whereHas('media', fn ($media) => $media->where('processing_status', 'ready')->where('moderation_status', 'approved'))
+                ->orWhereHas('images', fn ($media) => $media->where('processing_status', 'ready')->where('moderation_status', 'approved')))
             ->when($fanSports, fn ($query) => $query->where(function ($videos) use ($fanSports) { $videos->whereHas('sport', fn ($sport) => $sport->whereIn(DB::raw('LOWER(name)'), $fanSports))->orWhereHas('user.athleteProfile.sport', fn ($sport) => $sport->whereIn(DB::raw('LOWER(name)'), $fanSports)); }))
             ->when($location, fn ($query) => $query->whereRaw('LOWER(location_name) = ?', [mb_strtolower($location)]))
             ->when($sport, fn ($query) => $query->where(function ($videoQuery) use ($sport) {
@@ -70,8 +77,17 @@ class FeedController extends Controller
             ->when($request->user(), fn ($query, $user) => $query->withExists([
                 'likers as liked_by_viewer' => fn ($likes) => $likes->whereKey($user->id),
                 'savers as saved_by_viewer' => fn ($saves) => $saves->whereKey($user->id),
-            ]))
-            ->latest('published_at')->limit(30)->get();
+            ]));
+        if ($following) {
+            $query->orderByDesc('videos.published_at')->orderByDesc('videos.id');
+        } else {
+            $precomputed = $request->user() ? app(RecommendationFeed::class)->ids($request->user()) : collect();
+            app(RankFeed::class)->execute($query, $request->user(), $precomputed);
+        }
+        $videos = $query->limit($settings->page_size)->get();
+        if (! $following && ! $location && ! $sport && ! $position) {
+            $videos = app(SafeSponsoredPostProvider::class)->insert($videos, $request);
+        }
         $trendingSince = now()->subDays(7);
         $suggestions = User::query()->whereHas('roles', fn ($query) => $query->where('name', 'athlete'))
             ->when($request->user(), fn ($query) => $query->whereKeyNot($request->user()->id))
@@ -140,6 +156,7 @@ class FeedController extends Controller
                 'is_owner' => $viewer?->id === $video->user_id,
                 'can_manage' => $viewer?->id === $video->user_id,
             ],
+            'sponsored' => $video->getAttribute('sponsored'),
         ])->values()->all();
     }
 }

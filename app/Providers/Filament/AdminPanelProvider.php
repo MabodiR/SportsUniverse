@@ -26,7 +26,7 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
-            ->brandName('SportUniverse Admin')
+            ->brandName('SportsUniverse Admin')
             ->brandLogo(asset('images/logo/sportuniverse-logo-horizontal-dark.png'))
             ->darkModeBrandLogo(asset('images/logo/sportuniverse-logo-horizontal-transparent.png'))
             ->favicon(asset('images/logo/favicon.ico'))

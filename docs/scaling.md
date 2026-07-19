@@ -1,4 +1,4 @@
-# SportUniverse scaling services
+# SportsUniverse scaling services
 
 Local development can continue with one PostgreSQL node, local media and database queues. Production should set:
 

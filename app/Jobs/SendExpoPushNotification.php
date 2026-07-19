@@ -31,7 +31,7 @@ class SendExpoPushNotification implements ShouldQueue
     {
         return $this->payload['title'] ?? match ($this->category) {
             'messages' => 'New message', 'message_requests' => 'New message request', 'opportunities' => 'Opportunity update',
-            'followers' => 'New follower', 'engagement' => 'New post activity', 'moderation' => 'Safety update', default => 'SportUniverse',
+            'followers' => 'New follower', 'engagement' => 'New post activity', 'moderation' => 'Safety update', default => 'SportsUniverse',
         };
     }
 
@@ -43,7 +43,7 @@ class SendExpoPushNotification implements ShouldQueue
             'new_follower' => ($this->payload['actor_name'] ?? 'Someone').' followed you.',
             'trial_invitation' => 'You received a trial invitation from '.($this->payload['club_name'] ?? 'a club').'.',
             'opportunity_application_status' => 'Your application status was updated.',
-            default => 'You have new activity on SportUniverse.',
+            default => 'You have new activity on SportsUniverse.',
         };
     }
 }
