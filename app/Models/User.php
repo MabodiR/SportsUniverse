@@ -16,6 +16,8 @@ use App\Domain\Profiles\Models\OrganisationProfile;
 use App\Domain\Profiles\Models\ProfessionalProfile;
 use App\Domain\Profiles\Models\UserProfile;
 use App\Domain\Advertising\Models\AdCampaign;
+use App\Domain\Subscriptions\Models\Subscription;
+use App\Domain\Subscriptions\Models\SubscriptionPayment;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
@@ -116,6 +118,16 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
     public function adCampaigns(): HasMany
     {
         return $this->hasMany(AdCampaign::class);
+    }
+
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(Subscription::class);
+    }
+
+    public function subscriptionPayments(): HasMany
+    {
+        return $this->hasMany(SubscriptionPayment::class);
     }
 
     public function following(): BelongsToMany

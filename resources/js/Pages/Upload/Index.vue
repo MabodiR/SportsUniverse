@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
-import { Camera, CheckCircle2, CloudUpload, FileVideo, ImagePlus, Info, X } from '@lucide/vue';
+import { Camera, CheckCircle2, CloudUpload, FileVideo, ImagePlus, Info, RotateCw, SlidersHorizontal, X } from '@lucide/vue';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import AppShell from '../../Layouts/AppShell.vue';
 
@@ -12,6 +12,12 @@ const preview = ref('');
 const videoDuration = ref(0);
 const trimStart = ref(0);
 const trimLength = ref(60);
+const brightness = ref(0);
+const contrast = ref(0);
+const saturation = ref(0);
+const rotation = ref(0);
+const outputWidth = ref(1080);
+const quality = ref('balanced');
 const caption = ref('');
 const visibility = ref('Everyone');
 const comments = ref(true);
@@ -46,6 +52,12 @@ const saveDraft = async () => {
             coverIndex: coverIndex.value,
             trimStart: trimStart.value,
             trimLength: trimLength.value,
+            brightness: brightness.value,
+            contrast: contrast.value,
+            saturation: saturation.value,
+            rotation: rotation.value,
+            outputWidth: outputWidth.value,
+            quality: quality.value,
             savedAt: Date.now(),
         }, DRAFT_KEY);
     } catch (exception) {
@@ -54,17 +66,22 @@ const saveDraft = async () => {
     }
 };
 const clearDraft = async () => { const db = await openDrafts(); db.transaction('drafts', 'readwrite').objectStore('drafts').delete(DRAFT_KEY); };
-const restoreDraft = async () => { const db = await openDrafts(); const request = db.transaction('drafts').objectStore('drafts').get(DRAFT_KEY); request.onsuccess = () => { const draft = request.result; if (!draft) return; if (draft.video) select(draft.video, false); if (draft.images?.length) selectImages(draft.images, false); caption.value=draft.caption??'';hashtags.value=draft.hashtags??'';sportId.value=draft.sportId??'';locationName.value=draft.locationName??'';coverIndex.value=draft.coverIndex??0;trimStart.value=draft.trimStart??0;trimLength.value=draft.trimLength??60;notice.value='Recovered your unfinished upload.'; }; };
+const restoreDraft = async () => { const db = await openDrafts(); const request = db.transaction('drafts').objectStore('drafts').get(DRAFT_KEY); request.onsuccess = () => { const draft = request.result; if (!draft) return; if (draft.video) select(draft.video, false); if (draft.images?.length) selectImages(draft.images, false); caption.value=draft.caption??'';hashtags.value=draft.hashtags??'';sportId.value=draft.sportId??'';locationName.value=draft.locationName??'';coverIndex.value=draft.coverIndex??0;trimStart.value=draft.trimStart??0;trimLength.value=draft.trimLength??60;brightness.value=draft.brightness??0;contrast.value=draft.contrast??0;saturation.value=draft.saturation??0;rotation.value=draft.rotation??0;outputWidth.value=draft.outputWidth??1080;quality.value=draft.quality??'balanced';notice.value='Recovered your unfinished upload.'; }; };
 const csrf = () => (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '';
 const responsePayload = async (response: Response) => {
     const type = response.headers.get('content-type') ?? '';
     if (type.includes('application/json')) return response.json();
     const body = await response.text();
-    throw new Error(response.status === 413 ? 'This video is larger than the server upload limit.' : `The server could not complete the upload (${response.status}). ${body ? 'Please try again.' : ''}`.trim());
+    throw new Error(response.status === 413 ? 'This file is too large to upload. Your draft is safe—choose a smaller file or trim the video, then try again.' : `We couldn’t complete the upload (${response.status}). ${body ? 'Please try again.' : ''}`.trim());
 };
 const fileSize = computed(() => file.value ? `${(file.value.size / 1024 / 1024).toFixed(1)} MB` : '');
 const selectedSport = computed(() => sports.value.find(sport => String(sport.id) === String(sportId.value))?.name ?? 'Sport');
 const trimEnd = computed(() => Math.min(videoDuration.value, trimStart.value + trimLength.value));
+const formatBytes = (bytes: number) => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+const estimatedSizeFor = (seconds: number) => file.value && videoDuration.value ? formatBytes(file.value.size * Math.min(seconds, Math.max(0, videoDuration.value - trimStart.value)) / videoDuration.value) : '—';
+const trimmedSize = computed(() => estimatedSizeFor(Math.max(0, trimEnd.value - trimStart.value)));
+const mediaPreviewStyle = computed(() => ({ filter: `brightness(${100 + brightness.value}%) contrast(${100 + contrast.value}%) saturate(${100 + saturation.value}%)`, transform: `rotate(${rotation.value}deg)` }));
+const resetAdjustments = () => { brightness.value = 0; contrast.value = 0; saturation.value = 0; rotation.value = 0; outputWidth.value = 1080; quality.value = 'balanced'; };
 const formatTime = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 const loadedMetadata = (event: Event) => { videoDuration.value = (event.target as HTMLVideoElement).duration || 0; trimLength.value = Math.min(60, videoDuration.value); trimStart.value = Math.min(trimStart.value, Math.max(0, videoDuration.value - 1)); };
 const sportUploadSymbol = computed(() => {
@@ -105,6 +122,7 @@ const drop = (event: DragEvent) => { dragging.value = false; select(event.dataTr
 const discard = () => { if (preview.value) URL.revokeObjectURL(preview.value); imagePreviews.value.forEach(URL.revokeObjectURL); file.value = null; images.value = []; imagePreviews.value = []; preview.value = ''; caption.value = ''; notice.value = ''; error.value = ''; publishedPost.value = null; progress.value = 0; clearDraft(); };
 const uploadMedia = async (uploadFile: File, kind: 'video' | 'image', index: number, total: number) => {
     const form = new FormData(); form.append('file', uploadFile); form.append('kind', kind); form.append('collection', 'uploads');
+    form.append('brightness', String(brightness.value)); form.append('contrast', String(contrast.value)); form.append('saturation', String(saturation.value)); form.append('rotation', String(rotation.value)); form.append('output_width', String(outputWidth.value)); form.append('quality', quality.value);
     if (kind === 'video' && videoDuration.value > 0) { form.append('trim_start_ms', String(Math.round(trimStart.value * 1000))); form.append('trim_end_ms', String(Math.round(trimEnd.value * 1000))); }
     const acceptedUpload = await new Promise<any>((resolve, reject) => {
         const xhr = new XMLHttpRequest(); xhr.open('POST', '/api/v1/media'); xhr.responseType = 'json'; xhr.setRequestHeader('Accept', 'application/json'); xhr.setRequestHeader('X-CSRF-TOKEN', csrf());
@@ -113,7 +131,7 @@ const uploadMedia = async (uploadFile: File, kind: 'video' | 'image', index: num
         xhr.ontimeout = () => reject(new Error('The upload timed out. Your draft is safe; please retry.'));
         xhr.onload = () => {
             if (xhr.status >= 200 && xhr.status < 300) return resolve(xhr.response.data);
-            if (xhr.status === 413) return reject(new Error('This video is larger than the PHP upload limit. Restart the local app with composer run dev to enable uploads up to 512 MB.'));
+            if (xhr.status === 413) return reject(new Error('This file is too large to upload. Your draft is safe—choose a smaller file or trim the video, then try again.'));
             const validation = xhr.response?.errors ? Object.values(xhr.response.errors).flat()[0] : null;
             reject(new Error(String(validation ?? xhr.response?.message ?? `Upload failed (${xhr.status}).`)));
         };
@@ -139,12 +157,12 @@ const upload = async () => {
         if (!publishResponse.ok) throw new Error(publishPayload.message ?? Object.values(publishPayload.errors ?? {}).flat().join(' '));
         publishedPost.value = publishPayload.data;
         progress.value = 100; notice.value = publishPayload.queued ? 'Upload received. You can leave this page—we’ll notify you when your post is ready.' : 'Your post is live on SportsUniverse.'; await clearDraft();
-    } catch (e: any) { error.value = `${e.message ?? 'Upload failed.'} Your draft is saved and can be retried.`; navigator.serviceWorker?.ready.then((registration:any)=>registration.sync?.register('sportuniverse-upload')); }
+    } catch (e: any) { const message = e.message ?? 'We couldn’t upload your media.'; error.value = /draft is safe/i.test(message) ? message : `${message} Your draft is safe, so you can try again.`; navigator.serviceWorker?.ready.then((registration:any)=>registration.sync?.register('sportuniverse-upload')); }
     finally { saving.value = false; }
 };
 const resume = () => { if ((file.value || images.value.length) && !saving.value && navigator.onLine) { notice.value='Connection restored. Tap Post to resume your saved upload.'; } };
 const serviceMessage = (event:MessageEvent) => { if(event.data?.type==='RESUME_UPLOAD') resume(); };
-let draftTimer:ReturnType<typeof setTimeout>;watch([caption,hashtags,sportId,locationName,coverIndex],()=>{if(file.value||images.value.length){clearTimeout(draftTimer);draftTimer=setTimeout(saveDraft,350)}});
+let draftTimer:ReturnType<typeof setTimeout>;watch([caption,hashtags,sportId,locationName,coverIndex,brightness,contrast,saturation,rotation,outputWidth,quality],()=>{if(file.value||images.value.length){clearTimeout(draftTimer);draftTimer=setTimeout(saveDraft,350)}});
 onMounted(async () => { await restoreDraft(); const response = await fetch('/api/v1/sports', { headers: { Accept: 'application/json' } }); sports.value = (await response.json()).data ?? []; window.addEventListener('online',resume);navigator.serviceWorker?.addEventListener('message',serviceMessage);if(new URLSearchParams(location.search).has('camera'))setTimeout(()=>cameraInput.value?.click(),250); });
 onUnmounted(() => { if (preview.value) URL.revokeObjectURL(preview.value); imagePreviews.value.forEach(URL.revokeObjectURL);window.removeEventListener('online',resume);navigator.serviceWorker?.removeEventListener('message',serviceMessage);clearTimeout(draftTimer); });
 </script>
@@ -164,12 +182,13 @@ onUnmounted(() => { if (preview.value) URL.revokeObjectURL(preview.value); image
                         <input ref="cameraInput" hidden type="file" accept="video/*" capture="environment" @change="select(($event.target as HTMLInputElement).files?.[0])" />
                         <input ref="photoInput" hidden type="file" accept="image/*" capture="environment" multiple @change="selectImages(($event.target as HTMLInputElement).files)" />
                     </div>
-                    <div v-else class="upload-preview"><video :src="preview" controls @loadedmetadata="loadedMetadata" /><div class="selected-file"><FileVideo :size="20" /><span><strong>{{ file.name }}</strong><small>{{ fileSize }}</small></span><button aria-label="Remove video" @click="discard"><X :size="17" /></button></div><div v-if="videoDuration" class="trim-editor"><div><strong>Trim video</strong><span>{{ formatTime(trimStart) }} – {{ formatTime(trimEnd) }} · {{ Math.round(trimEnd - trimStart) }}s</span></div><label>Start point<input v-model.number="trimStart" type="range" min="0" :max="Math.max(0, videoDuration - 1)" step="0.1" /></label><div class="clip-length-options"><span>Post length</span><button type="button" :class="{ active: trimLength === 30 }" @click="trimLength = Math.min(30, videoDuration - trimStart)">30 seconds</button><button type="button" :class="{ active: trimLength > 30 }" @click="trimLength = Math.min(60, videoDuration - trimStart)">60 seconds max</button></div><small>Posts can be 30 seconds or up to one minute. Longer source videos must be trimmed.</small></div></div>
+                    <div v-else class="upload-preview"><video :src="preview" :style="mediaPreviewStyle" controls @loadedmetadata="loadedMetadata" /><div class="selected-file"><FileVideo :size="20" /><span><strong>{{ file.name }}</strong><small>{{ fileSize }}</small></span><button aria-label="Remove video" @click="discard"><X :size="17" /></button></div><div v-if="videoDuration" class="trim-editor"><div><strong>Trim video</strong><span>{{ formatTime(trimStart) }} – {{ formatTime(trimEnd) }} · {{ Math.round(trimEnd - trimStart) }}s <b>≈ {{ trimmedSize }}</b></span></div><label>Start point<input v-model.number="trimStart" type="range" min="0" :max="Math.max(0, videoDuration - 1)" step="0.1" /></label><div class="clip-length-options"><span>Post length</span><button type="button" :class="{ active: trimLength === 30 }" @click="trimLength = Math.min(30, videoDuration - trimStart)"><strong>30 seconds</strong><small>≈ {{ estimatedSizeFor(30) }}</small></button><button type="button" :class="{ active: trimLength > 30 }" @click="trimLength = Math.min(60, videoDuration - trimStart)"><strong>60 seconds max</strong><small>≈ {{ estimatedSizeFor(60) }}</small></button></div><small>Estimated from the original file before optimisation. Final size may be smaller depending on the resize and compression settings.</small></div></div>
                 </div>
                 <form class="upload-details" @submit.prevent="upload">
                     <h2>Post details</h2>
                     <label><span class="upload-label">Pictures <small>Up to 10</small></span><input class="upload-picture-input" type="file" accept="image/jpeg,image/png,image/webp" multiple @change="selectImages(($event.target as HTMLInputElement).files)" /></label>
-                    <div v-if="imagePreviews.length" class="upload-picture-grid"><button v-for="(image, index) in imagePreviews" :key="image" type="button" :class="{ selected: coverIndex === index }" @click="coverIndex = index"><img :src="image" alt="Selected post picture" /><span>{{ coverIndex === index ? 'Main picture' : 'Set as main' }}</span></button></div>
+                    <div v-if="imagePreviews.length" class="upload-picture-grid"><button v-for="(image, index) in imagePreviews" :key="image" type="button" :class="{ selected: coverIndex === index }" @click="coverIndex = index"><img :src="image" :style="mediaPreviewStyle" alt="Selected post picture" /><span>{{ coverIndex === index ? 'Main picture' : 'Set as main' }}</span></button></div>
+                    <section v-if="file || images.length" class="media-editor"><header><div><SlidersHorizontal/><span><strong>Improve & optimise</strong><small>Adjust the look and reduce file size safely</small></span></div><button type="button" @click="resetAdjustments">Reset</button></header><div class="adjustment-grid"><label>Brightness <b>{{brightness>0?'+':''}}{{brightness}}</b><input v-model.number="brightness" type="range" min="-50" max="50" /></label><label>Contrast <b>{{contrast>0?'+':''}}{{contrast}}</b><input v-model.number="contrast" type="range" min="-50" max="50" /></label><label>Colour <b>{{saturation>0?'+':''}}{{saturation}}</b><input v-model.number="saturation" type="range" min="-50" max="50" /></label></div><div class="editor-options"><button type="button" @click="rotation=(rotation+90)%360"><RotateCw/>Rotate {{rotation ? `${rotation}°` : ''}}</button><label>Resize<select v-model.number="outputWidth"><option :value="1080">1080px · Recommended</option><option :value="720">720px · Smaller</option><option :value="480">480px · Data saver</option></select></label><label>Compression<select v-model="quality"><option value="high">High quality</option><option value="balanced">Balanced · Recommended</option><option value="space">Save more space</option></select></label></div><p>Optimisation happens securely after upload. Balanced mode removes unnecessary file weight while keeping strong visual quality.</p></section>
                     <label><span class="upload-label">Caption <small>{{ caption.length }} / 2200</small></span><textarea v-model="caption" maxlength="2200" placeholder="Tell viewers about your video..." /></label>
                     <label><span class="upload-label">Hashtags</span><input v-model="hashtags" class="su-input" placeholder="football talent training" /></label>
                     <label><span class="upload-label">Sport</span><select v-model="sportId"><option value="">Select sport</option><option v-for="sport in sports" :key="sport.id" :value="sport.id">{{ sport.name }}</option></select></label>
@@ -194,8 +213,9 @@ onUnmounted(() => { if (preview.value) URL.revokeObjectURL(preview.value); image
 .sport-upload-status { display: flex; align-items: center; gap: .85rem; padding: .8rem 1rem; color: #172033; border: 1px solid #e2e8f1; border-radius: 13px; background: #f7f9fc; }
 .sport-upload-spinner { display: grid; flex: 0 0 42px; width: 42px; height: 42px; place-items: center; border-radius: 50%; background: #fff; box-shadow: 0 5px 14px rgba(30,46,72,.12); font-size: 1.65rem; animation: sport-ball-spin .9s linear infinite; }
 .sport-upload-status div { display: grid; gap: .15rem; }.sport-upload-status strong { font-size: .75rem; }.sport-upload-status small { color: #718096; font-size: .65rem; }
-.trim-editor { display: grid; gap: .75rem; padding: 1rem; border-top: 1px solid #e2e8f1; background: #fff; }.trim-editor > div { display: flex; justify-content: space-between; gap: 1rem; font-size: .78rem; }.trim-editor label { display: grid; gap: .35rem; color: #56657a; font-size: .68rem; font-weight: 700; }.trim-editor input { width: 100%; accent-color: #2563eb; }.trim-editor small { color: #718096; font-size: .66rem; }
-.trim-editor .clip-length-options { align-items: center; justify-content: flex-start; gap: .5rem; }.clip-length-options > span { margin-right: auto; color: #56657a; font-size: .68rem; font-weight: 700; }.clip-length-options button { padding: .45rem .7rem; color: #56657a; border: 1px solid #d5dce7; border-radius: 9px; background: #fff; font-size: .66rem; font-weight: 750; cursor: pointer; }.clip-length-options button.active { color: #fff; border-color: #2563eb; background: #2563eb; }
+.trim-editor { display: grid; gap: .75rem; padding: 1rem; border-top: 1px solid #e2e8f1; background: #fff; }.trim-editor > div { display: flex; justify-content: space-between; gap: 1rem; font-size: .78rem; }.trim-editor label { display: grid; gap: .35rem; color: #56657a; font-size: .68rem; font-weight: 700; }.trim-editor input { width: 100%; accent-color: #476FEA; }.trim-editor small { color: #718096; font-size: .66rem; }
+.trim-editor .clip-length-options { align-items: center; justify-content: flex-start; gap: .5rem; }.trim-editor>div:first-child span{display:flex;gap:.4rem;align-items:center}.trim-editor>div:first-child b{padding:.2rem .4rem;color:#476FEA;border-radius:6px;background:#edf3ff;font-size:.62rem}.clip-length-options > span { margin-right: auto; color: #56657a; font-size: .68rem; font-weight: 700; }.clip-length-options button { display:grid;gap:.12rem;padding:.45rem .7rem;color:#56657a;border:1px solid #d5dce7;border-radius:9px;background:#fff;font-size:.66rem;font-weight:750;cursor:pointer;text-align:center}.clip-length-options button small{color:#8190a4;font-size:.56rem}.clip-length-options button.active { color: #fff; border-color: #476FEA; background: #476FEA; }.clip-length-options button.active small{color:#e8eeff}
+.media-editor{display:grid;gap:1rem;padding:1rem;border:1px solid #dce4ef;border-radius:15px;background:#f8faff}.media-editor>header,.media-editor>header>div{display:flex;align-items:center;gap:.65rem}.media-editor>header{justify-content:space-between}.media-editor>header svg{width:19px;color:#476FEA}.media-editor>header span{display:grid}.media-editor>header strong{font-size:.76rem}.media-editor>header small,.media-editor>p{color:#718096;font-size:.62rem}.media-editor>header button{color:#476FEA;border:0;background:transparent;font-size:.63rem;font-weight:800}.adjustment-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem}.adjustment-grid label{display:grid;grid-template-columns:1fr auto;gap:.4rem;color:#526174;font-size:.65rem;font-weight:750}.adjustment-grid input{grid-column:1/-1;width:100%;accent-color:#476FEA}.adjustment-grid b{color:#476FEA}.editor-options{display:grid;grid-template-columns:auto 1fr 1fr;gap:.6rem}.editor-options>button,.editor-options label{display:flex;align-items:center;gap:.4rem;min-height:42px;padding:.55rem .65rem;border:1px solid #d8e0eb;border-radius:10px;background:#fff;color:#445268;font-size:.62rem;font-weight:750}.editor-options button svg{width:15px}.editor-options select{min-width:0;flex:1;border:0;background:transparent;color:#445268}.media-editor>p{margin:0;line-height:1.45}@media(max-width:620px){.adjustment-grid{grid-template-columns:1fr}.editor-options{grid-template-columns:1fr}.media-editor>header{align-items:flex-start}}
 @keyframes sport-ball-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .sport-upload-spinner { animation: sport-ball-pulse 1.2s ease-in-out infinite; } @keyframes sport-ball-pulse { 50% { transform: scale(.9); opacity: .7; } } }
 </style>

@@ -47,7 +47,7 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 
 const styles = StyleSheet.create({
   errorSafe: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, backgroundColor: colors.navy },
-  errorIcon: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(230,70,162,.15)' },
+  errorIcon: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(185,107,157,.15)' },
   errorIconText: { color: colors.pink, fontSize: 30, fontWeight: '900' },
   errorTitle: { color: '#fff', fontSize: 24, fontWeight: '900', textAlign: 'center', marginTop: 18 },
   errorCopy: { maxWidth: 330, color: colors.muted, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 8 },

@@ -10,7 +10,7 @@
     @endphp
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#0D1B2A">
+    <meta name="theme-color" content="#1B212D">
     <meta name="color-scheme" content="light">
     <meta name="application-name" content="SportsUniverse">
     <meta name="apple-mobile-web-app-title" content="SportsUniverse">

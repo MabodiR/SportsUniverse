@@ -74,6 +74,24 @@ class MediaModuleTest extends TestCase
         Queue::assertPushedOn('media', ProcessMedia::class);
     }
 
+    public function test_media_adjustments_are_validated_and_queued_as_metadata(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user, 'sanctum')->post('/api/v1/media', [
+            'kind' => 'image',
+            'brightness' => 18,
+            'contrast' => 8,
+            'saturation' => 12,
+            'rotation' => 90,
+            'output_width' => 1080,
+            'quality' => 'balanced',
+            'file' => UploadedFile::fake()->image('match.jpg', 1800, 1200),
+        ], ['Accept' => 'application/json'])->assertAccepted();
+
+        $this->assertSame(['brightness' => 18, 'contrast' => 8, 'saturation' => 12, 'rotation' => 90, 'output_width' => 1080, 'quality' => 'balanced'], Media::firstOrFail()->metadata);
+    }
+
     public function test_video_trim_cannot_exceed_sixty_seconds(): void
     {
         $user = User::factory()->create();

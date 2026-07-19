@@ -1,10 +1,10 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
 <rect width="1024" height="1024" rx="220" fill="#05070B"/>
-<circle cx="512" cy="512" r="250" fill="#0D1B2A" stroke="#22C7F2" stroke-width="14"/>
-<path d="M157 512C260 382 764 382 867 512" stroke="#22C7F2" stroke-width="18" stroke-linecap="round"/>
-<path d="M512 152C640 268 640 756 512 872" stroke="#E646A2" stroke-width="18" stroke-linecap="round"/>
-<circle cx="820" cy="365" r="34" fill="#E646A2"/>
-<circle cx="206" cy="665" r="26" fill="#22C7F2"/>
-<circle cx="760" cy="690" r="24" fill="#FFB020"/>
+<circle cx="512" cy="512" r="250" fill="#1B212D" stroke="#86C0ED" stroke-width="14"/>
+<path d="M157 512C260 382 764 382 867 512" stroke="#86C0ED" stroke-width="18" stroke-linecap="round"/>
+<path d="M512 152C640 268 640 756 512 872" stroke="#B96B9D" stroke-width="18" stroke-linecap="round"/>
+<circle cx="820" cy="365" r="34" fill="#B96B9D"/>
+<circle cx="206" cy="665" r="26" fill="#86C0ED"/>
+<circle cx="760" cy="690" r="24" fill="#E2B344"/>
 <text x="512" y="585" text-anchor="middle" font-size="210" font-weight="800" font-family="Arial, Helvetica, sans-serif" fill="white">SU</text>
 </svg>

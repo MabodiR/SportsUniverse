@@ -3,13 +3,16 @@
 namespace Tests\Feature\Api\V1;
 
 use App\Domain\Feed\Jobs\FinalizeQueuedPost;
+use App\Domain\Feed\Models\FeedSetting;
 use App\Domain\Feed\Models\Video;
+use App\Domain\Feed\Services\RecommendationFeed;
 use App\Domain\Media\Models\Media;
 use App\Domain\Notifications\Notifications\SportUniverseNotification;
 use App\Domain\Notifications\Services\NotificationDispatcher;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -31,6 +34,28 @@ class FeedModuleTest extends TestCase
 
         $response = $this->actingAs($viewer, 'sanctum')->getJson('/api/v1/feed/for-you')->assertOk();
         $response->assertJsonPath('data.0.id', $first->public_id)->assertJsonPath('data.1.id', $second->public_id);
+    }
+
+    public function test_recommendation_ids_recover_from_an_incomplete_cached_class(): void
+    {
+        $viewer = User::factory()->create();
+        $video = Video::factory()->create();
+        DB::table('recommendation_feed_items')->insert([
+            'user_id' => $viewer->id,
+            'video_id' => $video->id,
+            'score' => 10,
+            'position' => 0,
+            'generation' => (string) \Illuminate\Support\Str::ulid(),
+            'generated_at' => now(),
+        ]);
+        $version = FeedSetting::current()->updated_at?->getTimestamp() ?? 0;
+        $key = "feed:recommended:{$version}:{$viewer->id}";
+        Cache::put($key, new \__PHP_Incomplete_Class(), 60);
+
+        $ids = app(RecommendationFeed::class)->ids($viewer);
+
+        $this->assertSame([$video->id], $ids->all());
+        $this->assertIsArray(Cache::get($key));
     }
 
     public function test_user_can_publish_processed_approved_video(): void

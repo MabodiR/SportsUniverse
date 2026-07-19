@@ -23,7 +23,7 @@ export function ScreenMessage({ icon, title, message, action }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, minHeight: 360, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
-  icon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(27,99,243,.14)' },
+  icon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(71,111,234,.14)' },
   title: { color: colors.white, fontSize: 21, fontWeight: '900', textAlign: 'center', marginTop: 16 },
   message: { color: colors.muted, fontSize: 14, lineHeight: 21, textAlign: 'center', maxWidth: 330, marginTop: 7 },
   action: { width: '100%', maxWidth: 330, marginTop: 20 },

@@ -1,6 +1,8 @@
 export const colors = {
-  navy: '#0D1B2A', navyLight: '#132A44', surface: '#15263B', surfaceRaised: '#1A304B',
-  blue: '#1B63F3', pink: '#E646A2', orange: '#FFB020', green: '#18B26B',
+  primary: '#476FEA', sportCyan: '#86C0ED', success: '#77A571', opportunity: '#E2B344',
+  womenInSport: '#B96B9D', deepNavy: '#1B212D', roleAgent: '#6565C7',
+  navy: '#1B212D', navyLight: '#252D3B', surface: '#242C39', surfaceRaised: '#2C3544',
+  blue: '#476FEA', pink: '#B96B9D', orange: '#E2B344', green: '#77A571',
   white: '#F8FBFF', muted: '#9FB0C5', line: 'rgba(255,255,255,0.11)', danger: '#FF6B81',
 } as const;
 

@@ -78,8 +78,10 @@ The `preview` EAS profile produces an internally distributed APK configured for 
 
 ## Design tokens
 
-- Deep Navy `#0D1B2A`
-- Universe Blue `#1B63F3`
-- Community Pink `#E646A2`
-- Opportunity Orange `#FFB020`
-- Growth Green `#18B26B`
+- Primary `#476FEA`
+- Sport Cyan `#86C0ED`
+- Success `#77A571`
+- Opportunity `#E2B344`
+- Women in Sport `#B96B9D`
+- Deep Navy `#1B212D`
+- Agent `#6565C7`

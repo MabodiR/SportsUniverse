@@ -13,6 +13,8 @@ use App\Http\Controllers\Web\ClubPageController;
 use App\Http\Controllers\Web\MobileAssociationController;
 use App\Http\Controllers\Web\FeedController;
 use App\Http\Controllers\Web\MessagingContextController;
+use App\Http\Controllers\Web\MembershipController;
+use App\Http\Controllers\Web\MembershipPaymentController;
 use App\Http\Controllers\Web\ModulePageController;
 use App\Http\Controllers\Web\VideoStreamController;
 use App\Http\Controllers\Web\WebAuthController;
@@ -47,6 +49,8 @@ Route::get('/about', fn () => Inertia::render('Public/About'))->name('about');
 Route::get('/privacy-policy', fn () => Inertia::render('Public/PrivacyPolicy'))->name('privacy-policy');
 Route::get('/payments/payfast/return/{payment}', [PayFastController::class, 'returned'])->name('payfast.return');
 Route::get('/payments/payfast/cancel/{payment}', [PayFastController::class, 'cancelled'])->name('payfast.cancel');
+Route::get('/membership/payfast/return/{payment}', [MembershipPaymentController::class, 'returned'])->name('membership.payfast.return');
+Route::get('/membership/payfast/cancel/{payment}', [MembershipPaymentController::class, 'cancelled'])->name('membership.payfast.cancel');
 Route::get('/mobile-app', fn () => Inertia::render('MobileApp/Download', [
     'downloads' => [
         'ios' => config('services.mobile_app.ios_url'),
@@ -94,6 +98,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/conversations/{conversation}/messages', [MessageController::class, 'store'])->name('web.conversations.messages.store');
     Route::post('/post-reports', [ReportController::class, 'store'])->name('web.reports.store');
     Route::get('/following', [FeedController::class, 'following'])->name('following');
+    Route::get('/membership', MembershipController::class)->name('membership');
 
     $pages = [
         '/settings/devices' => 'devices',

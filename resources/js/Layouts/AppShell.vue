@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { BarChart3, Bell, Bookmark, BriefcaseBusiness, ChevronDown, ClipboardList, Compass, Download, FileBarChart, Flag, FolderKanban, Heart, Home, LogOut, Menu, MessageCircle, Radio, Search, Settings, Shield, Smartphone, Sparkles, Tags, Upload, UserRound, Users, X } from '@lucide/vue';
+import { BarChart3, Bell, Bookmark, BriefcaseBusiness, ChevronDown, ClipboardList, Compass, Crown, Download, FileBarChart, Flag, FolderKanban, Heart, Home, LogOut, Menu, MessageCircle, Radio, Search, Settings, Shield, Smartphone, Sparkles, Tags, Upload, UserRound, Users, X } from '@lucide/vue';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import BrandLogo from '../Components/BrandLogo.vue';
 
+defineProps<{ hideSearch?: boolean }>();
 const page = usePage();
 const user = page.props.auth?.user as any;
 const userItems = [
@@ -20,6 +21,7 @@ const userItems = [
     { label: 'Profile', href: '/profile', icon: UserRound },
 ];
 const moreItems = [
+    { label: 'Membership plans', href: '/membership', icon: Crown },
     { label: 'Metrics & Analytics', href: '/analytics', icon: BarChart3 },
     { label: 'Saved posts', href: '/saved', icon: Bookmark },
     { label: 'Promote', href: '/sponsorship', icon: Sparkles },
@@ -43,7 +45,7 @@ const realtimeCounts=ref({...navCounts});
 const badgeFor = (item: any) => ({ '/feed': realtimeCounts.value.feed, '/following': realtimeCounts.value.following, '/opportunities': realtimeCounts.value.opportunities, '/messages': realtimeCounts.value.messages, '/notifications': realtimeCounts.value.notifications }[item.href] ?? 0);
 const searchQuery = ref('');
 const menuOpen = ref(false);
-const moreOpen = ref(page.url.startsWith('/analytics') || page.url.startsWith('/settings') || page.url === '/saved' || page.url === '/sponsorship');
+const moreOpen = ref(page.url.startsWith('/analytics') || page.url.startsWith('/settings') || page.url.startsWith('/membership') || page.url === '/saved' || page.url === '/sponsorship');
 const installPrompt = ref<any>(null);
 const searchResults = ref<any[]>([]);
 const searchOpen = ref(false);
@@ -101,10 +103,10 @@ const logout = () => user ? router.post('/logout') : router.visit('/login');
             </button>
         </aside>
         <div id="main-content" class="shell-main" role="main" tabindex="-1">
-            <header class="topbar">
+            <header class="topbar" :class="{ 'no-global-search': hideSearch }">
                 <button class="mobile-menu-button" aria-label="Open navigation" @click="menuOpen = true"><Menu /></button>
                 <Link class="mobile-topbar-brand" href="/feed" aria-label="SportsUniverse home"><img :src="'/images/logo/sportuniverse-logo-horizontal-transparent-black.png'" alt="SportsUniverse" /></Link>
-                <form class="search global-search" role="search" @submit.prevent="submitSearch">
+                <form v-if="!hideSearch" class="search global-search" role="search" @submit.prevent="submitSearch">
                     <Search />
                     <input v-model="searchQuery" class="su-input" placeholder="Search players, clubs, trials, coaches..." aria-label="Search SportsUniverse" autocomplete="off" @focus="searchOpen = !!searchQuery" @keydown.esc="searchOpen = false" />
                     <div v-if="searchOpen" class="global-search-results">
@@ -117,7 +119,7 @@ const logout = () => user ? router.post('/logout') : router.visit('/login');
                 <span class="top-spacer" />
                 <template v-if="!user"><Link href="/login" class="su-btn su-btn-ghost" style="min-height:40px">Sign in</Link><Link href="/register" class="su-btn su-btn-primary" style="min-height:40px">Join now</Link></template>
                 <Link href="/mobile-app" class="icon-button mobile-app-link" aria-label="Get the SportsUniverse mobile app" title="Get the mobile app"><Smartphone :size="18" /></Link>
-                <Link :href="user ? '/notifications' : '/login'" class="icon-button" aria-label="Notifications"><Bell :size="19" /></Link>
+                <Link :href="user ? '/notifications' : '/login'" class="icon-button notification-button" aria-label="Notifications"><Bell :size="19" /></Link>
                 <button v-if="installPrompt" class="install-app-button" type="button" @click="installApp"><Download/><span>Install</span></button>
             </header>
             <slot />

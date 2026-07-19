@@ -40,7 +40,7 @@ export default function LoginScreen() {
   return <SafeAreaView style={styles.safe}>
     <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <LinearGradient colors={['#071A2F', '#0D397E', '#1765F4']} start={{ x: 0, y: .2 }} end={{ x: 1, y: .5 }} style={styles.hero}>
+        <LinearGradient colors={['#071A2F', '#0D397E', '#476FEA']} start={{ x: 0, y: .2 }} end={{ x: 1, y: .5 }} style={styles.hero}>
           <View pointerEvents="none" style={styles.heroOrb} />
           <BrandMark />
           <Text style={styles.title}>Welcome back</Text>
@@ -72,6 +72,6 @@ const styles = StyleSheet.create({
   label: { color: '#172033', fontSize: 12, fontWeight: '800', marginBottom: 8, marginTop: 15 }, field: { height: 51, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 17, borderRadius: radius.md, borderWidth: 1, borderColor: '#D8DEE8', backgroundColor: '#fff' }, at: { color: '#66758C', fontSize: 18, fontWeight: '700' }, input: { flex: 1, height: '100%', color: '#172033', fontSize: 13 }, forgot: { alignSelf: 'flex-end', paddingVertical: 9 }, link: { color: '#1161F4', fontSize: 12, fontWeight: '800' },
   errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: radius.sm, backgroundColor: '#FFF0F5' }, error: { flex: 1, color: '#C52C64', fontSize: 12, lineHeight: 17 }, submit: { marginTop: 10 },
   divider: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 20 }, line: { flex: 1, height: 1, backgroundColor: '#E2E6ED' }, or: { color: '#66758C', fontSize: 10, fontWeight: '500' },
-  socialGrid: { gap: 11 }, social: { width: '100%', height: 49, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: radius.md, borderWidth: 1, borderColor: '#D8DEE8', backgroundColor: '#fff' }, socialPrimary: { borderWidth: 2, borderColor: '#1295F5' }, socialPressed: { opacity: .7 }, socialText: { color: '#182235', fontSize: 13, fontWeight: '800' },
+  socialGrid: { gap: 11 }, social: { width: '100%', height: 49, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: radius.md, borderWidth: 1, borderColor: '#D8DEE8', backgroundColor: '#fff' }, socialPrimary: { borderWidth: 2, borderColor: '#86C0ED' }, socialPressed: { opacity: .7 }, socialText: { color: '#182235', fontSize: 13, fontWeight: '800' },
   footer: { color: '#1161F4', textAlign: 'center', fontSize: 12, marginTop: 20 },
 });

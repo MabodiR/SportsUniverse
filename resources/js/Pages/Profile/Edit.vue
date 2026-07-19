@@ -278,8 +278,8 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.edit-avatar { overflow: hidden; }.edit-avatar img { width: 100%; height: 100%; object-fit: cover; transform-origin: center; }.profile-crop-controls { display: grid; gap: .55rem; width: 100%; margin-top: .8rem; padding: .8rem; border: 1px solid #dde5ef; border-radius: 12px; background: #f7f9fc; }.profile-crop-controls strong { font-size: .75rem; }.profile-crop-controls label { display: grid; gap: .2rem; color: #617087; font-size: .65rem; }.profile-crop-controls input { width: 100%; accent-color: #2563eb; }
-.edit-cover { position: relative; display: grid; width: 100%; aspect-ratio: 8/3; margin-bottom: 1rem; overflow: hidden; place-items: center; color: #fff; border-radius: 11px; background: linear-gradient(125deg,#172b47,#1b63f3 58%,#e646a2); font-size: .65rem; font-weight: 800; }
+.edit-avatar { overflow: hidden; }.edit-avatar img { width: 100%; height: 100%; object-fit: cover; transform-origin: center; }.profile-crop-controls { display: grid; gap: .55rem; width: 100%; margin-top: .8rem; padding: .8rem; border: 1px solid #dde5ef; border-radius: 12px; background: #f7f9fc; }.profile-crop-controls strong { font-size: .75rem; }.profile-crop-controls label { display: grid; gap: .2rem; color: #617087; font-size: .65rem; }.profile-crop-controls input { width: 100%; accent-color: #476FEA; }
+.edit-cover { position: relative; display: grid; width: 100%; aspect-ratio: 8/3; margin-bottom: 1rem; overflow: hidden; place-items: center; color: #fff; border-radius: 11px; background: linear-gradient(125deg,#172b47,#476FEA 58%,#B96B9D); font-size: .65rem; font-weight: 800; }
 .edit-cover img { width: 100%; height: 100%; object-fit: cover; }
 .edit-cover label { position: absolute; right: .45rem; bottom: .45rem; display: flex; align-items: center; gap: .3rem; padding: .38rem .55rem; color: #fff; border-radius: 999px; background: rgba(8,16,30,.72); cursor: pointer; font-size: .52rem; }
 .edit-cover label svg { width: 13px; }

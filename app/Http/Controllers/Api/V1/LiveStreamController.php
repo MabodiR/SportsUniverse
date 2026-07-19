@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Domain\Live\Events\LiveActivity;
+use App\Domain\Subscriptions\Services\SubscriptionEntitlements;
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,14 +20,14 @@ class LiveStreamController extends Controller
         return response()->json(['data' => DB::table('live_streams')->join('users', 'users.id', '=', 'live_streams.user_id')->leftJoin('user_profiles', 'user_profiles.user_id', '=', 'users.id')->where('live_streams.status', 'live')->latest('live_streams.started_at')->get(['live_streams.public_id as id', 'live_streams.user_id as host_id', 'live_streams.title', 'live_streams.description', 'live_streams.viewer_count', 'live_streams.started_at', 'users.name as host_name', 'user_profiles.slug', 'user_profiles.profile_image_path as image'])]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, SubscriptionEntitlements $entitlements): JsonResponse
     {
         $data = $request->validate(['title' => ['required', 'string', 'max:150'], 'description' => ['nullable', 'string', 'max:1000']]);
         DB::table('live_streams')->where('user_id', $request->user()->id)->where('status', 'live')->update(['status' => 'ended', 'ended_at' => now(), 'updated_at' => now()]);
         $id = (string) Str::ulid();
         DB::table('live_streams')->insert(['public_id' => $id, 'user_id' => $request->user()->id, ...$data, 'status' => 'live', 'started_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
 
-        return response()->json(['data' => ['id' => $id]], 201);
+        return response()->json(['data' => ['id' => $id, 'viewer_limit' => $entitlements->limit($request->user(), 'live_viewers', 1000)]], 201);
     }
 
     public function show(string $stream): JsonResponse
@@ -38,11 +40,14 @@ class LiveStreamController extends Controller
         return response()->json(['data' => ['stream' => $item, 'messages' => $messages]]);
     }
 
-    public function join(Request $request, string $stream): JsonResponse
+    public function join(Request $request, string $stream, SubscriptionEntitlements $entitlements): JsonResponse
     {
-        $count = DB::transaction(function () use ($stream) {
+        $count = DB::transaction(function () use ($stream, $entitlements) {
             $item = DB::table('live_streams')->where('public_id', $stream)->where('status', 'live')->lockForUpdate()->first();
             abort_unless($item, 404);
+            $host = User::findOrFail($item->user_id);
+            $limit = (int) $entitlements->limit($host, 'live_viewers', 1000);
+            abort_if($item->viewer_count >= $limit, 409, "This live event has reached its {$limit}-viewer plan limit.");
             $count = $item->viewer_count + 1;
             DB::table('live_streams')->where('id', $item->id)->update(['viewer_count' => $count, 'peak_viewers' => max($item->peak_viewers, $count)]);
 

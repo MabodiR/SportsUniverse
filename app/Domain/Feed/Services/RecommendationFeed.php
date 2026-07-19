@@ -15,10 +15,31 @@ class RecommendationFeed
     public function ids(User $user): Collection
     {
         $size = FeedSetting::current()->recommendation_size;
-        return Cache::remember($this->key($user->id), config('scale.feed_cache_seconds'), fn () =>
-            DB::table('recommendation_feed_items')->where('user_id', $user->id)
-                ->orderBy('position')->limit($size)->pluck('video_id')
-        );
+        $key = $this->key($user->id);
+        $cached = Cache::get($key);
+
+        if (is_array($cached)) {
+            return collect($cached);
+        }
+
+        // Older releases cached a Collection. With cache class unserialization
+        // disabled, those entries are restored as __PHP_Incomplete_Class.
+        if ($cached instanceof Collection) {
+            $ids = $cached->values()->all();
+            Cache::put($key, $ids, config('scale.feed_cache_seconds'));
+
+            return collect($ids);
+        }
+
+        if ($cached !== null) {
+            Cache::forget($key);
+        }
+
+        $ids = DB::table('recommendation_feed_items')->where('user_id', $user->id)
+            ->orderBy('position')->limit($size)->pluck('video_id')->all();
+        Cache::put($key, $ids, config('scale.feed_cache_seconds'));
+
+        return collect($ids);
     }
 
     public function rebuild(User $user): int

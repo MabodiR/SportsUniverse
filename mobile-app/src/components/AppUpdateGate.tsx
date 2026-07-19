@@ -47,7 +47,7 @@ export function compareVersions(left: string, right: string): number {
 const styles = StyleSheet.create({
   overlay: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, backgroundColor: 'rgba(1,6,11,.82)' },
   card: { width: '100%', maxWidth: 390, alignItems: 'center', padding: 26, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.navyLight },
-  icon: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(27,99,243,.14)' },
+  icon: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(71,111,234,.14)' },
   iconRequired: { backgroundColor: 'rgba(255,176,32,.12)' },
   eyebrow: { color: '#79A3FF', fontSize: 10, fontWeight: '900', letterSpacing: 1.1, marginTop: 15 },
   title: { color: '#fff', fontSize: 22, lineHeight: 27, fontWeight: '900', textAlign: 'center', marginTop: 7 },

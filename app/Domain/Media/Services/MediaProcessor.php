@@ -10,11 +10,12 @@ class MediaProcessor
 {
     public function process(Media $media): array
     {
+        $checksum = $this->checksum($media);
         $attributes = match ($media->kind) {
             'video' => $this->video($media),'image' => $this->image($media),default => []
         };
 
-        return [...$attributes, 'checksum_sha256' => $this->checksum($media)];
+        return [...$attributes, 'checksum_sha256' => $checksum];
     }
 
     private function checksum(Media $media): string
@@ -48,7 +49,12 @@ class MediaProcessor
             // Every published video is normalised through FFmpeg, even when a
             // client omits trim metadata. This guarantees a hard 60s maximum.
             $trimmed = tempnam(sys_get_temp_dir(), 'su-trim-').'.mp4';
-            $trim = new Process([config('media.ffmpeg_binary'), '-y', '-ss', number_format($startMs / 1000, 3, '.', ''), '-i', $source, '-t', number_format($clipDurationMs / 1000, 3, '.', ''), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', $trimmed]);
+            $filters = $this->filters($media, true);
+            $quality = match ($media->metadata['quality'] ?? 'balanced') { 'high' => '19', 'space' => '27', default => '23' };
+            $command = [config('media.ffmpeg_binary'), '-y', '-ss', number_format($startMs / 1000, 3, '.', ''), '-i', $source, '-t', number_format($clipDurationMs / 1000, 3, '.', '')];
+            if ($filters !== '') array_push($command, '-vf', $filters);
+            array_push($command, '-c:v', 'libx264', '-preset', 'medium', '-crf', $quality, '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', $trimmed);
+            $trim = new Process($command);
             $trim->setTimeout(900);
             $trim->mustRun();
             $working = $trimmed;
@@ -90,13 +96,50 @@ class MediaProcessor
     private function image(Media $media): array
     {
         $source = $this->localCopy($media);
+        $optimized = tempnam(sys_get_temp_dir(), 'su-image-').'.jpg';
         try {
-            $size = getimagesize($source);
+            $quality = match ($media->metadata['quality'] ?? 'balanced') { 'high' => '2', 'space' => '7', default => '4' };
+            $filters = $this->filters($media, true);
+            $command = [config('media.ffmpeg_binary'), '-y', '-i', $source];
+            if ($filters !== '') array_push($command, '-vf', $filters);
+            array_push($command, '-frames:v', '1', '-c:v', 'mjpeg', '-q:v', $quality, '-pix_fmt', 'yuvj420p', $optimized);
+            $process = new Process($command);
+            $process->setTimeout(300);
+            $process->mustRun();
+            $size = getimagesize($optimized);
+            $path = "users/{$media->user_id}/image/{$media->public_id}.jpg";
+            $stream = fopen($optimized, 'rb');
+            Storage::disk($media->disk)->put($path, $stream, ['visibility' => 'private']);
+            fclose($stream);
+            if ($path !== $media->path) Storage::disk($media->disk)->delete($media->path);
 
-            return ['width' => $size[0] ?? null, 'height' => $size[1] ?? null];
+            return ['path' => $path, 'mime_type' => 'image/jpeg', 'size_bytes' => filesize($optimized), 'width' => $size[0] ?? null, 'height' => $size[1] ?? null, 'metadata' => [...($media->metadata ?? []), 'optimized' => true, 'format' => 'jpeg']];
         } finally {
             @unlink($source);
+            @unlink($optimized);
         }
+    }
+
+    private function filters(Media $media, bool $resize): string
+    {
+        $metadata = $media->metadata ?? [];
+        $filters = [];
+        $rotation = (int) ($metadata['rotation'] ?? 0);
+        if ($rotation === 90) $filters[] = 'transpose=1';
+        if ($rotation === 180) $filters[] = 'hflip,vflip';
+        if ($rotation === 270) $filters[] = 'transpose=2';
+        $brightness = max(-100, min(100, (int) ($metadata['brightness'] ?? 0))) / 100;
+        $contrast = 1 + max(-100, min(100, (int) ($metadata['contrast'] ?? 0))) / 100;
+        $saturation = 1 + max(-100, min(100, (int) ($metadata['saturation'] ?? 0))) / 100;
+        if ($brightness !== 0.0 || $contrast !== 1.0 || $saturation !== 1.0) {
+            $filters[] = sprintf('eq=brightness=%.2f:contrast=%.2f:saturation=%.2f', $brightness, max(.1, $contrast), max(0, $saturation));
+        }
+        if ($resize) {
+            $width = (int) ($metadata['output_width'] ?? 1080);
+            $filters[] = "scale='min({$width},iw)':-2";
+        }
+
+        return implode(',', $filters);
     }
 
     private function localCopy(Media $media): string

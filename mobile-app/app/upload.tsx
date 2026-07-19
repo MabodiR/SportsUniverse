@@ -36,6 +36,19 @@ export default function UploadScreen() {
     const [phase, setPhase] = useState("");
     const [trimStart, setTrimStart] = useState("0");
     const [trimLength, setTrimLength] = useState("60");
+    const [brightness, setBrightness] = useState(0);
+    const [contrast, setContrast] = useState(0);
+    const [saturation, setSaturation] = useState(0);
+    const [rotation, setRotation] = useState(0);
+    const [outputWidth, setOutputWidth] = useState(1080);
+    const [quality, setQuality] = useState<"space" | "balanced" | "high">("balanced");
+    const estimateSize = (seconds: number) => {
+        const asset = assets[0];
+        const duration = (asset?.duration ?? 0) / 1000;
+        if (!asset?.fileSize || !duration) return "Size unavailable";
+        const remaining = Math.max(0, duration - (Number(trimStart) || 0));
+        return `≈ ${formatBytes(asset.fileSize * Math.min(seconds, remaining) / duration)}`;
+    };
 
     const pick = async (kind: "image" | "video") => {
         const permission =
@@ -107,6 +120,12 @@ export default function UploadScreen() {
                     "collection",
                     kind === "video" ? "highlights" : "gallery",
                 );
+                form.append("brightness", String(brightness));
+                form.append("contrast", String(contrast));
+                form.append("saturation", String(saturation));
+                form.append("rotation", String(rotation));
+                form.append("output_width", String(outputWidth));
+                form.append("quality", quality);
                 if (kind === "video") {
                     const seconds = Math.max(
                         1,
@@ -285,7 +304,7 @@ export default function UploadScreen() {
                                     <Image
                                         key={asset.assetId || asset.uri}
                                         source={{ uri: asset.uri }}
-                                        style={styles.preview}
+                                        style={[styles.preview, { transform: [{ rotate: `${rotation}deg` }] }]}
                                     />
                                 ),
                             )}
@@ -324,6 +343,7 @@ export default function UploadScreen() {
                                                 style={[styles.lengthOption, Number(trimLength) === seconds && styles.lengthOptionActive]}
                                             >
                                                 <Text style={styles.lengthOptionText}>{seconds === 30 ? "30 sec" : "1 min max"}</Text>
+                                                <Text style={styles.lengthOptionSize}>{estimateSize(seconds)}</Text>
                                             </Pressable>
                                         ))}
                                     </View>
@@ -331,6 +351,7 @@ export default function UploadScreen() {
                             </View>
                         </View>
                     ) : null}
+                    {assets.length ? <View style={styles.editorCard}><View style={styles.editorHeading}><View style={styles.editorTitleRow}><Ionicons name="options-outline" size={20} color={colors.sportCyan} /><View><Text style={styles.switchTitle}>Improve & optimise</Text><Text style={styles.switchCopy}>Fine-tune the look and reduce file size.</Text></View></View><Pressable onPress={() => { setBrightness(0); setContrast(0); setSaturation(0); setRotation(0); setOutputWidth(1080); setQuality("balanced"); }}><Text style={styles.resetText}>Reset</Text></Pressable></View><Adjustment label="Brightness" value={brightness} setValue={setBrightness} /><Adjustment label="Contrast" value={contrast} setValue={setContrast} /><Adjustment label="Colour" value={saturation} setValue={setSaturation} /><Text style={styles.editorLabel}>Rotate & resize</Text><View style={styles.editorOptions}><Pressable onPress={() => setRotation(value => (value + 90) % 360)} style={styles.editorOption}><Ionicons name="refresh-outline" size={18} color={colors.sportCyan} /><Text style={styles.editorOptionText}>{rotation ? `${rotation}°` : "Rotate"}</Text></Pressable>{[1080, 720, 480].map(width => <Pressable key={width} onPress={() => setOutputWidth(width)} style={[styles.editorOption, outputWidth === width && styles.editorOptionActive]}><Text style={styles.editorOptionText}>{width}p</Text></Pressable>)}</View><Text style={styles.editorLabel}>Compression</Text><View style={styles.qualityOptions}>{([['high','High'],['balanced','Balanced'],['space','Space saver']] as const).map(([value,label]) => <Pressable key={value} onPress={() => setQuality(value)} style={[styles.qualityOption, quality === value && styles.editorOptionActive]}><Text style={styles.editorOptionText}>{label}</Text></Pressable>)}</View><Text style={styles.optimiseNote}>Balanced mode is recommended. Processing happens after upload and keeps the original safe until the optimized version is ready.</Text></View> : null}
                     <Text style={styles.label}>Caption</Text>
                     <TextInput
                         multiline
@@ -471,6 +492,9 @@ function Picker({
         </Pressable>
     );
 }
+function Adjustment({ label, value, setValue }: { label: string; value: number; setValue: (value: number) => void }) {
+    return <View style={styles.adjustment}><Text style={styles.adjustmentLabel}>{label}</Text><Pressable accessibilityLabel={`Reduce ${label}`} onPress={() => setValue(Math.max(-50, value - 5))} style={styles.adjustButton}><Ionicons name="remove" size={16} color={colors.white} /></Pressable><Text style={styles.adjustmentValue}>{value > 0 ? "+" : ""}{value}</Text><Pressable accessibilityLabel={`Increase ${label}`} onPress={() => setValue(Math.min(50, value + 5))} style={styles.adjustButton}><Ionicons name="add" size={16} color={colors.white} /></Pressable></View>;
+}
 function errorMessage(error: any) {
     return (
         error?.response?.data?.message ||
@@ -480,6 +504,9 @@ function errorMessage(error: any) {
         error?.message ||
         "Please check your connection and try again."
     );
+}
+function formatBytes(bytes: number) {
+    return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
 const styles = StyleSheet.create({
@@ -556,8 +583,9 @@ const styles = StyleSheet.create({
     trimField: { flex: 1 },
     lengthOptions: { flexDirection: "row", gap: 7 },
     lengthOption: { flex: 1, minHeight: 50, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, backgroundColor: "rgba(255,255,255,.04)" },
-    lengthOptionActive: { borderColor: colors.blue, backgroundColor: "rgba(27,99,243,.22)" },
+    lengthOptionActive: { borderColor: colors.blue, backgroundColor: "rgba(71,111,234,.22)" },
     lengthOptionText: { color: colors.white, fontSize: 10, fontWeight: "800" },
+    lengthOptionSize: { color: colors.muted, fontSize: 9, fontWeight: "700", marginTop: 3 },
     trimLabel: {
         color: "#DCE7F5",
         fontSize: 11,
@@ -565,6 +593,10 @@ const styles = StyleSheet.create({
         marginTop: 14,
         marginBottom: 7,
     },
+    editorCard: { marginTop: 16, padding: spacing.md, gap: 10, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+    editorHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }, editorTitleRow: { flexDirection: "row", alignItems: "center", gap: 9 }, resetText: { color: colors.sportCyan, fontSize: 11, fontWeight: "900" },
+    adjustment: { minHeight: 42, flexDirection: "row", alignItems: "center", gap: 8 }, adjustmentLabel: { flex: 1, color: "#DCE7F5", fontSize: 11, fontWeight: "800" }, adjustmentValue: { width: 36, color: colors.sportCyan, fontSize: 11, fontWeight: "900", textAlign: "center" }, adjustButton: { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: colors.surfaceRaised },
+    editorLabel: { color: colors.muted, fontSize: 10, fontWeight: "800", marginTop: 5 }, editorOptions: { flexDirection: "row", gap: 7 }, editorOption: { minHeight: 40, flex: 1, flexDirection: "row", gap: 4, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, backgroundColor: colors.surfaceRaised }, editorOptionActive: { borderColor: colors.blue, backgroundColor: "rgba(71,111,234,.22)" }, editorOptionText: { color: colors.white, fontSize: 10, fontWeight: "800" }, qualityOptions: { flexDirection: "row", gap: 7 }, qualityOption: { minHeight: 40, flex: 1, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.line, borderRadius: radius.md }, optimiseNote: { color: colors.muted, fontSize: 9, lineHeight: 14, marginTop: 3 },
     label: {
         color: "#DCE7F5",
         fontSize: 12,

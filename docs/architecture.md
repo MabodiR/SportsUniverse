@@ -100,6 +100,6 @@ Creator and admin dashboards cache five-minute summaries and accept fixed 7, 30,
 
 ## Web interface
 
-The web client uses Inertia, Vue 3, TypeScript, Tailwind CSS 4, and the same Laravel session/Sanctum identity. Its visual tokens come from the supplied SportsUniverse concept: Deep Navy `#0D1B2A`, Universe Blue `#1B63F3`, Community Pink `#E646A2`, Opportunity Orange `#FFB020`, and Growth Green `#18B26B`.
+The web client uses Inertia, Vue 3, TypeScript, Tailwind CSS 4, and the same Laravel session/Sanctum identity. Its shared SportsUniverse visual tokens are Primary `#476FEA`, Sport Cyan `#86C0ED`, Success `#77A571`, Opportunity `#E2B344`, Women in Sport `#B96B9D`, Deep Navy `#1B212D`, and Agent `#6565C7`.
 
 The first web slice provides responsive login and role registration plus the desktop/mobile video-first application shell. The shell follows the concept's fixed left navigation, global search, central immersive video, right interaction rail, athlete completeness card, and suggested-talent panel.

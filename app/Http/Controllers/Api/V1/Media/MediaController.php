@@ -35,6 +35,12 @@ return MediaResource::collection($query->paginate(min($request->integer('per_pag
         $media = $store->execute($request->user(), $request->file('file'), $request->validated('kind'), $request->validated('collection', 'uploads'), array_filter([
             'trim_start_ms' => $request->validated('trim_start_ms'),
             'trim_end_ms' => $request->validated('trim_end_ms'),
+            'brightness' => $request->validated('brightness'),
+            'contrast' => $request->validated('contrast'),
+            'saturation' => $request->validated('saturation'),
+            'rotation' => $request->validated('rotation'),
+            'output_width' => $request->validated('output_width'),
+            'quality' => $request->validated('quality'),
         ], fn ($value) => $value !== null));
 
         return response()->json(['message' => 'Upload received and queued for processing.', 'data' => new MediaResource($media)], 202);
