@@ -53,11 +53,18 @@ class FinalizeQueuedPost implements ShouldQueue
             return;
         }
 
+        if ($video->post_type === 'story' && $video->media && (int) $video->media->duration_ms > 30000) {
+            $this->notifyFailure($video, 'Story videos cannot be longer than 30 seconds. Trim the video and try again.');
+            return;
+        }
+
         if ($this->publishWhenReady && $video->status === 'draft') {
-            $video->update(['status' => 'published', 'published_at' => now()]);
+            $publishedAt = now();
+            $video->update(['status' => 'published', 'published_at' => $publishedAt, 'expires_at' => $video->post_type === 'story' ? $publishedAt->copy()->addDay() : null]);
         }
 
         $published = $video->fresh()->status === 'published';
+        AnalyzeVideoContent::dispatch($video->id);
         NotificationRequested::dispatch($video->user_id, 'moderation', [
             'event' => 'post_upload_completed',
             'video_id' => $video->public_id,

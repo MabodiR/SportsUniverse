@@ -38,5 +38,6 @@ class SecurityHardeningTest extends TestCase
             ->assertHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
         $this->assertStringContainsString("default-src 'self'", (string) $response->headers->get('Content-Security-Policy'));
         $this->assertStringContainsString("frame-ancestors 'self'", (string) $response->headers->get('Content-Security-Policy'));
+        $this->assertStringContainsString('form-action \'self\' https://sandbox.payfast.co.za https://www.payfast.co.za', (string) $response->headers->get('Content-Security-Policy'));
     }
 }

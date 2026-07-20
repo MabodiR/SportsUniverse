@@ -15,6 +15,23 @@ use Illuminate\Support\Str;
 
 class SponsoredFeedDelivery implements SponsoredPostProvider
 {
+    public function stories(Request $request): Collection
+    {
+        $viewer = $request->user();
+        $settings = BoostSetting::current();
+        if (! $viewer || ! $settings->enabled) return collect();
+        $viewer->loadMissing('profile', 'athleteProfile.sport', 'fanProfile');
+        $sessionHash = hash('sha256', (string) (($request->hasSession() ? $request->session()->getId() : null) ?: $request->ip()));
+
+        return $this->eligibleCampaigns($viewer, $sessionHash, $settings)
+            ->filter(fn (AdCampaign $campaign) => $campaign->video?->post_type === 'story')
+            ->take(5)->map(function (AdCampaign $campaign) use ($viewer, $sessionHash) {
+                $delivery = $campaign->deliveries()->create(['public_id' => (string) Str::ulid(), 'user_id' => $viewer->id, 'session_hash' => $sessionHash, 'served_on' => today(), 'served_at' => now(), 'placement' => 'stories']);
+                $campaign->video->setAttribute('sponsored', ['campaign_id' => $campaign->public_id, 'delivery_id' => $delivery->public_id, 'label' => 'Sponsored', 'goal' => $campaign->goal, 'cta' => $this->cta($campaign->goal), 'destination_url' => $this->destination($campaign)]);
+                return $campaign->video;
+            });
+    }
+
     public function insert(Collection $posts, Request $request): Collection
     {
         $settings = BoostSetting::current();
@@ -61,7 +78,9 @@ class SponsoredFeedDelivery implements SponsoredPostProvider
             ->whereDate('starts_on', '<=', today())->whereDate('ends_on', '>=', today())
             ->whereColumn('spent_cents', '<', 'total_budget_cents')
             ->whereHas('payments', fn ($payment) => $payment->where('status', 'paid'))
-            ->whereHas('video', fn ($video) => $video->where('status', 'published')->where('visibility', 'public')
+            ->whereHas('video', fn ($video) => $video->where('status', 'published')
+                ->where(fn ($post) => $post->where('visibility', 'public')->orWhere(fn ($story) => $story->where('post_type', 'story')->where('visibility', 'followers')))
+                ->where(fn ($post) => $post->where('post_type', 'post')->orWhere('expires_at', '>', now()))
                 ->where(fn ($post) => $post
                     ->whereHas('media', fn ($media) => $media->where('processing_status', 'ready')->where('moderation_status', 'approved'))
                     ->orWhereHas('images', fn ($media) => $media->where('processing_status', 'ready')->where('moderation_status', 'approved'))))

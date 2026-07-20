@@ -19,11 +19,19 @@ const rotation = ref(0);
 const outputWidth = ref(1080);
 const quality = ref('balanced');
 const caption = ref('');
+const postType = ref<'post' | 'story'>('post');
 const visibility = ref('Everyone');
 const comments = ref(true);
 const hashtags = ref('');
 const sportId = ref('');
 const locationName = ref('');
+const countryCode = ref('ZA');
+const league = ref('');
+const team = ref('');
+const competition = ref('');
+const contentType = ref('match_highlight');
+const language = ref('en');
+const skillTags = ref('');
 const sports = ref<any[]>([]);
 const progress = ref(0);
 const saving = ref(false);
@@ -46,9 +54,11 @@ const saveDraft = async () => {
             video: file.value,
             images: Array.from(images.value),
             caption: caption.value,
+            postType: postType.value,
             hashtags: hashtags.value,
             sportId: sportId.value,
             locationName: locationName.value,
+            countryCode: countryCode.value, league: league.value, team: team.value, competition: competition.value, contentType: contentType.value, language: language.value, skillTags: skillTags.value,
             coverIndex: coverIndex.value,
             trimStart: trimStart.value,
             trimLength: trimLength.value,
@@ -66,7 +76,7 @@ const saveDraft = async () => {
     }
 };
 const clearDraft = async () => { const db = await openDrafts(); db.transaction('drafts', 'readwrite').objectStore('drafts').delete(DRAFT_KEY); };
-const restoreDraft = async () => { const db = await openDrafts(); const request = db.transaction('drafts').objectStore('drafts').get(DRAFT_KEY); request.onsuccess = () => { const draft = request.result; if (!draft) return; if (draft.video) select(draft.video, false); if (draft.images?.length) selectImages(draft.images, false); caption.value=draft.caption??'';hashtags.value=draft.hashtags??'';sportId.value=draft.sportId??'';locationName.value=draft.locationName??'';coverIndex.value=draft.coverIndex??0;trimStart.value=draft.trimStart??0;trimLength.value=draft.trimLength??60;brightness.value=draft.brightness??0;contrast.value=draft.contrast??0;saturation.value=draft.saturation??0;rotation.value=draft.rotation??0;outputWidth.value=draft.outputWidth??1080;quality.value=draft.quality??'balanced';notice.value='Recovered your unfinished upload.'; }; };
+const restoreDraft = async () => { const db = await openDrafts(); const request = db.transaction('drafts').objectStore('drafts').get(DRAFT_KEY); request.onsuccess = () => { const draft = request.result; if (!draft) return; if (draft.video) select(draft.video, false); if (draft.images?.length) selectImages(draft.images, false); caption.value=draft.caption??'';hashtags.value=draft.hashtags??'';sportId.value=draft.sportId??'';locationName.value=draft.locationName??'';countryCode.value=draft.countryCode??'ZA';league.value=draft.league??'';team.value=draft.team??'';competition.value=draft.competition??'';contentType.value=draft.contentType??'match_highlight';language.value=draft.language??'en';skillTags.value=draft.skillTags??'';coverIndex.value=draft.coverIndex??0;trimStart.value=draft.trimStart??0;trimLength.value=draft.trimLength??60;brightness.value=draft.brightness??0;contrast.value=draft.contrast??0;saturation.value=draft.saturation??0;rotation.value=draft.rotation??0;outputWidth.value=draft.outputWidth??1080;quality.value=draft.quality??'balanced';notice.value='Recovered your unfinished upload.'; }; };
 const csrf = () => (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '';
 const responsePayload = async (response: Response) => {
     const type = response.headers.get('content-type') ?? '';
@@ -83,7 +93,7 @@ const trimmedSize = computed(() => estimatedSizeFor(Math.max(0, trimEnd.value - 
 const mediaPreviewStyle = computed(() => ({ filter: `brightness(${100 + brightness.value}%) contrast(${100 + contrast.value}%) saturate(${100 + saturation.value}%)`, transform: `rotate(${rotation.value}deg)` }));
 const resetAdjustments = () => { brightness.value = 0; contrast.value = 0; saturation.value = 0; rotation.value = 0; outputWidth.value = 1080; quality.value = 'balanced'; };
 const formatTime = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
-const loadedMetadata = (event: Event) => { videoDuration.value = (event.target as HTMLVideoElement).duration || 0; trimLength.value = Math.min(60, videoDuration.value); trimStart.value = Math.min(trimStart.value, Math.max(0, videoDuration.value - 1)); };
+const loadedMetadata = (event: Event) => { videoDuration.value = (event.target as HTMLVideoElement).duration || 0; trimLength.value = Math.min(postType.value === 'story' ? 30 : 60, videoDuration.value); trimStart.value = Math.min(trimStart.value, Math.max(0, videoDuration.value - 1)); };
 const sportUploadSymbol = computed(() => {
     const name = selectedSport.value.toLowerCase();
     if (name.includes('football') || name.includes('soccer')) return '⚽';
@@ -152,7 +162,7 @@ const upload = async () => {
         const uploadedImages = [];
         for (const image of images.value) uploadedImages.push(await uploadMedia(image, 'image', cursor++, total));
         const imageIds = uploadedImages.map(image => image.id);
-        const publishResponse = await fetch('/api/v1/videos', { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() }, body: JSON.stringify({ media_id: media?.id, ...(imageIds.length ? { image_media_ids: imageIds, cover_media_id: imageIds[coverIndex.value] } : {}), caption: caption.value, hashtags: hashtags.value.split(/[\s,]+/).map(tag => tag.replace(/^#/, '')).filter(Boolean), sport_id: sportId.value || null, location_name: locationName.value || null, comments_enabled: comments.value, visibility: visibility.value === 'Everyone' ? 'public' : visibility.value === 'Followers' ? 'followers' : 'private', publish: true }) });
+        const publishResponse = await fetch('/api/v1/videos', { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() }, body: JSON.stringify({ media_id: media?.id, ...(imageIds.length ? { image_media_ids: imageIds, cover_media_id: imageIds[coverIndex.value] } : {}), caption: caption.value, post_type: postType.value, hashtags: hashtags.value.split(/[\s,]+/).map(tag => tag.replace(/^#/, '')).filter(Boolean), sport_id: sportId.value || null, country_code: countryCode.value || null, league: league.value || null, team: team.value || null, competition: competition.value || null, content_type: contentType.value || null, language: language.value || null, skill_tags: skillTags.value.split(/[\s,]+/).map(tag => tag.replace(/^#/, '')).filter(Boolean), location_name: locationName.value || null, comments_enabled: comments.value, visibility: postType.value === 'story' ? 'followers' : visibility.value === 'Everyone' ? 'public' : visibility.value === 'Followers' ? 'followers' : 'private', publish: true }) });
         const publishPayload = await responsePayload(publishResponse);
         if (!publishResponse.ok) throw new Error(publishPayload.message ?? Object.values(publishPayload.errors ?? {}).flat().join(' '));
         publishedPost.value = publishPayload.data;
@@ -162,8 +172,8 @@ const upload = async () => {
 };
 const resume = () => { if ((file.value || images.value.length) && !saving.value && navigator.onLine) { notice.value='Connection restored. Tap Post to resume your saved upload.'; } };
 const serviceMessage = (event:MessageEvent) => { if(event.data?.type==='RESUME_UPLOAD') resume(); };
-let draftTimer:ReturnType<typeof setTimeout>;watch([caption,hashtags,sportId,locationName,coverIndex,brightness,contrast,saturation,rotation,outputWidth,quality],()=>{if(file.value||images.value.length){clearTimeout(draftTimer);draftTimer=setTimeout(saveDraft,350)}});
-onMounted(async () => { await restoreDraft(); const response = await fetch('/api/v1/sports', { headers: { Accept: 'application/json' } }); sports.value = (await response.json()).data ?? []; window.addEventListener('online',resume);navigator.serviceWorker?.addEventListener('message',serviceMessage);if(new URLSearchParams(location.search).has('camera'))setTimeout(()=>cameraInput.value?.click(),250); });
+let draftTimer:ReturnType<typeof setTimeout>;watch(postType,value=>{if(value==='story'){visibility.value='Followers';trimLength.value=Math.min(30,videoDuration.value||30)}});watch([caption,postType,hashtags,sportId,locationName,countryCode,league,team,competition,contentType,language,skillTags,coverIndex,brightness,contrast,saturation,rotation,outputWidth,quality],()=>{if(file.value||images.value.length){clearTimeout(draftTimer);draftTimer=setTimeout(saveDraft,350)}});
+onMounted(async () => { await restoreDraft(); const params=new URLSearchParams(location.search);if(params.get('type')==='story'){postType.value='story';visibility.value='Followers'}const response = await fetch('/api/v1/sports', { headers: { Accept: 'application/json' } }); sports.value = (await response.json()).data ?? []; window.addEventListener('online',resume);navigator.serviceWorker?.addEventListener('message',serviceMessage);if(params.has('camera'))setTimeout(()=>cameraInput.value?.click(),250); });
 onUnmounted(() => { if (preview.value) URL.revokeObjectURL(preview.value); imagePreviews.value.forEach(URL.revokeObjectURL);window.removeEventListener('online',resume);navigator.serviceWorker?.removeEventListener('message',serviceMessage);clearTimeout(draftTimer); });
 </script>
 
@@ -182,18 +192,28 @@ onUnmounted(() => { if (preview.value) URL.revokeObjectURL(preview.value); image
                         <input ref="cameraInput" hidden type="file" accept="video/*" capture="environment" @change="select(($event.target as HTMLInputElement).files?.[0])" />
                         <input ref="photoInput" hidden type="file" accept="image/*" capture="environment" multiple @change="selectImages(($event.target as HTMLInputElement).files)" />
                     </div>
-                    <div v-else class="upload-preview"><video :src="preview" :style="mediaPreviewStyle" controls @loadedmetadata="loadedMetadata" /><div class="selected-file"><FileVideo :size="20" /><span><strong>{{ file.name }}</strong><small>{{ fileSize }}</small></span><button aria-label="Remove video" @click="discard"><X :size="17" /></button></div><div v-if="videoDuration" class="trim-editor"><div><strong>Trim video</strong><span>{{ formatTime(trimStart) }} – {{ formatTime(trimEnd) }} · {{ Math.round(trimEnd - trimStart) }}s <b>≈ {{ trimmedSize }}</b></span></div><label>Start point<input v-model.number="trimStart" type="range" min="0" :max="Math.max(0, videoDuration - 1)" step="0.1" /></label><div class="clip-length-options"><span>Post length</span><button type="button" :class="{ active: trimLength === 30 }" @click="trimLength = Math.min(30, videoDuration - trimStart)"><strong>30 seconds</strong><small>≈ {{ estimatedSizeFor(30) }}</small></button><button type="button" :class="{ active: trimLength > 30 }" @click="trimLength = Math.min(60, videoDuration - trimStart)"><strong>60 seconds max</strong><small>≈ {{ estimatedSizeFor(60) }}</small></button></div><small>Estimated from the original file before optimisation. Final size may be smaller depending on the resize and compression settings.</small></div></div>
+                    <div v-else class="upload-preview"><video :src="preview" :style="mediaPreviewStyle" controls @loadedmetadata="loadedMetadata" /><div class="selected-file"><FileVideo :size="20" /><span><strong>{{ file.name }}</strong><small>{{ fileSize }}</small></span><button aria-label="Remove video" @click="discard"><X :size="17" /></button></div><div v-if="videoDuration" class="trim-editor"><div><strong>Trim video</strong><span>{{ formatTime(trimStart) }} – {{ formatTime(trimEnd) }} · {{ Math.round(trimEnd - trimStart) }}s <b>≈ {{ trimmedSize }}</b></span></div><label>Start point<input v-model.number="trimStart" type="range" min="0" :max="Math.max(0, videoDuration - 1)" step="0.1" /></label><div class="clip-length-options"><span>{{postType==='story'?'Story length':'Post length'}}</span><button type="button" :class="{ active: trimLength === 30 || postType==='story' }" @click="trimLength = Math.min(30, videoDuration - trimStart)"><strong>30 seconds</strong><small>{{postType==='story'?'Maximum Story length':`≈ ${estimatedSizeFor(30)}`}}</small></button><button v-if="postType!=='story'" type="button" :class="{ active: trimLength > 30 }" @click="trimLength = Math.min(60, videoDuration - trimStart)"><strong>60 seconds max</strong><small>≈ {{ estimatedSizeFor(60) }}</small></button></div><small>{{postType==='story'?'Stories are limited to 30 seconds. Choose the best part of your video.':'Estimated from the original file before optimisation. Final size may be smaller depending on the resize and compression settings.'}}</small></div></div>
                 </div>
                 <form class="upload-details" @submit.prevent="upload">
                     <h2>Post details</h2>
+                    <div class="upload-type-picker"><span class="upload-label">Share as</span><div><button type="button" :class="{active:postType==='post'}" @click="postType='post'">Post<small>Stays on your profile</small></button><button type="button" :class="{active:postType==='story'}" @click="postType='story';visibility='Followers'">Story<small>Followers only · 24 hours</small></button></div><p v-if="postType==='story'"><Info :size="16"/>Your Story disappears after 24 hours. Promoting it can show it to more people, but does not extend its lifetime.</p></div>
                     <label><span class="upload-label">Pictures <small>Up to 10</small></span><input class="upload-picture-input" type="file" accept="image/jpeg,image/png,image/webp" multiple @change="selectImages(($event.target as HTMLInputElement).files)" /></label>
                     <div v-if="imagePreviews.length" class="upload-picture-grid"><button v-for="(image, index) in imagePreviews" :key="image" type="button" :class="{ selected: coverIndex === index }" @click="coverIndex = index"><img :src="image" :style="mediaPreviewStyle" alt="Selected post picture" /><span>{{ coverIndex === index ? 'Main picture' : 'Set as main' }}</span></button></div>
                     <section v-if="file || images.length" class="media-editor"><header><div><SlidersHorizontal/><span><strong>Improve & optimise</strong><small>Adjust the look and reduce file size safely</small></span></div><button type="button" @click="resetAdjustments">Reset</button></header><div class="adjustment-grid"><label>Brightness <b>{{brightness>0?'+':''}}{{brightness}}</b><input v-model.number="brightness" type="range" min="-50" max="50" /></label><label>Contrast <b>{{contrast>0?'+':''}}{{contrast}}</b><input v-model.number="contrast" type="range" min="-50" max="50" /></label><label>Colour <b>{{saturation>0?'+':''}}{{saturation}}</b><input v-model.number="saturation" type="range" min="-50" max="50" /></label></div><div class="editor-options"><button type="button" @click="rotation=(rotation+90)%360"><RotateCw/>Rotate {{rotation ? `${rotation}°` : ''}}</button><label>Resize<select v-model.number="outputWidth"><option :value="1080">1080px · Recommended</option><option :value="720">720px · Smaller</option><option :value="480">480px · Data saver</option></select></label><label>Compression<select v-model="quality"><option value="high">High quality</option><option value="balanced">Balanced · Recommended</option><option value="space">Save more space</option></select></label></div><p>Optimisation happens securely after upload. Balanced mode removes unnecessary file weight while keeping strong visual quality.</p></section>
                     <label><span class="upload-label">Caption <small>{{ caption.length }} / 2200</small></span><textarea v-model="caption" maxlength="2200" placeholder="Tell viewers about your video..." /></label>
                     <label><span class="upload-label">Hashtags</span><input v-model="hashtags" class="su-input" placeholder="football talent training" /></label>
                     <label><span class="upload-label">Sport</span><select v-model="sportId"><option value="">Select sport</option><option v-for="sport in sports" :key="sport.id" :value="sport.id">{{ sport.name }}</option></select></label>
+                    <div class="content-metadata-grid">
+                        <label><span class="upload-label">Country</span><input v-model="countryCode" class="su-input" maxlength="2" placeholder="ZA" /></label>
+                        <label><span class="upload-label">League</span><input v-model="league" class="su-input" placeholder="Premier League, PSL…" /></label>
+                        <label><span class="upload-label">Team</span><input v-model="team" class="su-input" placeholder="Team or club" /></label>
+                        <label><span class="upload-label">Competition</span><input v-model="competition" class="su-input" placeholder="Competition or tournament" /></label>
+                        <label><span class="upload-label">Content type</span><select v-model="contentType"><option value="match_highlight">Match highlight</option><option value="training">Training</option><option value="skills">Skills</option><option value="analysis">Analysis</option><option value="interview">Interview</option><option value="news">News</option><option value="behind_the_scenes">Behind the scenes</option><option value="other">Other</option></select></label>
+                        <label><span class="upload-label">Language</span><input v-model="language" class="su-input" maxlength="12" placeholder="en" /></label>
+                    </div>
+                    <label><span class="upload-label">Skills and topics</span><input v-model="skillTags" class="su-input" placeholder="finishing counter-attack goalkeeping" /></label>
                     <label><span class="upload-label">Location</span><input v-model="locationName" class="su-input" placeholder="City, venue, suburb or township" /></label>
-                    <label><span class="upload-label">Who can watch this video</span><select v-model="visibility"><option>Everyone</option><option>Followers</option><option>Only me</option></select></label>
+                    <label><span class="upload-label">Who can watch this video</span><select v-model="visibility" :disabled="postType==='story'"><option>Everyone</option><option>Followers</option><option>Only me</option></select><small v-if="postType==='story'">Stories are visible only to followers unless promoted.</small></label>
                     <div><span class="upload-label">Allow users to</span><label class="upload-check"><input v-model="comments" type="checkbox" /> Comments</label></div>
                     <div class="upload-note"><Info :size="17" /><p>Keep this page open only while the original file uploads. Processing continues in the background and we’ll notify you when it is ready.</p></div>
                     <div v-if="saving" class="sport-upload-status" role="status" aria-live="polite">

@@ -13,6 +13,8 @@ class RankFeed
     {
         $settings = FeedSetting::current();
 
+        app(PrioritizeUnseenPosts::class)->execute($query, $user);
+
         if ($settings->ranking_mode === 'recent') {
             return $query->orderByDesc('videos.published_at')->orderByDesc('videos.id');
         }
@@ -25,14 +27,12 @@ class RankFeed
                 ->orderBy('recommendation_position')->orderByDesc('videos.id');
         }
 
-        $score = '(videos.likes_count * CAST(? AS DECIMAL(12,4)) + videos.comments_count * CAST(? AS DECIMAL(12,4)) + videos.shares_count * CAST(? AS DECIMAL(12,4)) + videos.views_count * CAST(? AS DECIMAL(12,4)))';
-        $bindings = [$settings->like_weight, $settings->comment_weight, $settings->share_weight, $settings->view_weight];
+        $score = sprintf('(videos.likes_count * %F + videos.comments_count * %F + videos.shares_count * %F + videos.views_count * %F)', $settings->like_weight, $settings->comment_weight, $settings->share_weight, $settings->view_weight);
         if ($user && $settings->ranking_mode === 'personalized') {
-            $score .= ' + CASE WHEN EXISTS (SELECT 1 FROM follows WHERE follows.follower_id = ? AND follows.followed_id = videos.user_id) THEN CAST(? AS DECIMAL(12,4)) ELSE 0 END';
-            array_push($bindings, $user->id, $settings->follow_boost);
+            $score .= sprintf(' + CASE WHEN EXISTS (SELECT 1 FROM follows WHERE follows.follower_id = %d AND follows.followed_id = videos.user_id) THEN %F ELSE 0 END', $user->id, $settings->follow_boost);
+            $score .= sprintf(' + COALESCE((SELECT SUM(content_topics.weight * preferences.score) FROM video_content_topics content_topics JOIN user_content_preferences preferences ON preferences.dimension = content_topics.dimension AND preferences.value = content_topics.value AND preferences.user_id = %d WHERE content_topics.video_id = videos.id), 0)', $user->id);
         }
 
-        return $query->orderByRaw("{$score} DESC", $bindings)
-            ->orderByDesc('videos.published_at')->orderByDesc('videos.id');
+        return $query->selectRaw("{$score} AS feed_rank_score")->orderByDesc('feed_rank_score')->orderByDesc('videos.id');
     }
 }

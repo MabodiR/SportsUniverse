@@ -41,6 +41,8 @@ class AdCampaignController extends Controller
         $data = $this->validated($request);
         $video = $this->video($request, $data['video_id'] ?? null);
         abort_if($data['campaign_type'] === 'post_promotion' && ! $video, 422, 'Select a published post to promote.');
+        abort_if($video?->post_type === 'story' && $video->expires_at?->isPast(), 422, 'This Story has expired. Stories can only be promoted during their 24-hour lifetime.');
+        abort_if($video?->post_type === 'story' && now()->parse($data['ends_on'])->endOfDay()->isAfter($video->expires_at), 422, 'A Story promotion cannot run after the Story expires.');
         $days = now()->parse($data['starts_on'])->diffInDays(now()->parse($data['ends_on'])) + 1;
         $campaign = $request->user()->adCampaigns()->create([
             ...collect($data)->except(['video_id', 'submit'])->all(), 'public_id' => (string) Str::ulid(),
@@ -61,6 +63,8 @@ class AdCampaignController extends Controller
         $data = $this->validated($request);
         $video = $this->video($request, $data['video_id'] ?? null);
         abort_if($data['campaign_type'] === 'post_promotion' && ! $video, 422, 'Select a published post to promote.');
+        abort_if($video?->post_type === 'story' && $video->expires_at?->isPast(), 422, 'This Story has expired. Stories can only be promoted during their 24-hour lifetime.');
+        abort_if($video?->post_type === 'story' && now()->parse($data['ends_on'])->endOfDay()->isAfter($video->expires_at), 422, 'A Story promotion cannot run after the Story expires.');
         $days = now()->parse($data['starts_on'])->diffInDays(now()->parse($data['ends_on'])) + 1;
         $campaign->update([...collect($data)->except(['video_id', 'submit'])->all(), 'video_id' => $video?->id, 'total_budget_cents' => $data['daily_budget_cents'] * $days, 'status' => $request->boolean('submit') ? 'awaiting_payment' : 'draft', 'submitted_at' => null, 'review_notes' => null]);
 

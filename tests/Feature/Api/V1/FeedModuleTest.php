@@ -3,6 +3,7 @@
 namespace Tests\Feature\Api\V1;
 
 use App\Domain\Feed\Jobs\FinalizeQueuedPost;
+use App\Domain\Feed\Jobs\AnalyzeVideoContent;
 use App\Domain\Feed\Models\FeedSetting;
 use App\Domain\Feed\Models\Video;
 use App\Domain\Feed\Services\RecommendationFeed;
@@ -34,6 +35,103 @@ class FeedModuleTest extends TestCase
 
         $response = $this->actingAs($viewer, 'sanctum')->getJson('/api/v1/feed/for-you')->assertOk();
         $response->assertJsonPath('data.0.id', $first->public_id)->assertJsonPath('data.1.id', $second->public_id);
+    }
+
+    public function test_for_you_feed_uses_cursor_pagination_for_scrolling(): void
+    {
+        $viewer = User::factory()->create();
+        FeedSetting::current()->update(['page_size' => 2]);
+        Video::factory()->count(5)->create();
+
+        $first = $this->actingAs($viewer, 'sanctum')->getJson('/api/v1/feed/for-you')->assertOk()->assertJsonCount(2, 'data');
+        $cursor = $first->json('meta.next_cursor');
+        $this->assertNotEmpty($cursor);
+        $firstIds = collect($first->json('data'))->pluck('id');
+
+        $second = $this->getJson('/api/v1/feed/for-you?cursor='.urlencode($cursor))->assertOk()->assertJsonCount(2, 'data');
+        $this->assertTrue($firstIds->intersect(collect($second->json('data'))->pluck('id'))->isEmpty());
+    }
+
+    public function test_for_you_feed_prioritizes_posts_not_viewed_recently(): void
+    {
+        $viewer = User::factory()->create();
+        $viewed = Video::factory()->create(['likes_count' => 999]);
+        $unseen = Video::factory()->create(['likes_count' => 0]);
+        DB::table('video_views')->insert([
+            'video_id' => $viewed->id,
+            'user_id' => $viewer->id,
+            'watched_ms' => 3000,
+            'completed' => false,
+            'viewed_on' => today()->toDateString(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($viewer, 'sanctum')->getJson('/api/v1/feed/for-you')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $unseen->public_id)
+            ->assertJsonPath('data.1.id', $viewed->public_id);
+    }
+
+    public function test_for_you_feed_allows_an_older_viewed_post_to_rank_normally_again(): void
+    {
+        $viewer = User::factory()->create();
+        $popular = Video::factory()->create(['likes_count' => 999]);
+        $newer = Video::factory()->create(['likes_count' => 0]);
+        DB::table('video_views')->insert([
+            'video_id' => $popular->id,
+            'user_id' => $viewer->id,
+            'watched_ms' => 3000,
+            'completed' => true,
+            'viewed_on' => today()->subDays(4)->toDateString(),
+            'created_at' => now()->subDays(4),
+            'updated_at' => now()->subDays(4),
+        ]);
+
+        $this->actingAs($viewer, 'sanctum')->getJson('/api/v1/feed/for-you')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $popular->public_id)
+            ->assertJsonPath('data.1.id', $newer->public_id);
+    }
+
+    public function test_content_analysis_creates_detailed_topics_and_an_embedding(): void
+    {
+        $video = Video::factory()->create(['country_code' => 'GB', 'league' => 'Premier League', 'team' => 'Arsenal', 'content_type' => 'match_highlight', 'skill_tags' => ['finishing']]);
+
+        AnalyzeVideoContent::dispatchSync($video->id);
+
+        $this->assertDatabaseHas('video_content_topics', ['video_id' => $video->id, 'dimension' => 'country', 'value' => 'gb']);
+        $this->assertDatabaseHas('video_content_topics', ['video_id' => $video->id, 'dimension' => 'league', 'value' => 'premier league']);
+        $this->assertCount(64, $video->fresh()->content_embedding);
+        $this->assertNotNull($video->fresh()->analyzed_at);
+    }
+
+    public function test_positive_behavior_teaches_the_feed_detailed_content_preferences(): void
+    {
+        $viewer = User::factory()->create();
+        $english = Video::factory()->create(['country_code' => 'GB', 'league' => 'Premier League', 'likes_count' => 0]);
+        $southAfrican = Video::factory()->create(['country_code' => 'ZA', 'league' => 'PSL', 'likes_count' => 0]);
+        AnalyzeVideoContent::dispatchSync($english->id);
+        AnalyzeVideoContent::dispatchSync($southAfrican->id);
+
+        $this->actingAs($viewer, 'sanctum')->postJson('/api/v1/videos/'.$english->public_id.'/like')->assertOk();
+
+        $this->assertDatabaseHas('user_content_preferences', ['user_id' => $viewer->id, 'dimension' => 'league', 'value' => 'premier league']);
+        $this->getJson('/api/v1/feed/for-you')->assertOk()->assertJsonPath('data.0.id', $english->public_id);
+    }
+
+    public function test_related_endpoint_uses_content_embeddings(): void
+    {
+        $viewer = User::factory()->create();
+        $source = Video::factory()->create(['caption' => 'Arsenal Premier League finishing highlight', 'country_code' => 'GB', 'league' => 'Premier League', 'team' => 'Arsenal']);
+        $related = Video::factory()->create(['caption' => 'Arsenal Premier League finishing highlight', 'country_code' => 'GB', 'league' => 'Premier League', 'team' => 'Arsenal']);
+        Video::factory()->create(['caption' => 'Sundowns PSL goalkeeper training', 'country_code' => 'ZA', 'league' => 'PSL', 'team' => 'Sundowns']);
+        AnalyzeVideoContent::dispatchSync($source->id);
+        AnalyzeVideoContent::dispatchSync($related->id);
+        Video::whereKeyNot($source->id)->whereNull('analyzed_at')->pluck('id')->each(fn ($id) => AnalyzeVideoContent::dispatchSync($id));
+
+        $this->actingAs($viewer, 'sanctum')->getJson('/api/v1/videos/'.$source->public_id.'/related')
+            ->assertOk()->assertJsonPath('data.0.id', $related->public_id);
     }
 
     public function test_recommendation_ids_recover_from_an_incomplete_cached_class(): void
@@ -173,15 +271,42 @@ class FeedModuleTest extends TestCase
         $this->assertNotNull($draft->fresh()->published_at);
     }
 
-    public function test_following_feed_only_contains_followed_creators(): void
+    public function test_following_feed_contains_followed_creators_and_the_viewers_own_posts(): void
     {
         $viewer = User::factory()->create();
         $followed = User::factory()->create();
         $other = User::factory()->create();
         $viewer->following()->attach($followed);
         $included = Video::factory()->for($followed)->create();
+        $ownPost = Video::factory()->for($viewer)->create();
         Video::factory()->for($other)->create();
-        $this->actingAs($viewer, 'sanctum')->getJson('/api/v1/feed/following')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $included->public_id);
+        $response = $this->actingAs($viewer, 'sanctum')->getJson('/api/v1/feed/following')->assertOk()->assertJsonCount(2, 'data');
+        $this->assertEqualsCanonicalizing([$included->public_id, $ownPost->public_id], collect($response->json('data'))->pluck('id')->all());
+    }
+
+    public function test_active_stories_are_follower_only_and_expire_after_24_hours(): void
+    {
+        $creator = User::factory()->create();
+        $follower = User::factory()->create();
+        $stranger = User::factory()->create();
+        $follower->following()->attach($creator);
+        $active = Video::factory()->for($creator)->create(['post_type' => 'story', 'visibility' => 'followers', 'expires_at' => now()->addHour()]);
+        Video::factory()->for($creator)->create(['post_type' => 'story', 'visibility' => 'followers', 'expires_at' => now()->subSecond()]);
+
+        $this->actingAs($follower, 'sanctum')->getJson('/api/v1/feed/following')
+            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $active->public_id)
+            ->assertJsonPath('data.0.is_story', true);
+        $this->getJson('/api/v1/feed/stories')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $active->public_id);
+        $this->actingAs($stranger, 'sanctum')->getJson('/api/v1/videos/'.$active->public_id)->assertForbidden();
+        $this->actingAs($follower, 'sanctum')->getJson('/api/v1/videos/'.$active->public_id)->assertOk();
+    }
+
+    public function test_stories_do_not_appear_organically_in_for_you(): void
+    {
+        $viewer = User::factory()->create();
+        Video::factory()->create(['post_type' => 'story', 'visibility' => 'followers', 'expires_at' => now()->addDay()]);
+
+        $this->actingAs($viewer, 'sanctum')->getJson('/api/v1/feed/for-you')->assertOk()->assertJsonCount(0, 'data');
     }
 
     public function test_follow_and_unfollow_return_both_updated_counts(): void

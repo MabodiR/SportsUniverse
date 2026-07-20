@@ -9,7 +9,12 @@ class VideoPolicy
 {
     public function view(?User $user, Video $video): bool
     {
-        return ($video->status === 'published' && $video->visibility === 'public') || $user?->id === $video->user_id || $user?->hasRole('admin');
+        if ($user?->id === $video->user_id || $user?->hasRole('admin')) return true;
+        if ($video->status !== 'published' || ($video->post_type === 'story' && $video->expires_at?->isPast())) return false;
+        if ($video->visibility === 'public') return true;
+
+        return $video->visibility === 'followers' && $user
+            && $user->following()->whereKey($video->user_id)->exists();
     }
 
     public function update(User $user, Video $video): bool

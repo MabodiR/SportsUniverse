@@ -8,6 +8,8 @@ use App\Domain\Feed\Services\SafeSponsoredPostProvider;
 use App\Domain\Feed\Services\ApplyFeedPreferences;
 use App\Domain\Feed\Services\RankFeed;
 use App\Domain\Feed\Services\RecommendationFeed;
+use App\Domain\Feed\Services\DiversifyFeed;
+use App\Domain\Feed\Services\RetrieveFeedCandidates;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -72,7 +74,10 @@ class FeedController extends Controller
                     ->orWhereHas('user.athleteProfile.sport', fn ($sportQuery) => $sportQuery->whereRaw('LOWER(name) = ?', [mb_strtolower($sport)]));
             }))
             ->when($position, fn ($query) => $query->whereHas('user.athleteProfile.taxonomyPosition', fn ($positionQuery) => $positionQuery->whereRaw('LOWER(name) = ?', [mb_strtolower($position)])))
-            ->when($following, fn ($query) => $query->whereIn('user_id', $request->user()->following()->select('users.id')))
+            ->when($following, fn ($query) => $query->where(function ($videos) use ($request) {
+                $videos->where('videos.user_id', $request->user()->id)
+                    ->orWhereIn('videos.user_id', $request->user()->following()->select('users.id'));
+            }))
             ->with('user.profile', 'user.athleteProfile.sport', 'user.athleteProfile.taxonomyPosition', 'sport', 'media', 'images')
             ->when($request->user(), fn ($query, $user) => $query->withExists([
                 'likers as liked_by_viewer' => fn ($likes) => $likes->whereKey($user->id),
@@ -82,9 +87,12 @@ class FeedController extends Controller
             $query->orderByDesc('videos.published_at')->orderByDesc('videos.id');
         } else {
             $precomputed = $request->user() ? app(RecommendationFeed::class)->ids($request->user()) : collect();
+            if ($precomputed->isEmpty()) app(RetrieveFeedCandidates::class)->execute($query);
             app(RankFeed::class)->execute($query, $request->user(), $precomputed);
         }
-        $videos = $query->limit($settings->page_size)->get();
+        $page = $query->cursorPaginate($settings->page_size)->withQueryString();
+        $videos = $page->getCollection();
+        if (! $following) $videos = app(DiversifyFeed::class)->execute($videos);
         if (! $following && ! $location && ! $sport && ! $position) {
             $videos = app(SafeSponsoredPostProvider::class)->insert($videos, $request);
         }
@@ -114,6 +122,7 @@ class FeedController extends Controller
             'sportFilter' => $sport,
             'positionFilter' => $position,
             'mode' => $following ? 'following' : 'for-you',
+            'nextCursor' => $page->nextCursor()?->encode(),
         ]);
     }
 
@@ -131,7 +140,7 @@ class FeedController extends Controller
             'visibility' => $video->visibility,
             'url' => $video->media ? route('videos.stream', $video) : null,
             'type' => $video->media ? ($video->images->isNotEmpty() ? 'carousel' : 'video') : 'images',
-            'images' => $video->images->map(fn ($image) => ['id' => $image->public_id, 'url' => route('media.public', $image), 'is_cover' => (bool) $image->pivot->is_cover])->values(),
+            'images' => $video->images->map(fn ($image) => ['id' => $image->public_id, 'url' => route('media.public', $image), 'is_cover' => (bool) $image->pivot->is_cover, 'attribution' => $this->attribution($image->metadata)])->values(),
             'cover_url' => $video->images->first(fn ($image) => (bool) $image->pivot->is_cover) ? route('media.public', $video->images->first(fn ($image) => (bool) $image->pivot->is_cover)) : null,
             'sport' => $video->sport?->only(['id','name','slug']),
             'location' => ['name'=>$video->location_name,'latitude'=>$video->latitude,'longitude'=>$video->longitude],
@@ -157,6 +166,13 @@ class FeedController extends Controller
                 'can_manage' => $viewer?->id === $video->user_id,
             ],
             'sponsored' => $video->getAttribute('sponsored'),
+            'attribution' => $this->attribution($video->media?->metadata ?? $video->images->first()?->metadata),
         ])->values()->all();
+    }
+
+    private function attribution(?array $metadata): ?array
+    {
+        if (! ($metadata['source_url'] ?? null)) return null;
+        return ['author' => $metadata['author'] ?? 'Wikimedia Commons contributor', 'license' => $metadata['license'] ?? 'Open licence', 'license_url' => $metadata['license_url'] ?? null, 'source_url' => $metadata['source_url']];
     }
 }

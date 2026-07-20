@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Bookmark, Cast, ChevronLeft, ChevronRight, Download, Ellipsis, Eye, Flag, Heart, LockKeyhole, MessageCircle, Megaphone, Pencil, Radio, Repeat2, Send, Share2, Sparkles, Trash2, UserPlus, Users, Volume2, VolumeX, X } from '@lucide/vue';
+import { Bookmark, Cast, ChevronLeft, ChevronRight, Download, Ellipsis, Eye, Flag, Heart, LockKeyhole, MessageCircle, Megaphone, Pencil, Plus, Radio, Repeat2, Send, Share2, Sparkles, Trash2, UserPlus, Users, Volume2, VolumeX, X } from '@lucide/vue';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import AppShell from '../../Layouts/AppShell.vue';
 
-const props = defineProps<{ videos: any[]; suggestions: any[]; location?: string | null; sportFilter?: string | null; positionFilter?: string | null; mode?: 'for-you' | 'following' }>();
+const props = defineProps<{ videos: any[]; suggestions: any[]; location?: string | null; sportFilter?: string | null; positionFilter?: string | null; mode?: 'for-you' | 'following'; nextCursor?: string | null }>();
 const page = usePage();
 const authenticated = computed(() => Boolean((page.props.auth as any)?.user));
 const gateVisible = ref(false);
@@ -13,12 +13,31 @@ const soundEnabled = ref(false);
 const videoVolume = ref(.75);
 const audioControlsPost = ref<string | null>(null);
 const liveStreams = ref<any[]>([]);
+const stories = ref<any[]>([]);
+const activeStoryIndex = ref(-1);
+const activeStory = computed(() => stories.value[activeStoryIndex.value]);
+let storyTimer: ReturnType<typeof setTimeout> | null = null;
+const storyMedia = (story:any) => story?.media?.download_url || story?.images?.find((image:any)=>image.is_cover)?.url || story?.images?.[0]?.url;
+const storyRemaining = (story:any) => { const hours=Math.max(0,Math.ceil((new Date(story.expires_at).getTime()-Date.now())/3600000));return hours ? `${hours}h left` : 'Ending soon'; };
+const closeStory = () => { if(storyTimer)clearTimeout(storyTimer);storyTimer=null;activeStoryIndex.value=-1;document.body.style.overflow=''; };
+const openStory = (index:number) => { if(storyTimer)clearTimeout(storyTimer);activeStoryIndex.value=index;document.body.style.overflow='hidden';if(!activeStory.value?.media)storyTimer=setTimeout(nextStory,6000); };
+function nextStory(){ if(activeStoryIndex.value < stories.value.length-1)openStory(activeStoryIndex.value+1);else closeStory(); }
+const previousStory=()=>activeStoryIndex.value>0?openStory(activeStoryIndex.value-1):undefined;
 const activeMedia = ref<Record<string, number>>({});
 let touchX = 0;
 const recordedViews = new Set<string>();
 let observer: IntersectionObserver | null = null;
 let sponsoredObserver: IntersectionObserver | null = null;
+let feedItemObserver: IntersectionObserver | null = null;
+let loadMoreObserver: IntersectionObserver | null = null;
+const loadMoreSentinel = ref<Element | null>(null);
+const nextCursor = ref(props.nextCursor ?? null);
+const loadingMore = ref(false);
 const sponsoredElements = new Map<Element, any>();
+const feedItemElements = new Map<Element, any>();
+const feedSignalTimers = new Map<Element, ReturnType<typeof setTimeout>>();
+const recordedImpressions = new Set<string>();
+const recordedSkips = new Set<string>();
 const sponsoredTimers = new Map<Element, ReturnType<typeof setTimeout>>();
 const recordedSponsored = new Set<string>();
 const demos = [
@@ -193,6 +212,27 @@ const registerSponsored = (element: Element | null, item: any) => {
     sponsoredElements.set(element, item);
     sponsoredObserver?.observe(element);
 };
+const registerPost = (element: Element | null, item: any) => {
+    if (!element) return;
+    feedItemElements.set(element, item); feedItemObserver?.observe(element); registerSponsored(element, item);
+};
+const feedSignal = (item:any, event:'impression'|'skip'|'replay', watchedMs=0) => {
+    if (!authenticated.value) return;
+    request(`/api/v1/videos/${item.id}/signals`, { event, watched_ms: watchedMs }).catch(() => undefined);
+};
+const loadMore = async () => {
+    if (!authenticated.value || !nextCursor.value || loadingMore.value || props.location || props.sportFilter || props.positionFilter) return;
+    loadingMore.value = true;
+    try {
+        const endpoint = props.mode === 'following' ? '/api/v1/feed/following' : '/api/v1/feed/for-you';
+        const response = await fetch(`${endpoint}?cursor=${encodeURIComponent(nextCursor.value)}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+        const payload = await response.json(); if (!response.ok) throw new Error(payload.message ?? 'Unable to load more posts.');
+        const existing = new Set(feed.value.map(item => `${item.id}:${item.sponsored?.delivery_id ?? 'organic'}`));
+        for (const item of payload.data ?? []) { const key=`${item.id}:${item.sponsored?.delivery_id ?? 'organic'}`; if (!existing.has(key)) { props.videos.push(item); existing.add(key); } }
+        nextCursor.value = payload.meta?.next_cursor ?? null;
+    } catch { /* The observer can retry when the sentinel re-enters view. */ }
+    finally { loadingMore.value = false; }
+};
 const openSponsored = async (item: any) => {
     const sponsored = item.sponsored;
     if (!sponsored?.delivery_id) return;
@@ -229,6 +269,7 @@ onMounted(() => {
     const savedVolume = Number(localStorage.getItem('sportuniverse-video-volume'));
     if (Number.isFinite(savedVolume) && savedVolume >= 0 && savedVolume <= 1) videoVolume.value = savedVolume;
     fetch('/api/v1/live', { headers: { Accept: 'application/json' } }).then(response => response.json()).then(payload => { liveStreams.value = payload.data ?? []; }).catch(() => undefined);
+    if(authenticated.value)fetch('/api/v1/feed/stories',{credentials:'same-origin',headers:{Accept:'application/json'}}).then(response=>response.json()).then(payload=>{stories.value=payload.data??[]}).catch(()=>undefined);
     window.addEventListener('scroll', onScroll, { passive: true });
     observer = new IntersectionObserver((entries) => entries.forEach(entry => {
         const video = entry.target as HTMLVideoElement;
@@ -251,9 +292,19 @@ onMounted(() => {
             clearTimeout(sponsoredTimers.get(entry.target)); sponsoredTimers.delete(entry.target);
         }
     }), { threshold: [.25, .6, .9] });
-    requestAnimationFrame(() => videoElements.forEach(video => observer?.observe(video)));
+    feedItemObserver = new IntersectionObserver(entries => entries.forEach(entry => {
+        const item = feedItemElements.get(entry.target); if (!item) return;
+        if (entry.isIntersecting && entry.intersectionRatio >= .6) {
+            if (!recordedImpressions.has(item.id) && !feedSignalTimers.has(entry.target)) feedSignalTimers.set(entry.target, setTimeout(() => { recordedImpressions.add(item.id); feedSignalTimers.delete(entry.target); feedSignal(item, 'impression'); }, 1000));
+        } else {
+            if (feedSignalTimers.has(entry.target)) { clearTimeout(feedSignalTimers.get(entry.target)); feedSignalTimers.delete(entry.target); }
+            const video=videoElements.get(item.id); if (recordedImpressions.has(item.id) && !recordedViews.has(item.id) && !recordedSkips.has(item.id) && (!video || video.currentTime < 3)) { recordedSkips.add(item.id); feedSignal(item, 'skip', Math.round((video?.currentTime ?? 0)*1000)); }
+        }
+    }), { threshold: [.25, .6, .9] });
+    loadMoreObserver = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) loadMore(); }, { rootMargin: '800px 0px' });
+    requestAnimationFrame(() => { videoElements.forEach(video => observer?.observe(video)); feedItemElements.forEach((_, element) => feedItemObserver?.observe(element)); sponsoredElements.forEach((_, element) => sponsoredObserver?.observe(element)); if(loadMoreSentinel.value)loadMoreObserver?.observe(loadMoreSentinel.value); });
 });
-onUnmounted(() => { window.removeEventListener('scroll', onScroll); observer?.disconnect(); sponsoredObserver?.disconnect(); sponsoredTimers.forEach(timer => clearTimeout(timer)); videoElements.forEach(video => video.pause()); document.body.style.overflow = ''; });
+onUnmounted(() => { if(storyTimer)clearTimeout(storyTimer);window.removeEventListener('scroll', onScroll); observer?.disconnect(); sponsoredObserver?.disconnect(); feedItemObserver?.disconnect(); loadMoreObserver?.disconnect(); sponsoredTimers.forEach(timer => clearTimeout(timer)); feedSignalTimers.forEach(timer => clearTimeout(timer)); videoElements.forEach(video => video.pause()); document.body.style.overflow = ''; });
 </script>
 
 <template>
@@ -261,6 +312,7 @@ onUnmounted(() => { window.removeEventListener('scroll', onScroll); observer?.di
     <AppShell>
         <div class="for-you-page">
             <header class="for-you-heading"><div><h1>{{ mode === 'following' ? 'Following' : sportFilter ? `${sportFilter} videos` : positionFilter ? `${positionFilter} highlights` : location ? `Sports in ${location}` : 'For You Sports Feed' }}</h1><p>{{ mode === 'following' ? 'New posts from athletes and accounts you follow.' : sportFilter ? `Athlete posts and highlights tagged ${sportFilter}.` : positionFilter ? `Videos shared by athletes playing ${positionFilter}.` : location ? `Videos posted by athletes in ${location}.` : 'Discover athlete highlights selected for you.' }}</p></div></header>
+            <section v-if="authenticated && !location && !sportFilter && !positionFilter" class="stories-rail" aria-label="Stories"><Link href="/upload?type=story" class="story-circle own-story"><span><Plus/></span><strong>Your Story</strong></Link><button v-for="(story,index) in stories" :key="`${story.id}:${story.sponsored?.delivery_id||'organic'}`" class="story-circle" :class="{promoted:story.sponsored}" @click="openStory(index)"><span><img v-if="story.creator.profile_image" :src="story.creator.profile_image" :alt="story.creator.name"/><b v-else>{{story.creator.name.slice(0,2).toUpperCase()}}</b></span><strong>{{story.viewer?.is_owner?'Your Story':story.creator.name}}</strong><small v-if="story.sponsored">Sponsored</small></button></section>
             <section v-if="liveStreams.length" class="feed-live-now"><header><div><span><Radio/> LIVE NOW</span><h2>People broadcasting now</h2></div><Link href="/live">See everyone</Link></header><div><Link v-for="stream in liveStreams.slice(0,6)" :key="stream.id" :href="`/live/${stream.id}`"><span class="feed-live-avatar"><img v-if="stream.image" :src="stream.image" alt=""/><Radio v-else/><b>LIVE</b></span><strong>{{stream.host_name}}</strong><small>{{stream.title}}</small></Link></div></section>
             <section v-if="mode === 'following' && !feed.length" class="following-empty">
                 <div class="following-empty-copy"><Users :size="34" /><h2>Start following accounts</h2><p>Follow athletes you like and their latest posts will appear here.</p></div>
@@ -270,10 +322,10 @@ onUnmounted(() => { window.removeEventListener('scroll', onScroll); observer?.di
             <div class="for-you-layout">
                 <template v-if="feed.length">
                 <div class="feed-stream">
-                    <div v-for="(item, index) in feed" :id="item.id" :key="`${item.id}:${item.sponsored?.delivery_id ?? 'organic'}`" :ref="element => registerSponsored(element as Element,item)" class="featured-video-wrap" :class="{ 'sponsored-post': item.sponsored }">
+                    <div v-for="(item, index) in feed" :id="item.id" :key="`${item.id}:${item.sponsored?.delivery_id ?? 'organic'}`" :ref="element => registerPost(element as Element,item)" class="featured-video-wrap" :class="{ 'sponsored-post': item.sponsored }">
                         <article class="featured-video-card" :class="`feed-card-${(index % 3) + 1}`">
                             <div class="post-carousel" @touchstart.passive="swipeStart" @touchend.passive="swipeEnd(item,$event)">
-                                <template v-for="(slide,slideIndex) in slides(item)" :key="slide.url"><img v-if="slide.type==='image' && mediaIndex(item)===slideIndex" :src="slide.url" :alt="item.caption||'SportsUniverse post image'"/><video v-else-if="slide.type==='video' && mediaIndex(item)===slideIndex" :ref="element => registerVideo(element as HTMLVideoElement,item.id)" class="feed-video" :src="slide.url" :muted="!soundEnabled" loop playsinline preload="metadata" @click="toggleVideo" @timeupdate="recordView(item,$event.currentTarget as HTMLVideoElement)"/></template>
+                                <template v-for="(slide,slideIndex) in slides(item)" :key="slide.url"><img v-if="slide.type==='image' && mediaIndex(item)===slideIndex" :src="slide.url" :alt="item.caption||'SportsUniverse post image'"/><video v-else-if="slide.type==='video' && mediaIndex(item)===slideIndex" :ref="element => registerVideo(element as HTMLVideoElement,item.id)" class="feed-video" :src="slide.url" :muted="!soundEnabled" loop playsinline preload="metadata" @click="toggleVideo" @timeupdate="recordView(item,$event.currentTarget as HTMLVideoElement)" @ended="feedSignal(item,'replay',Math.round(($event.currentTarget as HTMLVideoElement).duration*1000))"/></template>
                                 <template v-if="slides(item).length>1"><button class="carousel-arrow previous" @click="changeMedia(item,-1)"><ChevronLeft/></button><button class="carousel-arrow next" @click="changeMedia(item,1)"><ChevronRight/></button><div class="carousel-dots"><i v-for="(_,dot) in slides(item)" :class="{active:mediaIndex(item)===dot}"/></div></template>
                             </div>
                             <div v-if="item.url && slides(item)[mediaIndex(item)]?.type==='video'" class="video-audio-control" @click.stop>
@@ -284,7 +336,7 @@ onUnmounted(() => { window.removeEventListener('scroll', onScroll); observer?.di
                                 </div>
                             </div>
                             <div class="featured-video-label"><span v-if="item.sponsored" class="sponsored-label"><Megaphone/> Sponsored</span><strong>{{ item.caption || 'SportsUniverse post' }}</strong><small>{{ slides(item)[mediaIndex(item)]?.type === 'video' ? `${index === 0 ? '00:15' : `00:${22 + index * 7}`} · HD` : slides(item).length > 1 ? `Photo ${mediaIndex(item) + 1} of ${slides(item).length}` : 'Photo' }}</small></div>
-                            <div class="featured-athlete"><div class="feed-creator-line"><Link class="feed-creator-identity" :href="item.creator.slug ? `/@${item.creator.slug}` : '/explore'"><span class="feed-creator-avatar"><img v-if="item.creator.profile_image" :src="item.creator.profile_image" :alt="`${item.creator.name} profile picture`"/><span v-else>{{ item.creator.name.slice(0, 2).toUpperCase() }}</span></span><h2>{{ item.creator.name }}</h2></Link><button v-if="authenticated && item.creator.id !== (page.props.auth as any)?.user?.id && !item.viewer?.following_creator" :disabled="actionBusy === `follow:${item.creator.id}`" @click="followCreator(item)"><UserPlus :size="14" />{{ actionBusy === `follow:${item.creator.id}` ? 'Following…' : 'Follow' }}</button></div><small><Link v-if="item.creator.sport" :href="`/feed/sport/${encodeURIComponent(item.creator.sport)}`" class="metadata-link">{{ item.creator.sport }}</Link><template v-else>Sport</template> · <Link v-if="item.creator.position" :href="`/feed/position/${encodeURIComponent(item.creator.position)}`" class="metadata-link">{{ item.creator.position }}</Link><template v-else>Athlete</template><template v-if="item.location?.name"> · <Link :href="`/feed/location/${encodeURIComponent(item.location.name)}`" class="metadata-link">{{ item.location.name }}</Link></template></small><p class="feed-caption">{{ item.caption }}</p><div v-if="item.hashtags?.length" class="feed-post-tags"><Link v-for="tag in item.hashtags" :key="tag" :href="`/explore?q=${encodeURIComponent(`#${String(tag).replace(/^#/, '')}`)}`">#{{ String(tag).replace(/^#/, '') }}</Link></div><button v-if="item.sponsored" class="sponsored-cta" @click="openSponsored(item)">{{ item.sponsored.cta }}<ChevronRight/></button><span /></div>
+                            <div class="featured-athlete"><div class="feed-creator-line"><Link class="feed-creator-identity" :href="item.creator.slug ? `/@${item.creator.slug}` : '/explore'"><span class="feed-creator-avatar"><img v-if="item.creator.profile_image" :src="item.creator.profile_image" :alt="`${item.creator.name} profile picture`"/><span v-else>{{ item.creator.name.slice(0, 2).toUpperCase() }}</span></span><h2>{{ item.creator.name }}</h2></Link><button v-if="authenticated && item.creator.id !== (page.props.auth as any)?.user?.id && !item.viewer?.following_creator" :disabled="actionBusy === `follow:${item.creator.id}`" @click="followCreator(item)"><UserPlus :size="14" />{{ actionBusy === `follow:${item.creator.id}` ? 'Following…' : 'Follow' }}</button></div><small><Link v-if="item.creator.sport" :href="`/feed/sport/${encodeURIComponent(item.creator.sport)}`" class="metadata-link">{{ item.creator.sport }}</Link><template v-else>Sport</template> · <Link v-if="item.creator.position" :href="`/feed/position/${encodeURIComponent(item.creator.position)}`" class="metadata-link">{{ item.creator.position }}</Link><template v-else>Athlete</template><template v-if="item.location?.name"> · <Link :href="`/feed/location/${encodeURIComponent(item.location.name)}`" class="metadata-link">{{ item.location.name }}</Link></template></small><p class="feed-caption">{{ item.caption }}</p><small v-if="item.attribution" class="media-attribution">Media by <a :href="item.attribution.source_url" target="_blank" rel="noopener noreferrer">{{item.attribution.author}}</a> · <a :href="item.attribution.license_url || item.attribution.source_url" target="_blank" rel="noopener noreferrer">{{item.attribution.license}}</a></small><div v-if="item.hashtags?.length" class="feed-post-tags"><Link v-for="tag in item.hashtags" :key="tag" :href="`/explore?q=${encodeURIComponent(`#${String(tag).replace(/^#/, '')}`)}`">#{{ String(tag).replace(/^#/, '') }}</Link></div><button v-if="item.sponsored" class="sponsored-cta" @click="openSponsored(item)">{{ item.sponsored.cta }}<ChevronRight/></button><span /></div>
                         </article>
                         <div class="featured-actions">
                             <button class="view-count" data-tooltip="Views" aria-label="Views" disabled><span><Eye /></span><small>{{ compact(item.counts.views) }}</small></button>
@@ -297,6 +349,7 @@ onUnmounted(() => { window.removeEventListener('scroll', onScroll); observer?.di
                         </div>
                     </div>
                 </div>
+                <div v-if="nextCursor" ref="loadMoreSentinel" class="feed-load-more" aria-live="polite"><span v-if="loadingMore">Loading more recommendations…</span></div>
                 <aside class="trending-athletes">
                     <h3>Trending athletes</h3>
                     <div v-for="(person, index) in trending" :key="person.id ?? person.name" class="trending-person">
@@ -343,6 +396,8 @@ onUnmounted(() => { window.removeEventListener('scroll', onScroll); observer?.di
         <Transition name="gate">
             <div v-if="messaging || messagingLoading" class="comments-overlay" @click.self="messaging = null; messagingLoading = false"><section class="message-drawer"><header><div><h2>{{ messaging?.mode === 'conversation' ? messaging.recipient.name : 'Message request' }}</h2><span>{{ messaging?.mode === 'conversation' ? 'Conversation' : 'Introduce yourself before messaging' }}</span></div><button @click="messaging = null"><X /></button></header><div v-if="messagingLoading" class="message-loading">Opening messaging…</div><template v-else-if="messaging"><div v-if="messaging.mode === 'conversation'" class="drawer-messages"><div v-if="!messaging.conversation.messages.length" class="message-loading">You follow each other. Start the conversation.</div><div v-for="message in messaging.conversation.messages" :key="message.id" class="drawer-message" :class="{ mine: message.mine }"><small>{{ message.mine ? 'You' : message.sender }}</small><p>{{ message.body }}</p></div></div><div v-else class="request-intro"><div class="comment-avatar">{{ messaging.recipient.name.slice(0,2).toUpperCase() }}</div><h3>{{ messaging.recipient.name }}</h3><p v-if="!messaging.requestSent">You are not mutual connections yet. Your first message will be sent as a request.</p><p v-else class="request-success">Message request sent successfully.</p></div><p v-if="messagingError" class="form-message error">{{ messagingError }}</p><form v-if="!messaging.requestSent" class="drawer-message-composer" @submit.prevent="sendMessage"><textarea v-model="messageBody" class="su-input" :placeholder="messaging.mode === 'conversation' ? 'Type a message…' : 'Write your message request…'" maxlength="2000" /><button class="su-btn su-btn-primary" :disabled="!messageBody.trim()">{{ messaging.mode === 'conversation' ? 'Send' : 'Send request' }}</button></form></template></section></div>
         </Transition>
+
+        <Transition name="gate"><div v-if="activeStory" class="story-viewer" role="dialog" aria-modal="true"><div class="story-progress"><i v-for="(_,index) in stories" :class="{done:index<activeStoryIndex,active:index===activeStoryIndex}"/></div><header><Link :href="activeStory.creator.slug?`/@${activeStory.creator.slug}`:'/explore'"><span><img v-if="activeStory.creator.profile_image" :src="activeStory.creator.profile_image"/><b v-else>{{activeStory.creator.name.slice(0,2).toUpperCase()}}</b></span><div><strong>{{activeStory.creator.name}}</strong><small>{{storyRemaining(activeStory)}}<template v-if="activeStory.sponsored"> · Sponsored</template></small></div></Link><button aria-label="Close Story" @click="closeStory"><X/></button></header><div class="story-stage"><video v-if="activeStory.media" :src="storyMedia(activeStory)" autoplay playsinline controls @ended="nextStory"/><img v-else :src="storyMedia(activeStory)" :alt="activeStory.caption||'Story'"/><button class="story-previous" aria-label="Previous Story" @click="previousStory"/><button class="story-next" aria-label="Next Story" @click="nextStory"/></div><footer><p>{{activeStory.caption}}</p><button v-if="activeStory.sponsored" @click="openSponsored(activeStory)">{{activeStory.sponsored.cta}}<ChevronRight/></button></footer></div></Transition>
 
         <Transition name="gate">
             <div v-if="gateVisible" class="auth-gate" role="dialog" aria-modal="true" aria-labelledby="auth-gate-title">

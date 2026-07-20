@@ -25,7 +25,7 @@ class Video extends Model
 
     protected function casts(): array
     {
-        return ['hashtags' => 'array', 'published_at' => 'datetime', 'comments_enabled' => 'boolean', 'latitude' => 'float', 'longitude' => 'float'];
+        return ['hashtags' => 'array', 'skill_tags' => 'array', 'content_labels' => 'array', 'content_embedding' => 'array', 'analyzed_at' => 'datetime', 'published_at' => 'datetime', 'expires_at' => 'datetime', 'comments_enabled' => 'boolean', 'latitude' => 'float', 'longitude' => 'float'];
     }
 
     public function getRouteKeyName(): string

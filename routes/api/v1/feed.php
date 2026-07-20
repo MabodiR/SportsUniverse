@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('feed/for-you', [FeedController::class, 'forYou']);
     Route::get('feed/following', [FeedController::class, 'following']);
+    Route::get('feed/stories', [FeedController::class, 'stories']);
     Route::get('feed/saved', [VideoController::class, 'saved']);
     Route::post('videos', [VideoController::class, 'store']);
     Route::patch('videos/{video}', [VideoController::class, 'update']);
@@ -18,6 +19,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('videos/mine/favourites', [VideoController::class, 'favourites']);
     Route::get('videos/mine/liked', [VideoController::class, 'liked']);
     Route::get('videos/{video}', [VideoController::class, 'show']);
+    Route::get('videos/{video}/related', [VideoController::class, 'related']);
     Route::delete('videos/{video}', [VideoController::class, 'destroy']);
     Route::get('videos/{video}/comments', [VideoController::class, 'comments']);
     Route::post('videos/{video}/comments', [EngagementController::class, 'comment']);
@@ -26,6 +28,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('videos/{video}/save', [EngagementController::class, 'save']);
     Route::post('videos/{video}/share', [EngagementController::class, 'share']);
     Route::post('videos/{video}/views', [EngagementController::class, 'view']);
+    Route::post('videos/{video}/signals', [EngagementController::class, 'signal']);
     Route::post('videos/{video}/not-interested', [FeedPreferenceController::class, 'store']);
     Route::post('profiles/{user}/follow', [EngagementController::class, 'follow']);
     Route::delete('profiles/{user}/follow', [EngagementController::class, 'unfollow']);

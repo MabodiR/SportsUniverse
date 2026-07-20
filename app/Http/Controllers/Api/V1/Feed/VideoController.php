@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1\Feed;
 
 use App\Domain\Feed\Models\Video;
 use App\Domain\Feed\Jobs\FinalizeQueuedPost;
+use App\Domain\Feed\Jobs\AnalyzeVideoContent;
+use App\Domain\Feed\Services\SimilarVideos;
 use App\Contracts\Media\MediaLibrary;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Feed\StoreVideoRequest;
@@ -61,6 +63,9 @@ class VideoController extends Controller
         if ($media && Video::where('media_id', $media->id)->exists()) {
             throw ValidationException::withMessages(['media_id' => ['This video has already been published in another post.']]);
         }
+        if ($request->validated('post_type', 'post') === 'story' && $media && (int) $media->duration_ms > 30000) {
+            throw ValidationException::withMessages(['media_id' => ['Story videos cannot be longer than 30 seconds. Trim this video and try again.']]);
+        }
         $imageIds = $request->validated('image_media_ids', []);
         $images = $mediaLibrary->findOwnedMany($request->user()->id, $imageIds);
         if ($images->count() !== count($imageIds) || $images->contains(fn ($image) => $image->kind !== 'image' || $image->processing_status === 'failed' || $image->moderation_status === 'rejected')) {
@@ -74,7 +79,9 @@ class VideoController extends Controller
         $ready = $allMedia->isNotEmpty() && $allMedia->every(fn ($item) => $item->processing_status === 'ready' && $item->moderation_status === 'approved');
         $video = DB::transaction(function () use ($request, $media, $images, $publish, $ready) {
             $published = $publish && $ready;
-            $video = Video::create(['public_id' => (string) Str::ulid(), 'user_id' => $request->user()->id, 'media_id' => $media?->id, 'sport_id' => $request->validated('sport_id'), 'caption' => $request->validated('caption'), 'hashtags' => $this->hashtags($request->validated('hashtags', [])), 'location_name' => $request->validated('location_name'), 'latitude' => $request->validated('latitude'), 'longitude' => $request->validated('longitude'), 'comments_enabled' => $request->boolean('comments_enabled', true), 'visibility' => $request->validated('visibility', 'public'), 'status' => $published ? 'published' : 'draft', 'published_at' => $published ? now() : null]);
+            $postType = $request->validated('post_type', 'post');
+            $publishedAt = $published ? now() : null;
+            $video = Video::create(['public_id' => (string) Str::ulid(), 'user_id' => $request->user()->id, 'media_id' => $media?->id, 'sport_id' => $request->validated('sport_id'), 'caption' => $request->validated('caption'), 'hashtags' => $this->hashtags($request->validated('hashtags', [])), 'country_code' => $request->filled('country_code') ? strtoupper($request->validated('country_code')) : null, 'league' => $request->validated('league'), 'team' => $request->validated('team'), 'competition' => $request->validated('competition'), 'content_type' => $request->validated('content_type'), 'language' => $request->validated('language'), 'skill_tags' => $this->hashtags($request->validated('skill_tags', [])), 'location_name' => $request->validated('location_name'), 'latitude' => $request->validated('latitude'), 'longitude' => $request->validated('longitude'), 'comments_enabled' => $request->boolean('comments_enabled', true), 'post_type' => $postType, 'visibility' => $postType === 'story' ? 'followers' : $request->validated('visibility', 'public'), 'status' => $published ? 'published' : 'draft', 'published_at' => $publishedAt, 'expires_at' => $postType === 'story' && $publishedAt ? $publishedAt->copy()->addDay() : null]);
             $coverId = $request->validated('cover_media_id') ?? $images->first()?->public_id;
             $video->images()->attach($images->values()->mapWithKeys(fn ($image, int $position) => [$image->id => ['position' => $position, 'is_cover' => $image->public_id === $coverId]])->all());
             return $video;
@@ -82,6 +89,8 @@ class VideoController extends Controller
 
         if (! $ready) {
             FinalizeQueuedPost::dispatch($video, $publish)->afterCommit();
+        } else {
+            AnalyzeVideoContent::dispatch($video->id)->afterCommit();
         }
 
         $message = ! $ready
@@ -98,12 +107,20 @@ class VideoController extends Controller
             'sport_id' => $request->validated('sport_id', $video->sport_id),
             'caption' => $request->validated('caption', $video->caption),
             'hashtags' => $request->has('hashtags') ? $this->hashtags($request->validated('hashtags', [])) : $video->hashtags,
+            'country_code' => $request->has('country_code') ? strtoupper((string) $request->validated('country_code')) ?: null : $video->country_code,
+            'league' => $request->validated('league', $video->league),
+            'team' => $request->validated('team', $video->team),
+            'competition' => $request->validated('competition', $video->competition),
+            'content_type' => $request->validated('content_type', $video->content_type),
+            'language' => $request->validated('language', $video->language),
+            'skill_tags' => $request->has('skill_tags') ? $this->hashtags($request->validated('skill_tags', [])) : $video->skill_tags,
             'location_name' => $request->validated('location_name', $video->location_name),
             'latitude' => $request->validated('latitude', $video->latitude),
             'longitude' => $request->validated('longitude', $video->longitude),
             'comments_enabled' => $request->has('comments_enabled') ? $request->boolean('comments_enabled') : $video->comments_enabled,
             'visibility' => $request->validated('visibility', $video->visibility),
         ]);
+        AnalyzeVideoContent::dispatch($video->id);
         if ($request->filled('cover_media_id')) {
             $cover = $mediaLibrary->findOwned($request->user()->id, $request->validated('cover_media_id'));
             abort_unless($cover, 404);
@@ -118,7 +135,8 @@ class VideoController extends Controller
     {
         Gate::authorize('update', $video);
         abort_unless($video->status === 'draft', 422, 'This post is already published.');
-        $video->update(['status' => 'published', 'published_at' => now()]);
+        $publishedAt = now();
+        $video->update(['status' => 'published', 'published_at' => $publishedAt, 'expires_at' => $video->post_type === 'story' ? $publishedAt->copy()->addDay() : null]);
 
         return new VideoResource($this->load($video, $request));
     }
@@ -133,6 +151,15 @@ class VideoController extends Controller
         Gate::authorize('view', $video);
 
         return new VideoResource($this->load($video, $request));
+    }
+
+    public function related(Request $request, Video $video, SimilarVideos $similar): AnonymousResourceCollection
+    {
+        Gate::authorize('view', $video);
+        $videos = $similar->find($video);
+        $this->decorate($videos, $request);
+
+        return VideoResource::collection($videos);
     }
 
     public function destroy(Video $video): JsonResponse

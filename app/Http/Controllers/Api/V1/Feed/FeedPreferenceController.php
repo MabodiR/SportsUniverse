@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Feed;
 
 use App\Domain\Feed\Models\FeedPreference;
 use App\Domain\Feed\Models\Video;
+use App\Domain\Feed\Services\LearnFromFeedInteraction;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -11,7 +12,7 @@ use Illuminate\Validation\Rule;
 
 class FeedPreferenceController extends Controller
 {
-    public function store(Request $request, Video $video): JsonResponse
+    public function store(Request $request, Video $video, LearnFromFeedInteraction $learning): JsonResponse
     {
         $data = $request->validate([
             'scope' => ['required', Rule::in(['post', 'creator', 'sport', 'similar'])],
@@ -23,6 +24,7 @@ class FeedPreferenceController extends Controller
             ['user_id' => $request->user()->id, 'video_id' => $video->id, 'scope' => $data['scope']],
             ['creator_id' => $video->user_id, 'sport_id' => $sportId, 'reason' => $data['reason'], 'details' => $data['details'] ?? null, 'metadata' => ['hashtags' => $video->hashtags ?? []]],
         );
+        $learning->record($request->user(), $video, 'not_interested', ['scope' => $data['scope'], 'reason' => $data['reason']]);
 
         return response()->json(['message' => 'Your feed preference was saved.', 'data' => ['id' => $preference->id, 'scope' => $preference->scope]], 201);
     }
