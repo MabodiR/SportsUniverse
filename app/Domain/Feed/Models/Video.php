@@ -2,6 +2,7 @@
 
 namespace App\Domain\Feed\Models;
 
+use App\Domain\Moderation\Models\ContentModerationAppeal;
 use App\Domain\Sports\Models\Sport;
 use App\Models\User;
 use Database\Factories\VideoFactory;
@@ -25,7 +26,7 @@ class Video extends Model
 
     protected function casts(): array
     {
-        return ['hashtags' => 'array', 'skill_tags' => 'array', 'content_labels' => 'array', 'content_embedding' => 'array', 'analyzed_at' => 'datetime', 'published_at' => 'datetime', 'expires_at' => 'datetime', 'comments_enabled' => 'boolean', 'latitude' => 'float', 'longitude' => 'float'];
+        return ['hashtags' => 'array', 'skill_tags' => 'array', 'content_labels' => 'array', 'content_embedding' => 'array', 'analyzed_at' => 'datetime', 'moderation_analyzed_at' => 'datetime', 'published_at' => 'datetime', 'expires_at' => 'datetime', 'sports_relevance_score' => 'float', 'comments_enabled' => 'boolean', 'latitude' => 'float', 'longitude' => 'float'];
     }
 
     public function getRouteKeyName(): string
@@ -56,6 +57,11 @@ class Video extends Model
     public function comments(): HasMany
     {
         return $this->hasMany(Comment::class);
+    }
+
+    public function moderationAppeals(): HasMany
+    {
+        return $this->hasMany(ContentModerationAppeal::class);
     }
 
     public function likers(): BelongsToMany

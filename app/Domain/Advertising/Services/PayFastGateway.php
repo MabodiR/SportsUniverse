@@ -3,7 +3,6 @@
 namespace App\Domain\Advertising\Services;
 
 use App\Domain\Advertising\Models\AdCampaign;
-use App\Domain\Advertising\Models\CampaignPayment;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -39,16 +38,21 @@ class PayFastGateway
             'custom_str1' => $campaign->public_id,
             'custom_str2' => $payment->public_id,
         ];
+        $data = $this->normalized($data);
         $data['signature'] = $this->signature($data);
+
         return ['provider' => 'payfast', 'sandbox' => config('payfast.sandbox'), 'action' => config('payfast.process_url'), 'method' => 'POST', 'fields' => $data];
     }
 
     public function signature(array $data): string
     {
         unset($data['signature']);
-        $string = collect($data)->filter(fn ($value) => $value !== '' && $value !== null)
-            ->map(fn ($value, $key) => $key.'='.urlencode(trim((string) $value)))->implode('&');
-        if (filled(config('payfast.passphrase'))) $string .= '&passphrase='.urlencode(trim((string) config('payfast.passphrase')));
+        $string = collect($this->normalized($data))->filter(fn ($value) => $value !== '' && $value !== null)
+            ->map(fn ($value, $key) => $key.'='.urlencode((string) $value))->implode('&');
+        if ($this->passphrase() !== null) {
+            $string .= '&passphrase='.urlencode($this->passphrase());
+        }
+
         return md5($string);
     }
 
@@ -59,22 +63,47 @@ class PayFastGateway
 
     public function validServerConfirmation(array $payload): bool
     {
-        if (! config('payfast.validate_server')) return true;
+        if (! config('payfast.validate_server')) {
+            return true;
+        }
         $body = collect($payload)->except('signature')->filter(fn ($value) => $value !== '' && $value !== null)
             ->map(fn ($value, $key) => $key.'='.urlencode((string) $value))->implode('&');
+
         return trim(Http::timeout(15)->withBody($body, 'application/x-www-form-urlencoded')->post(config('payfast.validate_url'))->body()) === 'VALID';
     }
 
     public function validSource(Request $request): bool
     {
-        if (! config('payfast.validate_ip')) return true;
+        if (! config('payfast.validate_ip')) {
+            return true;
+        }
         $valid = collect(config('payfast.valid_hosts'))->flatMap(fn ($host) => gethostbynamel($host) ?: [])->unique();
+
         return $valid->contains($request->ip());
     }
 
     private function names(string $name): array
     {
         $parts = preg_split('/\s+/', trim($name), 2);
+
         return [$parts[0] ?: 'SportsUniverse', $parts[1] ?? 'Member'];
+    }
+
+    private function normalized(array $data): array
+    {
+        return collect($data)->map(fn ($value) => is_string($value) ? trim($value) : $value)->all();
+    }
+
+    private function passphrase(): ?string
+    {
+        if (config('payfast.sandbox')
+            && (string) config('payfast.merchant_id') === '10000100'
+            && (string) config('payfast.merchant_key') === '46f0cd694581a') {
+            return null;
+        }
+
+        $passphrase = trim((string) config('payfast.passphrase'));
+
+        return $passphrase === '' ? null : $passphrase;
     }
 }

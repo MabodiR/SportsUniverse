@@ -10,7 +10,6 @@ use App\Domain\Feed\Services\RankFeed;
 use App\Domain\Feed\Services\RecommendationFeed;
 use App\Domain\Feed\Services\DiversifyFeed;
 use App\Domain\Feed\Services\RetrieveFeedCandidates;
-use App\Domain\Advertising\Services\SponsoredFeedDelivery;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\V1\Feed\VideoResource;
 use Illuminate\Http\Request;
@@ -19,14 +18,13 @@ use Illuminate\Support\Facades\DB;
 
 class FeedController extends Controller
 {
-    public function stories(Request $request, VideoController $videos, SponsoredFeedDelivery $sponsored): AnonymousResourceCollection
+    public function stories(Request $request, VideoController $videos): AnonymousResourceCollection
     {
         $user = $request->user();
         $organic = Video::query()->where('post_type', 'story')->where('status', 'published')->where('expires_at', '>', now())
             ->where(fn ($query) => $query->where('user_id', $user->id)->orWhere(fn ($followed) => $followed->where('visibility', 'followers')->whereIn('user_id', $user->following()->select('users.id'))))
             ->with('user.profile', 'media', 'images', 'sport')->latest('published_at')->limit(100)->get();
-        $promoted = $sponsored->stories($request);
-        $stories = $organic->concat($promoted)->unique(fn ($story) => $story->id.':'.($story->sponsored['delivery_id'] ?? 'organic'))->values();
+        $stories = $organic->values();
         $videos->decorate($stories, $request);
 
         return VideoResource::collection($stories);
@@ -59,6 +57,7 @@ class FeedController extends Controller
     public function following(Request $request, VideoController $videos): AnonymousResourceCollection
     {
         $page = app(ApplyFeedPreferences::class)->execute($this->published(true), $request->user())
+            ->where('post_type', 'post')
             ->where(fn ($videos) => $videos
                 ->where('videos.user_id', $request->user()->id)
                 ->orWhereExists(fn ($follows) => $follows->selectRaw('1')->from('follows')

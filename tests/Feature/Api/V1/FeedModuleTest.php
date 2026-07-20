@@ -16,11 +16,34 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class FeedModuleTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_visual_analysis_flags_non_sports_content_for_human_review(): void
+    {
+        config(['recommendations.analysis_url' => 'http://analysis.test', 'recommendations.sports_review_threshold' => 0.45]);
+        Http::fake(['analysis.test/*' => Http::response([
+            'sports_relevance_score' => 0.18,
+            'moderation_recommendation' => 'review_for_removal',
+            'moderation_reason' => 'Visual samples appear unrelated to sport.',
+        ])]);
+        $video = Video::factory()->create(['status' => 'published']);
+
+        app(AnalyzeVideoContent::class, ['videoId' => $video->id])->handle(
+            app(\App\Domain\Feed\Services\ContentFeatureExtractor::class),
+            app(\App\Domain\Feed\Services\AutomatedContentAnalyzer::class),
+        );
+
+        $video->refresh();
+        $this->assertSame('flagged', $video->status);
+        $this->assertSame('review_for_removal', $video->moderation_recommendation);
+        $this->assertSame(0.18, $video->sports_relevance_score);
+        $this->assertNotNull($video->moderation_analyzed_at);
+    }
 
     public function test_for_you_feed_uses_precomputed_recommendation_order_when_available(): void
     {
@@ -293,10 +316,8 @@ class FeedModuleTest extends TestCase
         $active = Video::factory()->for($creator)->create(['post_type' => 'story', 'visibility' => 'followers', 'expires_at' => now()->addHour()]);
         Video::factory()->for($creator)->create(['post_type' => 'story', 'visibility' => 'followers', 'expires_at' => now()->subSecond()]);
 
-        $this->actingAs($follower, 'sanctum')->getJson('/api/v1/feed/following')
-            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $active->public_id)
-            ->assertJsonPath('data.0.is_story', true);
-        $this->getJson('/api/v1/feed/stories')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $active->public_id);
+        $this->actingAs($follower, 'sanctum')->getJson('/api/v1/feed/following')->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson('/api/v1/feed/stories')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $active->public_id)->assertJsonPath('data.0.is_story', true);
         $this->actingAs($stranger, 'sanctum')->getJson('/api/v1/videos/'.$active->public_id)->assertForbidden();
         $this->actingAs($follower, 'sanctum')->getJson('/api/v1/videos/'.$active->public_id)->assertOk();
     }

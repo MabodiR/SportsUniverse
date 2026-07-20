@@ -4,8 +4,8 @@ namespace Tests\Feature\Api\V1;
 
 use App\Domain\Feed\Models\Video;
 use App\Domain\Media\Models\Media;
-use App\Domain\Moderation\Models\Report;
 use App\Domain\Messaging\Models\Message;
+use App\Domain\Moderation\Models\Report;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -65,6 +65,22 @@ class ModerationModuleTest extends TestCase
     {
         $fan = $this->member('fan');
         $this->actingAs($fan, 'sanctum')->getJson('/api/v1/admin/dashboard')->assertForbidden();
+    }
+
+    public function test_creator_can_appeal_ai_suggestion_and_admin_can_restore_post(): void
+    {
+        $creator = $this->member('athlete');
+        $admin = $this->member('admin');
+        $video = Video::factory()->for($creator)->create(['status' => 'flagged', 'moderation_recommendation' => 'review_for_removal', 'sports_relevance_score' => 0.2]);
+
+        $appeal = $this->actingAs($creator, 'sanctum')->postJson('/api/v1/videos/'.$video->public_id.'/moderation-appeals', ['message' => 'This is a tactical football interview recorded immediately after our match.'])
+            ->assertCreated()->assertJsonPath('data.status', 'pending')->json('data.id');
+        $this->actingAs($admin, 'sanctum')->getJson('/api/v1/admin/moderation')->assertOk()->assertJsonPath('data.appeals.0.message', 'This is a tactical football interview recorded immediately after our match.');
+        $this->patchJson('/api/v1/admin/moderation/appeals/'.$appeal, ['decision' => 'restore', 'notes' => 'Sports context confirmed.'])->assertOk();
+
+        $this->assertSame('published', $video->fresh()->status);
+        $this->assertDatabaseHas('content_moderation_appeals', ['public_id' => $appeal, 'status' => 'approved', 'reviewed_by_id' => $admin->id]);
+        $this->assertDatabaseHas('notifications', ['notifiable_id' => $creator->id]);
     }
 
     public function test_filament_panel_rejects_non_admins(): void

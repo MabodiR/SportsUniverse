@@ -27,6 +27,9 @@ class VideoInfolist
                     ->columnSpanFull(),
                 TextEntry::make('visibility'),
                 TextEntry::make('status'),
+                TextEntry::make('moderation_recommendation')->label('AI recommendation'),
+                TextEntry::make('sports_relevance_score')->label('Sports relevance score'),
+                TextEntry::make('moderation_reason')->label('AI review reason')->columnSpanFull(),
                 TextEntry::make('views_count')
                     ->numeric(),
                 TextEntry::make('likes_count')

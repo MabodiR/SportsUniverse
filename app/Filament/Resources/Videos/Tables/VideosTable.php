@@ -6,6 +6,7 @@ use App\Domain\Moderation\Services\ModerationService;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 
 class VideosTable
@@ -26,6 +27,9 @@ class VideosTable
                     ->searchable(),
                 TextColumn::make('status')
                     ->searchable(),
+                TextColumn::make('moderation_recommendation')->label('AI recommendation')->badge()->searchable(),
+                TextColumn::make('sports_relevance_score')->label('Sports score')->numeric(2)->sortable(),
+                TextColumn::make('moderation_reason')->label('AI reason')->limit(60)->toggleable(),
                 TextColumn::make('views_count')
                     ->numeric()
                     ->sortable(),
@@ -54,7 +58,12 @@ class VideosTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                SelectFilter::make('moderation_recommendation')->label('AI moderation')->options([
+                    'review_for_removal' => 'Suggested for removal',
+                    'keep' => 'Suggested to keep',
+                    'keep_after_appeal' => 'Restored after appeal',
+                    'removal_upheld' => 'Removal upheld',
+                ]),
             ])
             ->recordActions([
                 ViewAction::make(),

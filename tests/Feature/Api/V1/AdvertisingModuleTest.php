@@ -18,7 +18,9 @@ class AdvertisingModuleTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        foreach (['athlete', 'sponsor', 'admin'] as $role) Role::findOrCreate($role, 'web');
+        foreach (['athlete', 'sponsor', 'admin'] as $role) {
+            Role::findOrCreate($role, 'web');
+        }
     }
 
     public function test_user_can_create_promotion_and_sponsorship_campaigns(): void
@@ -36,6 +38,18 @@ class AdvertisingModuleTest extends TestCase
         $this->postJson('/api/v1/campaigns', [...$base, 'campaign_type' => 'sponsorship', 'goal' => 'applications', 'video_id' => null, 'submit' => false])
             ->assertCreated()->assertJsonPath('data.status', 'draft');
         $this->getJson('/api/v1/campaigns')->assertOk()->assertJsonCount(2, 'data');
+    }
+
+    public function test_default_sandbox_credentials_never_sign_with_a_passphrase(): void
+    {
+        config(['payfast.sandbox' => true, 'payfast.merchant_id' => '10000100', 'payfast.merchant_key' => '46f0cd694581a', 'payfast.passphrase' => 'incorrect-passphrase']);
+        $fields = ['merchant_id' => '10000100', 'merchant_key' => '46f0cd694581a', 'item_name' => ' Test campaign '];
+        $signatureWithConfiguredPassphrase = app(PayFastGateway::class)->signature($fields);
+
+        config(['payfast.passphrase' => null]);
+
+        $this->assertSame($signatureWithConfiguredPassphrase, app(PayFastGateway::class)->signature($fields));
+        $this->assertSame(app(PayFastGateway::class)->signature($fields), app(PayFastGateway::class)->signature([...$fields, 'item_name' => 'Test campaign']));
     }
 
     public function test_admin_can_activate_campaign_and_active_events_are_counted(): void
@@ -80,6 +94,7 @@ class AdvertisingModuleTest extends TestCase
         $user = User::factory()->create();
         $user->assignRole($role);
         $user->profile()->create(['is_public' => true]);
+
         return $user;
     }
 
