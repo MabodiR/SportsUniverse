@@ -122,6 +122,11 @@ jobs:
           cd /var/www/sportuniverse
           sudo -u www-data php artisan db:seed --class=Database\\Seeders\\SportSeeder --force
 
+      - name: Seed production membership plans
+        run: |
+          cd /var/www/sportuniverse
+          sudo -u www-data php artisan db:seed --class=Database\\Seeders\\SubscriptionPlanSeeder --force
+
       - name: Seed production feed
         run: |
           cd /var/www/sportuniverse
