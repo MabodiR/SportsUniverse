@@ -36,6 +36,41 @@ class AdCampaignController extends Controller
         return response()->json(['data' => $campaigns]);
     }
 
+    public function adminIndex(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->hasAnyRole(['admin', 'system_admin', 'super_admin']), 403);
+        $campaigns = AdCampaign::query()->with(['user:id,name,email', 'video:id,public_id,caption', 'payments' => fn ($query) => $query->latest()])->latest()->limit(200)->get();
+
+        return response()->json(['data' => $campaigns->map(fn (AdCampaign $campaign) => [
+            'id' => $campaign->public_id,
+            'title' => $campaign->title,
+            'description' => $campaign->description,
+            'campaign_type' => $campaign->campaign_type,
+            'goal' => $campaign->goal,
+            'status' => $campaign->status,
+            'owner' => $campaign->user?->only(['name', 'email']),
+            'video' => $campaign->video?->only(['public_id', 'caption']),
+            'audience' => $campaign->audience ?? [],
+            'destination_url' => $campaign->destination_url,
+            'starts_on' => $campaign->starts_on?->toDateString(),
+            'ends_on' => $campaign->ends_on?->toDateString(),
+            'daily_budget_cents' => $campaign->daily_budget_cents,
+            'total_budget_cents' => $campaign->total_budget_cents,
+            'spent_cents' => $campaign->spent_cents,
+            'impressions_count' => $campaign->impressions_count,
+            'clicks_count' => $campaign->clicks_count,
+            'review_notes' => $campaign->review_notes,
+            'submitted_at' => $campaign->submitted_at,
+            'created_at' => $campaign->created_at,
+            'payment' => $campaign->payments->first() ? [
+                'status' => $campaign->payments->first()->status,
+                'amount_cents' => $campaign->payments->first()->amount_cents,
+                'paid_at' => $campaign->payments->first()->paid_at,
+                'provider_payment_id' => $campaign->payments->first()->provider_payment_id,
+            ] : null,
+        ])]);
+    }
+
     public function store(Request $request, PayFastGateway $payments): JsonResponse
     {
         abort_unless(BoostSetting::current()->enabled, 503, 'Post boosting is temporarily unavailable.');

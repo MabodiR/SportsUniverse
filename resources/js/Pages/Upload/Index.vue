@@ -3,6 +3,7 @@ import { Head } from '@inertiajs/vue3';
 import { Camera, CheckCircle2, CloudUpload, FileVideo, ImagePlus, Info, RotateCw, SlidersHorizontal, X } from '@lucide/vue';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import AppShell from '../../Layouts/AppShell.vue';
+import GooglePlaceInput from '../../Components/GooglePlaceInput.vue';
 
 const file = ref<File | null>(null);
 const images = ref<File[]>([]);
@@ -25,6 +26,8 @@ const comments = ref(true);
 const hashtags = ref('');
 const sportId = ref('');
 const locationName = ref('');
+const latitude = ref<number|null>(null);
+const longitude = ref<number|null>(null);
 const countryCode = ref('ZA');
 const league = ref('');
 const team = ref('');
@@ -32,6 +35,7 @@ const competition = ref('');
 const contentType = ref('match_highlight');
 const language = ref('en');
 const skillTags = ref('');
+const applyLocation = (place:any) => { locationName.value=place.name;countryCode.value=place.country||countryCode.value;latitude.value=place.latitude;longitude.value=place.longitude; };
 const sports = ref<any[]>([]);
 const progress = ref(0);
 const saving = ref(false);
@@ -58,6 +62,8 @@ const saveDraft = async () => {
             hashtags: hashtags.value,
             sportId: sportId.value,
             locationName: locationName.value,
+            latitude: latitude.value,
+            longitude: longitude.value,
             countryCode: countryCode.value, league: league.value, team: team.value, competition: competition.value, contentType: contentType.value, language: language.value, skillTags: skillTags.value,
             coverIndex: coverIndex.value,
             trimStart: trimStart.value,
@@ -76,7 +82,7 @@ const saveDraft = async () => {
     }
 };
 const clearDraft = async () => { const db = await openDrafts(); db.transaction('drafts', 'readwrite').objectStore('drafts').delete(DRAFT_KEY); };
-const restoreDraft = async () => { const db = await openDrafts(); const request = db.transaction('drafts').objectStore('drafts').get(DRAFT_KEY); request.onsuccess = () => { const draft = request.result; if (!draft) return; if (draft.video) select(draft.video, false); if (draft.images?.length) selectImages(draft.images, false); caption.value=draft.caption??'';hashtags.value=draft.hashtags??'';sportId.value=draft.sportId??'';locationName.value=draft.locationName??'';countryCode.value=draft.countryCode??'ZA';league.value=draft.league??'';team.value=draft.team??'';competition.value=draft.competition??'';contentType.value=draft.contentType??'match_highlight';language.value=draft.language??'en';skillTags.value=draft.skillTags??'';coverIndex.value=draft.coverIndex??0;trimStart.value=draft.trimStart??0;trimLength.value=draft.trimLength??60;brightness.value=draft.brightness??0;contrast.value=draft.contrast??0;saturation.value=draft.saturation??0;rotation.value=draft.rotation??0;outputWidth.value=draft.outputWidth??1080;quality.value=draft.quality??'balanced';notice.value='Recovered your unfinished upload.'; }; };
+const restoreDraft = async () => { const db = await openDrafts(); const request = db.transaction('drafts').objectStore('drafts').get(DRAFT_KEY); request.onsuccess = () => { const draft = request.result; if (!draft) return; if (draft.video) select(draft.video, false); if (draft.images?.length) selectImages(draft.images, false); caption.value=draft.caption??'';hashtags.value=draft.hashtags??'';sportId.value=draft.sportId??'';locationName.value=draft.locationName??'';latitude.value=draft.latitude??null;longitude.value=draft.longitude??null;countryCode.value=draft.countryCode??'ZA';league.value=draft.league??'';team.value=draft.team??'';competition.value=draft.competition??'';contentType.value=draft.contentType??'match_highlight';language.value=draft.language??'en';skillTags.value=draft.skillTags??'';coverIndex.value=draft.coverIndex??0;trimStart.value=draft.trimStart??0;trimLength.value=draft.trimLength??60;brightness.value=draft.brightness??0;contrast.value=draft.contrast??0;saturation.value=draft.saturation??0;rotation.value=draft.rotation??0;outputWidth.value=draft.outputWidth??1080;quality.value=draft.quality??'balanced';notice.value='Recovered your unfinished upload.'; }; };
 const csrf = () => (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '';
 const responsePayload = async (response: Response) => {
     const type = response.headers.get('content-type') ?? '';
@@ -162,7 +168,7 @@ const upload = async () => {
         const uploadedImages = [];
         for (const image of images.value) uploadedImages.push(await uploadMedia(image, 'image', cursor++, total));
         const imageIds = uploadedImages.map(image => image.id);
-        const publishResponse = await fetch('/api/v1/videos', { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() }, body: JSON.stringify({ media_id: media?.id, ...(imageIds.length ? { image_media_ids: imageIds, cover_media_id: imageIds[coverIndex.value] } : {}), caption: caption.value, post_type: postType.value, hashtags: hashtags.value.split(/[\s,]+/).map(tag => tag.replace(/^#/, '')).filter(Boolean), sport_id: sportId.value || null, country_code: countryCode.value || null, league: league.value || null, team: team.value || null, competition: competition.value || null, content_type: contentType.value || null, language: language.value || null, skill_tags: skillTags.value.split(/[\s,]+/).map(tag => tag.replace(/^#/, '')).filter(Boolean), location_name: locationName.value || null, comments_enabled: comments.value, visibility: postType.value === 'story' ? 'followers' : visibility.value === 'Everyone' ? 'public' : visibility.value === 'Followers' ? 'followers' : 'private', publish: true }) });
+        const publishResponse = await fetch('/api/v1/videos', { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() }, body: JSON.stringify({ media_id: media?.id, ...(imageIds.length ? { image_media_ids: imageIds, cover_media_id: imageIds[coverIndex.value] } : {}), caption: caption.value, post_type: postType.value, hashtags: hashtags.value.split(/[\s,]+/).map(tag => tag.replace(/^#/, '')).filter(Boolean), sport_id: sportId.value || null, country_code: countryCode.value || null, league: league.value || null, team: team.value || null, competition: competition.value || null, content_type: contentType.value || null, language: language.value || null, skill_tags: skillTags.value.split(/[\s,]+/).map(tag => tag.replace(/^#/, '')).filter(Boolean), location_name: locationName.value || null, latitude:latitude.value, longitude:longitude.value, comments_enabled: comments.value, visibility: postType.value === 'story' ? 'followers' : visibility.value === 'Everyone' ? 'public' : visibility.value === 'Followers' ? 'followers' : 'private', publish: true }) });
         const publishPayload = await responsePayload(publishResponse);
         if (!publishResponse.ok) throw new Error(publishPayload.message ?? Object.values(publishPayload.errors ?? {}).flat().join(' '));
         publishedPost.value = publishPayload.data;
@@ -212,7 +218,7 @@ onUnmounted(() => { if (preview.value) URL.revokeObjectURL(preview.value); image
                         <label><span class="upload-label">Language</span><input v-model="language" class="su-input" maxlength="12" placeholder="en" /></label>
                     </div>
                     <label><span class="upload-label">Skills and topics</span><input v-model="skillTags" class="su-input" placeholder="finishing counter-attack goalkeeping" /></label>
-                    <label><span class="upload-label">Location</span><input v-model="locationName" class="su-input" placeholder="City, venue, suburb or township" /></label>
+                    <label><span class="upload-label">Location via Google</span><GooglePlaceInput v-model="locationName" :country="countryCode||'ZA'" @place="applyLocation"/></label>
                     <label><span class="upload-label">Who can watch this video</span><select v-model="visibility" :disabled="postType==='story'"><option>Everyone</option><option>Followers</option><option>Only me</option></select><small v-if="postType==='story'">Stories are visible only to followers unless promoted.</small></label>
                     <div><span class="upload-label">Allow users to</span><label class="upload-check"><input v-model="comments" type="checkbox" /> Comments</label></div>
                     <div class="upload-note"><Info :size="17" /><p>Keep this page open only while the original file uploads. Processing continues in the background and we’ll notify you when it is ready.</p></div>

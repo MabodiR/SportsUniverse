@@ -19,6 +19,26 @@ class ModulePageController extends Controller
 
         abort_unless(isset($pages[$key]), 404);
 
+        if ($key === 'moderation') {
+            abort_unless($request->user()->hasAnyRole(['admin', 'system_admin', 'super_admin']), 403);
+            return Inertia::render('Management/Moderation');
+        }
+
+        if ($key === 'campaigns') {
+            abort_unless($request->user()->hasAnyRole(['admin', 'system_admin', 'super_admin']), 403);
+            return Inertia::render('Management/Campaigns');
+        }
+
+        if ($key === 'taxonomy') {
+            abort_unless($request->user()->hasAnyRole(['admin', 'system_admin', 'super_admin']), 403);
+            return Inertia::render('Management/Taxonomy');
+        }
+
+        if ($key === 'system-settings') {
+            abort_unless($request->user()->hasAnyRole(['admin', 'system_admin', 'super_admin']), 403);
+            return Inertia::render('Management/Settings');
+        }
+
         if (in_array($key, ['messages', 'message-requests'], true)) {
             return Inertia::render('Messages/Index', [
                 'initialTab' => $key === 'message-requests' ? 'requests' : 'messages',

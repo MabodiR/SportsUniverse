@@ -11,6 +11,12 @@ Route::get('sports', [SportController::class, 'index']);
 Route::get('profiles/{slug}', [ProfileController::class, 'show']);
 Route::get('profiles/{slug}/videos', [ProfileController::class, 'videos']);
 Route::middleware('auth:sanctum')->group(function () {
+    Route::get('admin/taxonomy', [SportController::class, 'adminIndex']);
+    Route::post('admin/taxonomy/sports', [SportController::class, 'store']);
+    Route::post('admin/taxonomy/import-catalogue', [SportController::class, 'importCatalogue']);
+    Route::patch('admin/taxonomy/sports/{sport}', [SportController::class, 'update']);
+    Route::post('admin/taxonomy/sports/{sport}/positions', [SportController::class, 'storePosition']);
+    Route::patch('admin/taxonomy/positions/{position}', [SportController::class, 'updatePosition']);
     Route::get('profiles/{user}/followers', [ProfileConnectionController::class, 'followers']);
     Route::get('profiles/{user}/following', [ProfileConnectionController::class, 'following']);
     Route::get('profile', [ProfileController::class, 'mine']);

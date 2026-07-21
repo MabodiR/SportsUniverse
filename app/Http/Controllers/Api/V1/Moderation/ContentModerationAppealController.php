@@ -27,7 +27,7 @@ class ContentModerationAppealController extends Controller
 
     public function resolve(Request $request, ContentModerationAppeal $appeal): JsonResponse
     {
-        abort_unless($request->user()->hasRole('admin'), 403);
+        abort_unless($request->user()->hasAnyRole(['admin', 'system_admin', 'super_admin']), 403);
         $data = $request->validate(['decision' => ['required', Rule::in(['restore', 'remove'])], 'notes' => ['nullable', 'string', 'max:2000']]);
         $restored = $data['decision'] === 'restore';
         $previous = $appeal->video->status;

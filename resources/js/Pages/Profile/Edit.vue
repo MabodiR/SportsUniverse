@@ -3,6 +3,7 @@ import { Head, Link } from '@inertiajs/vue3';
 import { Camera, ChevronLeft, Save } from '@lucide/vue';
 import { computed, onMounted, ref } from 'vue';
 import AppShell from '../../Layouts/AppShell.vue';
+import GooglePlaceInput from '../../Components/GooglePlaceInput.vue';
 
 const professionalRoles = ['coach', 'referee', 'linesman', 'scout', 'agent'];
 const organisationRoles = ['club', 'academy', 'business', 'sponsor'];
@@ -34,6 +35,14 @@ const isOrganisation = computed(() => organisationRoles.includes(form.value.role
 const positions = computed(() => sports.value.find((sport) => String(sport.id) === form.value.sport_id)?.positions ?? []);
 const csrf = () => document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
 const splitList = (value: string) => value.split(/[\n,]+/).map((item) => item.trim()).filter(Boolean);
+const profileLocation = computed(() => [form.value.locality, form.value.city, form.value.province, form.value.country].filter(Boolean).join(', '));
+const applyLocation = (place: any) => {
+    form.value.country = place.country || form.value.country;
+    form.value.province = place.province || '';
+    form.value.city = place.city || '';
+    form.value.locality = place.locality || '';
+    form.value.township = place.locality || form.value.township;
+};
 
 const api = async (url: string, options: RequestInit = {}) => {
     const response = await fetch(url, {
@@ -261,6 +270,7 @@ onMounted(async () => {
                     <section>
                         <h2>Location</h2>
                         <div class="edit-fields">
+                            <label class="wide">Find your location with Google<GooglePlaceInput :model-value="profileLocation" :country="form.country || 'ZA'" @place="applyLocation"/><small>Select a suggestion to fill the structured fields below.</small></label>
                             <label>Country code<input v-model="form.country" maxlength="2" /></label>
                             <label>Province<input v-model="form.province" /></label>
                             <label>City<input v-model="form.city" /></label>

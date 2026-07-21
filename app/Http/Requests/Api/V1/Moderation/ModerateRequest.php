@@ -8,7 +8,7 @@ class ModerateRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->hasRole('admin') ?? false;
+        return $this->user()?->hasAnyRole(['admin', 'system_admin', 'super_admin']) ?? false;
     }
 
     public function rules(): array

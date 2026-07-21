@@ -13,6 +13,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('campaign-deliveries/{delivery}/click', [CampaignDeliveryController::class, 'click'])->middleware('throttle:120,1');
     Route::post('campaign-deliveries/{delivery}/conversion', [CampaignDeliveryController::class, 'conversion'])->middleware('throttle:120,1');
     Route::get('campaigns', [AdCampaignController::class, 'index']);
+    Route::get('admin/campaigns', [AdCampaignController::class, 'adminIndex']);
     Route::post('campaigns', [AdCampaignController::class, 'store']);
     Route::patch('campaigns/{campaign}', [AdCampaignController::class, 'update']);
     Route::post('campaigns/{campaign}/cancel', [AdCampaignController::class, 'cancel']);
