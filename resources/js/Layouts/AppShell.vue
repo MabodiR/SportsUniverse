@@ -37,8 +37,8 @@ const adminItems = [
     { label: 'Taxonomy', href: '/management/taxonomy', icon: Tags },
     { label: 'Settings', href: '/management/settings', icon: Settings },
 ];
-const isAdmin = user?.roles?.some((role: any) => role.name === 'admin');
-const canUseClubTools = user?.roles?.some((role: any) => ['club', 'academy', 'scout', 'agent', 'admin'].includes(role.name));
+const isAdmin = user?.roles?.some((role: any) => ['admin', 'system_admin', 'super_admin'].includes(role.name));
+const canUseClubTools = user?.roles?.some((role: any) => ['club', 'academy', 'scout', 'agent', 'admin', 'system_admin', 'super_admin'].includes(role.name));
 const followingCount = ref(user?.following_count ?? 0);
 const navCounts = page.props.nav_counts as Record<string, number> ?? {};
 const realtimeCounts=ref({...navCounts});
@@ -91,10 +91,10 @@ const logout = () => user ? router.post('/logout') : router.visit('/login');
                 <div v-if="moreOpen" class="more-menu"><Link v-for="item in moreItems" :key="item.href" :href="item.href" class="more-menu-item" :class="{ active: page.url.startsWith(item.href) }" @click="menuOpen=false"><component :is="item.icon"/><span>{{ item.label }}</span></Link></div>
                 <template v-if="isAdmin">
                     <div class="nav-section-label">Admin</div>
-                    <Link v-for="item in adminItems" :key="item.label" :href="item.href" class="nav-item" :class="{ active: page.url === item.href }">
+                    <a v-for="item in adminItems" :key="item.label" :href="item.href" class="nav-item" :class="{ active: page.url === item.href }">
                         <component :is="item.icon" class="nav-icon" />
                         <span>{{ item.label }}</span>
-                    </Link>
+                    </a>
                 </template>
             </nav>
             <button class="sidebar-logout nav-item" type="button" @click="logout">
