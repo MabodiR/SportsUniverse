@@ -25,6 +25,7 @@ class AdCampaignController extends Controller
             'maximum_daily_budget_cents' => $settings->maximum_daily_budget_cents,
             'maximum_duration_days' => $settings->maximum_duration_days,
             'require_review' => $settings->require_review,
+            'sandbox' => (bool) config('payfast.sandbox'),
         ]]);
     }
 

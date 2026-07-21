@@ -49,8 +49,25 @@ class PayFastController extends Controller
         return response()->json(['message' => 'PayFast notification accepted.']);
     }
 
+    public function confirmSandbox(Request $request, AdCampaign $campaign): JsonResponse
+    {
+        abort_unless(config('payfast.sandbox'), 404);
+        abort_unless($campaign->user_id === $request->user()->id, 403);
+        $payment = $campaign->payments()->where('status', 'pending')->latest()->firstOrFail();
+        $this->completeSandboxPayment($payment, 'authenticated_return_reconciliation');
+
+        return response()->json(['message' => 'Sandbox payment confirmed.', 'data' => [
+            'status' => $payment->campaign->fresh()->status,
+            'payment_status' => $payment->fresh()->status,
+        ]]);
+    }
+
     public function returned(CampaignPayment $payment): RedirectResponse
     {
+        if (config('payfast.sandbox') && $payment->status === 'pending') {
+            $this->completeSandboxPayment($payment, 'payfast_return');
+        }
+
         return redirect('/sponsorship?payment=processing&campaign='.$payment->campaign->public_id);
     }
 
@@ -61,5 +78,22 @@ class PayFastController extends Controller
             $payment->campaign()->update(['status' => 'payment_cancelled']);
         }
         return redirect('/sponsorship?payment=cancelled&campaign='.$payment->campaign->public_id);
+    }
+
+    private function completeSandboxPayment(CampaignPayment $payment, string $source): void
+    {
+        DB::transaction(function () use ($payment, $source) {
+            $payment = CampaignPayment::whereKey($payment->id)->lockForUpdate()->firstOrFail();
+            if ($payment->status === 'paid') return;
+            $payment->update([
+                'status' => 'paid',
+                'paid_at' => now(),
+                'provider_payload' => [...($payment->provider_payload ?? []), 'sandbox_confirmation' => $source],
+            ]);
+            $settings = BoostSetting::current();
+            $payment->campaign()->update($settings->require_review
+                ? ['status' => 'pending_review', 'submitted_at' => now(), 'reviewed_at' => null]
+                : ['status' => 'active', 'submitted_at' => now(), 'reviewed_at' => now()]);
+        });
     }
 }
