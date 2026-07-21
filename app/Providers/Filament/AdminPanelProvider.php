@@ -6,6 +6,7 @@ use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Filament\Enums\ThemeMode;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
@@ -27,8 +28,9 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->brandName('SportsUniverse Admin')
-            ->brandLogo(asset('images/logo/sportuniverse-logo-horizontal-dark.png'))
-            ->darkModeBrandLogo(asset('images/logo/sportuniverse-logo-horizontal-transparent.png'))
+            ->brandLogo(asset('images/logo/sportuniverse-logo-horizontal.svg'))
+            ->darkMode(false)
+            ->defaultThemeMode(ThemeMode::Light)
             ->favicon(asset('images/logo/favicon.ico'))
             ->login()
             ->colors([
