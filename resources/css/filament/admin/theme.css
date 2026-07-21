@@ -1,0 +1,36 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+
+@source '../../../../app/Filament/**/*.php';
+@source '../../../../resources/views/**/*.blade.php';
+
+:root {
+    --su-navy: #101d31;
+    --su-blue: #476fea;
+    --su-pink: #d64f94;
+    --su-surface: #f5f7fb;
+}
+
+.fi-body { background: var(--su-surface); }
+.fi-topbar { border-bottom: 1px solid #e4e9f1; background: rgba(255, 255, 255, .94); backdrop-filter: blur(14px); }
+.fi-logo { width: auto; max-width: 180px; object-fit: contain; }
+.fi-sidebar { border-right: 0; background: linear-gradient(180deg, var(--su-navy), #172842 72%, #293553); box-shadow: 12px 0 34px rgba(18, 33, 55, .08); }
+.fi-sidebar-header { background: transparent; box-shadow: none; }
+.fi-sidebar-nav { padding-inline: .8rem; }
+.fi-sidebar-item-button { border-radius: .8rem; color: #cbd5e5; transition: background-color .18s ease, color .18s ease, transform .18s ease; }
+.fi-sidebar-item-button:hover { color: #fff; background: rgba(255, 255, 255, .09); transform: translateX(2px); }
+.fi-sidebar-item.fi-active > .fi-sidebar-item-button { color: #fff; background: linear-gradient(135deg, var(--su-blue), #735be6); box-shadow: 0 8px 18px rgba(71, 111, 234, .25); }
+.fi-sidebar-item-icon { color: currentColor; }
+.fi-main { padding-block: 2rem 4rem; }
+.fi-header-heading { color: var(--su-navy); font-size: clamp(1.7rem, 2.5vw, 2.2rem); letter-spacing: -.04em; }
+.fi-wi-stats-overview-stat, .fi-section, .fi-ta-ctn, .fi-wi-chart { border: 1px solid #e1e7f0; border-radius: 1.15rem; background: #fff; box-shadow: 0 12px 32px rgba(25, 42, 68, .06); }
+.fi-wi-stats-overview-stat { overflow: hidden; transition: transform .18s ease, box-shadow .18s ease; }
+.fi-wi-stats-overview-stat:hover { transform: translateY(-2px); box-shadow: 0 16px 38px rgba(25, 42, 68, .1); }
+.fi-wi-stats-overview-stat-value { color: var(--su-navy); letter-spacing: -.04em; }
+.fi-wi-stats-overview-stat::before { display: block; width: 42px; height: 4px; border-radius: 0 0 6px 0; background: linear-gradient(90deg, var(--su-blue), var(--su-pink)); content: ''; }
+.fi-btn.fi-color-primary { background: linear-gradient(135deg, var(--su-blue), #7058e6); box-shadow: 0 7px 16px rgba(71, 111, 234, .2); }
+.fi-ta-header-cell, .fi-ta-cell { padding-block: .8rem; }
+
+@media (max-width: 768px) {
+    .fi-main { padding-block: 1rem 5rem; }
+    .fi-wi-stats-overview-stats-ctn { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

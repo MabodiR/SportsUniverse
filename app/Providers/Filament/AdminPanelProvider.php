@@ -29,8 +29,10 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->brandName('SportsUniverse Admin')
             ->brandLogo(asset('images/logo/sportuniverse-logo-horizontal.svg'))
+            ->brandLogoHeight('2.25rem')
             ->darkMode(false)
             ->defaultThemeMode(ThemeMode::Light)
+            ->viteTheme('resources/css/filament/admin/theme.css')
             ->favicon(asset('images/logo/favicon.ico'))
             ->login()
             ->colors([
