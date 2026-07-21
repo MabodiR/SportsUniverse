@@ -42,14 +42,14 @@ class AdvertisingModuleTest extends TestCase
 
     public function test_sandbox_credentials_sign_with_the_configured_passphrase(): void
     {
-        config(['payfast.sandbox' => true, 'payfast.merchant_id' => '10000100', 'payfast.merchant_key' => '46f0cd694581a', 'payfast.passphrase' => 'jt7NOE43FZPn']);
-        $fields = ['merchant_id' => '10000100', 'merchant_key' => '46f0cd694581a', 'item_name' => ' Test campaign '];
+        config(['payfast.sandbox' => true, 'payfast.merchant_id' => '10004002', 'payfast.merchant_key' => 'q1cd2rdny4a53', 'payfast.passphrase' => 'payfast']);
+        $fields = ['merchant_id' => '10004002', 'merchant_key' => 'q1cd2rdny4a53', 'item_name' => ' Test campaign '];
         $signatureWithConfiguredPassphrase = app(PayFastGateway::class)->signature($fields);
 
         config(['payfast.passphrase' => null]);
 
         $this->assertNotSame($signatureWithConfiguredPassphrase, app(PayFastGateway::class)->signature($fields));
-        config(['payfast.passphrase' => 'jt7NOE43FZPn']);
+        config(['payfast.passphrase' => 'payfast']);
         $this->assertSame($signatureWithConfiguredPassphrase, app(PayFastGateway::class)->signature([...$fields, 'item_name' => 'Test campaign']));
     }
 

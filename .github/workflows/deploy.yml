@@ -89,9 +89,9 @@ jobs:
           set_env MAIL_FROM_NAME SportsUniverse
           set_env PAYFAST_ENABLED true
           set_env PAYFAST_SANDBOX true
-          set_env PAYFAST_MERCHANT_ID 10000100
-          set_env PAYFAST_MERCHANT_KEY 46f0cd694581a
-          set_env PAYFAST_PASSPHRASE jt7NOE43FZPn
+          set_env PAYFAST_MERCHANT_ID 10004002
+          set_env PAYFAST_MERCHANT_KEY q1cd2rdny4a53
+          set_env PAYFAST_PASSPHRASE payfast
           set_env PAYFAST_VALIDATE_SERVER true
           set_env PAYFAST_VALIDATE_IP true
           sudo chown -R www-data:www-data storage bootstrap/cache
