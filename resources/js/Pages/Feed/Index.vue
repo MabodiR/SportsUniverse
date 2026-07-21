@@ -350,8 +350,8 @@ onUnmounted(() => { if(storyTimer)clearTimeout(storyTimer);window.removeEventLis
                             <button data-tooltip="More actions" aria-label="More actions" @click="controlsPost = item"><span><Ellipsis /></span><small>More</small></button>
                         </div>
                     </div>
+                    <div v-if="nextCursor" ref="loadMoreSentinel" class="feed-load-more" aria-live="polite"><span v-if="loadingMore">Loading more recommendations…</span></div>
                 </div>
-                <div v-if="nextCursor" ref="loadMoreSentinel" class="feed-load-more" aria-live="polite"><span v-if="loadingMore">Loading more recommendations…</span></div>
                 <aside class="trending-athletes">
                     <h3>Trending athletes</h3>
                     <div v-for="(person, index) in trending" :key="person.id ?? person.name" class="trending-person">

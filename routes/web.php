@@ -47,6 +47,10 @@ Route::get('/', fn () => redirect('/feed'));
 Route::get('/session-expired', fn () => Inertia::render('Errors/Show', ['status' => 419]))->name('session-expired');
 Route::get('/about', fn () => Inertia::render('Public/About'))->name('about');
 Route::get('/privacy-policy', fn () => Inertia::render('Public/PrivacyPolicy'))->name('privacy-policy');
+Route::get('/handbook', fn () => response()->file(
+    base_path('docs/SportsUniverse-Functionality-Handbook.html'),
+    ['Content-Type' => 'text/html; charset=UTF-8']
+))->name('handbook');
 Route::get('/payments/payfast/return/{payment}', [PayFastController::class, 'returned'])->name('payfast.return');
 Route::get('/payments/payfast/cancel/{payment}', [PayFastController::class, 'cancelled'])->name('payfast.cancel');
 Route::get('/membership/payfast/return/{payment}', [MembershipPaymentController::class, 'returned'])->name('membership.payfast.return');
