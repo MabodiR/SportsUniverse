@@ -12,6 +12,7 @@ class ProductionAccessUserSeeder extends Seeder
 {
     public function run(): void
     {
+        $adminPassword = (string) env('PRODUCTION_ADMIN_PASSWORD', '');
         $accounts = [
             ['name' => 'SportsUniverse Super Admin', 'email' => 'superadmin@sportsuniverse.co.za', 'slug' => 'sportsuniverse-super-admin', 'role' => 'super_admin'],
             ['name' => 'SportsUniverse Athlete Demo', 'email' => 'athlete.demo@sportsuniverse.co.za', 'slug' => 'sportsuniverse-athlete-demo', 'role' => 'athlete'],
@@ -23,7 +24,9 @@ class ProductionAccessUserSeeder extends Seeder
             Role::findOrCreate($account['role'], 'web');
             $user = User::where('email', $account['email'])->first();
             if (! $user) {
-                $password = Str::password(24, symbols: true);
+                $password = $account['role'] === 'super_admin' && $adminPassword !== ''
+                    ? $adminPassword
+                    : Str::password(24, symbols: true);
                 $user = User::create([
                     'name' => $account['name'], 'email' => $account['email'],
                     'password' => Hash::make($password), 'status' => 'active',
@@ -32,6 +35,9 @@ class ProductionAccessUserSeeder extends Seeder
                 $created[] = [$account['email'], $account['role'], $password];
             } else {
                 $user->update(['name' => $account['name'], 'status' => 'active', 'email_verified_at' => $user->email_verified_at ?? now(), 'onboarding_completed_at' => $user->onboarding_completed_at ?? now()]);
+                if ($account['role'] === 'super_admin' && $adminPassword !== '') {
+                    $user->update(['password' => Hash::make($adminPassword)]);
+                }
             }
             $user->syncRoles([$account['role']]);
             $user->profile()->updateOrCreate([], ['slug' => $account['slug'], 'is_public' => true]);

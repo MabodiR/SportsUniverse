@@ -134,6 +134,13 @@ jobs:
           cd /var/www/sportuniverse
           sudo -u www-data php artisan db:seed --class=Database\\Seeders\\SubscriptionPlanSeeder --force
 
+      - name: Seed production test access
+        env:
+          PRODUCTION_ADMIN_PASSWORD: Password_123
+        run: |
+          cd /var/www/sportuniverse
+          sudo --preserve-env=PRODUCTION_ADMIN_PASSWORD -u www-data php artisan db:seed --class=Database\\Seeders\\ProductionAccessUserSeeder --force
+
       - name: Seed production feed
         run: |
           cd /var/www/sportuniverse
