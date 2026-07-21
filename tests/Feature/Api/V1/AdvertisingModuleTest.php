@@ -40,16 +40,17 @@ class AdvertisingModuleTest extends TestCase
         $this->getJson('/api/v1/campaigns')->assertOk()->assertJsonCount(2, 'data');
     }
 
-    public function test_default_sandbox_credentials_never_sign_with_a_passphrase(): void
+    public function test_sandbox_credentials_sign_with_the_configured_passphrase(): void
     {
-        config(['payfast.sandbox' => true, 'payfast.merchant_id' => '10000100', 'payfast.merchant_key' => '46f0cd694581a', 'payfast.passphrase' => 'incorrect-passphrase']);
+        config(['payfast.sandbox' => true, 'payfast.merchant_id' => '10000100', 'payfast.merchant_key' => '46f0cd694581a', 'payfast.passphrase' => 'jt7NOE43FZPn']);
         $fields = ['merchant_id' => '10000100', 'merchant_key' => '46f0cd694581a', 'item_name' => ' Test campaign '];
         $signatureWithConfiguredPassphrase = app(PayFastGateway::class)->signature($fields);
 
         config(['payfast.passphrase' => null]);
 
-        $this->assertSame($signatureWithConfiguredPassphrase, app(PayFastGateway::class)->signature($fields));
-        $this->assertSame(app(PayFastGateway::class)->signature($fields), app(PayFastGateway::class)->signature([...$fields, 'item_name' => 'Test campaign']));
+        $this->assertNotSame($signatureWithConfiguredPassphrase, app(PayFastGateway::class)->signature($fields));
+        config(['payfast.passphrase' => 'jt7NOE43FZPn']);
+        $this->assertSame($signatureWithConfiguredPassphrase, app(PayFastGateway::class)->signature([...$fields, 'item_name' => 'Test campaign']));
     }
 
     public function test_admin_can_activate_campaign_and_active_events_are_counted(): void

@@ -96,12 +96,6 @@ class PayFastGateway
 
     private function passphrase(): ?string
     {
-        if (config('payfast.sandbox')
-            && (string) config('payfast.merchant_id') === '10000100'
-            && (string) config('payfast.merchant_key') === '46f0cd694581a') {
-            return null;
-        }
-
         $passphrase = trim((string) config('payfast.passphrase'));
 
         return $passphrase === '' ? null : $passphrase;
