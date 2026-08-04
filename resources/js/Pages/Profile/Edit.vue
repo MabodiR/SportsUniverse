@@ -87,6 +87,7 @@ const fill = (value: any) => {
 
 const pick = (file?: File) => {
     if (!file) return;
+    if (preview.value) URL.revokeObjectURL(preview.value);
     photo.value = file;
     preview.value = URL.createObjectURL(file);
     cropZoom.value = 1; cropX.value = 50; cropY.value = 50;
@@ -98,15 +99,23 @@ const pickCover = (file?: File) => {
     coverPreview.value = URL.createObjectURL(file);
 };
 
+const loadPhoto = (file: File) => new Promise<HTMLImageElement>((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => { URL.revokeObjectURL(url); resolve(image); };
+    image.onerror = () => { URL.revokeObjectURL(url); reject(new Error('The selected profile image could not be opened.')); };
+    image.src = url;
+});
+
 const croppedPhoto = async () => {
     if (!photo.value) return null;
-    const image = await createImageBitmap(photo.value);
+    const image = await loadPhoto(photo.value);
     const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 1024;
     const context = canvas.getContext('2d')!;
-    const scale = Math.max(1024 / image.width, 1024 / image.height) * cropZoom.value;
-    const width = image.width * scale, height = image.height * scale;
+    const scale = Math.max(1024 / image.naturalWidth, 1024 / image.naturalHeight) * cropZoom.value;
+    const width = image.naturalWidth * scale, height = image.naturalHeight * scale;
     const x = -(width - 1024) * cropX.value / 100, y = -(height - 1024) * cropY.value / 100;
-    context.drawImage(image, x, y, width, height); image.close();
+    context.drawImage(image, x, y, width, height);
     const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not crop the profile image.')), 'image/jpeg', .9));
     return new File([blob], 'profile-cropped.jpg', { type: 'image/jpeg' });
 };
@@ -119,7 +128,13 @@ const save = async () => {
         if (photo.value) {
             const body = new FormData();
             body.append('photo', (await croppedPhoto())!);
-            profile.value.images.profile = (await api('/api/v1/profile/photo', { method: 'POST', body })).url;
+            const savedPhoto = await api('/api/v1/profile/photo', { method: 'POST', body });
+            profile.value.images ??= {};
+            profile.value.images.profile = `${savedPhoto.url}?v=${Date.now()}`;
+            URL.revokeObjectURL(preview.value);
+            preview.value = '';
+            photo.value = null;
+            cropZoom.value = 1; cropX.value = 50; cropY.value = 50;
         }
         if (cover.value) {
             const body = new FormData();
