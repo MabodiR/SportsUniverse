@@ -194,7 +194,14 @@ const showGate = () => {
     document.body.style.overflow = 'hidden';
 };
 const onScroll = () => {
+    audioControlsPost.value = null;
     if (!authenticated.value && window.scrollY > Math.max(260, window.innerHeight * 0.42)) showGate();
+};
+const closeAudioControlsAway = (event: Event) => {
+    if (audioControlsPost.value && !(event.target as Element | null)?.closest('.video-audio-control')) audioControlsPost.value = null;
+};
+const closeAudioControlsWithKeyboard = (event: KeyboardEvent) => {
+    if (event.key === 'Escape') audioControlsPost.value = null;
 };
 const closeGate = () => {
     gateVisible.value = false;
@@ -273,6 +280,8 @@ onMounted(() => {
     fetch('/api/v1/live', { headers: { Accept: 'application/json' } }).then(response => response.json()).then(payload => { liveStreams.value = payload.data ?? []; }).catch(() => undefined);
     if(authenticated.value)fetch('/api/v1/feed/stories',{credentials:'same-origin',headers:{Accept:'application/json'}}).then(response=>response.json()).then(payload=>{stories.value=payload.data??[]}).catch(()=>undefined);
     window.addEventListener('scroll', onScroll, { passive: true });
+    document.addEventListener('pointerdown', closeAudioControlsAway);
+    document.addEventListener('keydown', closeAudioControlsWithKeyboard);
     observer = new IntersectionObserver((entries) => entries.forEach(entry => {
         const video = entry.target as HTMLVideoElement;
         if (entry.isIntersecting && entry.intersectionRatio >= .65) {
@@ -306,7 +315,7 @@ onMounted(() => {
     loadMoreObserver = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) loadMore(); }, { rootMargin: '800px 0px' });
     requestAnimationFrame(() => { videoElements.forEach(video => observer?.observe(video)); feedItemElements.forEach((_, element) => feedItemObserver?.observe(element)); sponsoredElements.forEach((_, element) => sponsoredObserver?.observe(element)); if(loadMoreSentinel.value)loadMoreObserver?.observe(loadMoreSentinel.value); });
 });
-onUnmounted(() => { if(storyTimer)clearTimeout(storyTimer);window.removeEventListener('scroll', onScroll); observer?.disconnect(); sponsoredObserver?.disconnect(); feedItemObserver?.disconnect(); loadMoreObserver?.disconnect(); sponsoredTimers.forEach(timer => clearTimeout(timer)); feedSignalTimers.forEach(timer => clearTimeout(timer)); videoElements.forEach(video => video.pause()); document.body.style.overflow = ''; });
+onUnmounted(() => { if(storyTimer)clearTimeout(storyTimer);window.removeEventListener('scroll', onScroll);document.removeEventListener('pointerdown', closeAudioControlsAway);document.removeEventListener('keydown', closeAudioControlsWithKeyboard);observer?.disconnect(); sponsoredObserver?.disconnect(); feedItemObserver?.disconnect(); loadMoreObserver?.disconnect(); sponsoredTimers.forEach(timer => clearTimeout(timer)); feedSignalTimers.forEach(timer => clearTimeout(timer)); videoElements.forEach(video => video.pause()); document.body.style.overflow = ''; });
 </script>
 
 <template>
@@ -330,7 +339,7 @@ onUnmounted(() => { if(storyTimer)clearTimeout(storyTimer);window.removeEventLis
                                 <template v-for="(slide,slideIndex) in slides(item)" :key="slide.url"><img v-if="slide.type==='image' && mediaIndex(item)===slideIndex" :src="slide.url" :alt="item.caption||'SportsUniverse post image'"/><video v-else-if="slide.type==='video' && mediaIndex(item)===slideIndex" :ref="element => registerVideo(element as HTMLVideoElement,item.id)" class="feed-video" :src="slide.url" :muted="!soundEnabled" loop playsinline preload="metadata" @click="toggleVideo" @timeupdate="recordView(item,$event.currentTarget as HTMLVideoElement)" @ended="feedSignal(item,'replay',Math.round(($event.currentTarget as HTMLVideoElement).duration*1000))"/></template>
                                 <template v-if="slides(item).length>1"><button class="carousel-arrow previous" @click="changeMedia(item,-1)"><ChevronLeft/></button><button class="carousel-arrow next" @click="changeMedia(item,1)"><ChevronRight/></button><div class="carousel-dots"><i v-for="(_,dot) in slides(item)" :class="{active:mediaIndex(item)===dot}"/></div></template>
                             </div>
-                            <div v-if="item.url && slides(item)[mediaIndex(item)]?.type==='video'" class="video-audio-control" @click.stop>
+                            <div v-if="item.url && slides(item)[mediaIndex(item)]?.type==='video'" class="video-audio-control" @click.stop @mouseleave="audioControlsPost = null">
                                 <button class="mobile-video-audio-menu" aria-label="Video sound controls" :aria-expanded="audioControlsPost === item.id" @click="audioControlsPost = audioControlsPost === item.id ? null : item.id"><Ellipsis /></button>
                                 <div class="video-audio-options" :class="{ open: audioControlsPost === item.id }">
                                     <button class="video-sound-toggle" :aria-label="soundEnabled ? 'Mute video' : 'Turn on sound'" @click="toggleSound(videoElements.get(item.id)!)"><Volume2 v-if="soundEnabled && videoVolume > 0" /><VolumeX v-else /><span>{{ soundEnabled && videoVolume > 0 ? 'Sound on' : 'Sound off' }}</span></button>

@@ -58,6 +58,8 @@ jobs:
       - name: Prepare Laravel runtime
         env:
           PRODUCTION_MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          PRODUCTION_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          PRODUCTION_GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         run: |
           cd /var/www/sportuniverse
           set_env() {
@@ -70,6 +72,14 @@ jobs:
             echo "MAIL_PASSWORD is not configured in the GitHub production environment." >&2
             exit 1
           fi
+          if [ -z "$PRODUCTION_GOOGLE_CLIENT_ID" ] || [ -z "$PRODUCTION_GOOGLE_CLIENT_SECRET" ]; then
+            echo "GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be configured in the GitHub production environment." >&2
+            exit 1
+          fi
+          set_env APP_URL https://sportsuniverse.co.za
+          set_env GOOGLE_CLIENT_ID "$PRODUCTION_GOOGLE_CLIENT_ID"
+          set_env GOOGLE_CLIENT_SECRET "$PRODUCTION_GOOGLE_CLIENT_SECRET"
+          set_env GOOGLE_REDIRECT_URI https://sportsuniverse.co.za/auth/google/callback
           set_env DB_CONNECTION pgsql
           set_env DB_HOST /var/run/postgresql
           set_env DB_PORT 5432

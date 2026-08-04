@@ -3,7 +3,7 @@ import { Head, Link } from '@inertiajs/vue3';
 import { Camera, ChevronLeft, Save } from '@lucide/vue';
 import { computed, onMounted, ref } from 'vue';
 import AppShell from '../../Layouts/AppShell.vue';
-import GooglePlaceInput from '../../Components/GooglePlaceInput.vue';
+import OpenStreetMapPlaceInput from '../../Components/OpenStreetMapPlaceInput.vue';
 
 const professionalRoles = ['coach', 'referee', 'linesman', 'scout', 'agent'];
 const organisationRoles = ['club', 'academy', 'business', 'sponsor'];
@@ -285,7 +285,7 @@ onMounted(async () => {
                     <section>
                         <h2>Location</h2>
                         <div class="edit-fields">
-                            <label class="wide">Find your location with Google<GooglePlaceInput :model-value="profileLocation" :country="form.country || 'ZA'" @place="applyLocation"/><small>Select a suggestion to fill the structured fields below.</small></label>
+                            <label class="wide">Find your location with OpenStreetMap<OpenStreetMapPlaceInput :model-value="profileLocation" :country="form.country || 'ZA'" @place="applyLocation"/><small>Select a suggestion to fill the structured fields below.</small></label>
                             <label>Country code<input v-model="form.country" maxlength="2" /></label>
                             <label>Province<input v-model="form.province" /></label>
                             <label>City<input v-model="form.city" /></label>
