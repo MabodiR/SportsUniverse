@@ -165,7 +165,7 @@ jobs:
       - name: Optimize production application
         run: |
           cd /var/www/sportuniverse
-          sudo -u www-data php artisan storage:link --force
+          sudo php artisan storage:link --force
           sudo -u www-data php artisan optimize
 
       - name: Install production services
