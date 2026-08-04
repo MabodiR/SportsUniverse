@@ -62,7 +62,12 @@ class WebAuthController extends Controller
             abort(404);
         }
 
-        if (blank(config("services.$provider.client_id")) || blank(config("services.$provider.client_secret"))) {
+        $hasAppleSigningKey = $provider === 'apple'
+            && filled(config('services.apple.key_id'))
+            && filled(config('services.apple.team_id'))
+            && filled(config('services.apple.private_key'));
+
+        if (blank(config("services.$provider.client_id")) || (blank(config("services.$provider.client_secret")) && ! $hasAppleSigningKey)) {
             return redirect('/login')->withErrors(['social' => ucfirst($provider).' login is not configured yet.']);
         }
 

@@ -60,6 +60,10 @@ jobs:
           PRODUCTION_MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
           PRODUCTION_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           PRODUCTION_GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          PRODUCTION_APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
+          PRODUCTION_APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
+          PRODUCTION_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          PRODUCTION_APPLE_PRIVATE_KEY_BASE64: ${{ secrets.APPLE_PRIVATE_KEY_BASE64 }}
         run: |
           cd /var/www/sportuniverse
           set_env() {
@@ -80,6 +84,22 @@ jobs:
           set_env GOOGLE_CLIENT_ID "$PRODUCTION_GOOGLE_CLIENT_ID"
           set_env GOOGLE_CLIENT_SECRET "$PRODUCTION_GOOGLE_CLIENT_SECRET"
           set_env GOOGLE_REDIRECT_URI https://sportsuniverse.co.za/auth/google/callback
+          if [ -n "$PRODUCTION_APPLE_CLIENT_ID" ] || [ -n "$PRODUCTION_APPLE_KEY_ID" ] || [ -n "$PRODUCTION_APPLE_TEAM_ID" ] || [ -n "$PRODUCTION_APPLE_PRIVATE_KEY_BASE64" ]; then
+            if [ -z "$PRODUCTION_APPLE_CLIENT_ID" ] || [ -z "$PRODUCTION_APPLE_KEY_ID" ] || [ -z "$PRODUCTION_APPLE_TEAM_ID" ] || [ -z "$PRODUCTION_APPLE_PRIVATE_KEY_BASE64" ]; then
+              echo "APPLE_CLIENT_ID, APPLE_KEY_ID, APPLE_TEAM_ID and APPLE_PRIVATE_KEY_BASE64 must all be configured when Apple login is enabled." >&2
+              exit 1
+            fi
+            sudo install -d -m 750 -o www-data -g www-data storage/app/private
+            printf '%s' "$PRODUCTION_APPLE_PRIVATE_KEY_BASE64" | base64 --decode | sudo tee storage/app/private/apple-auth-key.p8 > /dev/null
+            sudo chown www-data:www-data storage/app/private/apple-auth-key.p8
+            sudo chmod 640 storage/app/private/apple-auth-key.p8
+            set_env APPLE_CLIENT_ID "$PRODUCTION_APPLE_CLIENT_ID"
+            set_env APPLE_CLIENT_SECRET ''
+            set_env APPLE_KEY_ID "$PRODUCTION_APPLE_KEY_ID"
+            set_env APPLE_TEAM_ID "$PRODUCTION_APPLE_TEAM_ID"
+            set_env APPLE_PRIVATE_KEY /var/www/sportuniverse/storage/app/private/apple-auth-key.p8
+            set_env APPLE_REDIRECT_URI https://sportsuniverse.co.za/auth/apple/callback
+          fi
           set_env DB_CONNECTION pgsql
           set_env DB_HOST /var/run/postgresql
           set_env DB_PORT 5432
