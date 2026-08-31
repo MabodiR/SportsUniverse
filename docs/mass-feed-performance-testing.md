@@ -1,8 +1,8 @@
 # Mass feed performance dataset
 
-`MassFeedPostSeeder` creates a resumable, feed-visible dataset across every sport currently stored in the `sports` table. It first imports a bounded catalogue of real sports images and videos from Wikimedia Commons, then safely reuses those local assets instead of downloading millions of physical files. Each post also receives realistic engagement counters, dates, country, league, team, content type, hashtags, and normalized recommendation topics.
+`MassFeedPostSeeder` creates a resumable, feed-visible dataset across every sport currently stored in the `sports` table. It first imports a bounded catalogue of real sports videos from Wikimedia Commons, then safely reuses those local video files instead of downloading millions of physical files. Every dummy post is video-only and uses footage catalogued for its assigned sport. Each post also receives realistic engagement counters, dates, country, league, team, content type, hashtags, and normalized recommendation topics.
 
-Every imported asset is restricted to supported formats and an allow-list of reusable public-domain or Creative Commons licences. Author, licence, licence URL, and original Commons page are stored in `media.metadata` and exposed by feed responses for visible attribution. Approximately 1% of generated posts are videos; each receives its own media database record while referencing a shared downloaded source file.
+Every imported asset is restricted to supported video formats and an allow-list of reusable public-domain or Creative Commons licences. Author, licence, licence URL, and original Commons page are stored in `media.metadata` and exposed by feed responses for visible attribution. Each generated post receives its own video media database record while referencing a shared downloaded source file. Rerunning the generator converts earlier deterministic dummy picture posts in bounded batches without modifying users.
 
 ## Run
 

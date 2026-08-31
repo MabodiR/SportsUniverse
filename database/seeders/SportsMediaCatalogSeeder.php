@@ -20,19 +20,17 @@ class SportsMediaCatalogSeeder extends Seeder
         $disk = config('media.disk');
         $ownerId = DB::table('users')->where('status', 'active')->orderBy('id')->value('id');
         if (! $ownerId) throw new RuntimeException('An active user is required to own imported performance media.');
-        $imagesPerSport = (int) config('scale.mass_feed_images_per_sport', 12);
         $videosPerSport = (int) config('scale.mass_feed_videos_per_sport', 2);
         $imported = 0;
 
         foreach (DB::table('sports')->orderBy('id')->get(['id', 'name']) as $sport) {
-            $assets = $this->search($sport->name, max($imagesPerSport * 3, 30));
-            $images = collect($assets)->filter(fn ($asset) => str_starts_with($asset['mime'], 'image/'))->take($imagesPerSport);
+            $assets = $this->search($sport->name.' video', max($videosPerSport * 8, 30));
             $videos = collect($assets)->filter(fn ($asset) => str_starts_with($asset['mime'], 'video/') || $asset['mime'] === 'application/ogg')->take($videosPerSport);
             if ($videos->count() < $videosPerSport) {
-                $videos = $videos->concat(collect($this->search($sport->name.' video', max($videosPerSport * 8, 30)))->filter(fn ($asset) => str_starts_with($asset['mime'], 'video/') || $asset['mime'] === 'application/ogg'))->unique('source_url')->take($videosPerSport);
+                $videos = $videos->concat(collect($this->search($sport->name, max($videosPerSport * 12, 40)))->filter(fn ($asset) => str_starts_with($asset['mime'], 'video/') || $asset['mime'] === 'application/ogg'))->unique('source_url')->take($videosPerSport);
             }
-            foreach ($images->concat($videos) as $asset) $imported += $this->store($asset, $sport, $ownerId, $disk) ? 1 : 0;
-            $this->command?->info("{$sport->name}: {$images->count()} images and {$videos->count()} videos selected.");
+            foreach ($videos as $asset) $imported += $this->store($asset, $sport, $ownerId, $disk) ? 1 : 0;
+            $this->command?->info("{$sport->name}: {$videos->count()} videos selected.");
         }
 
         $total = Media::where('collection', 'performance-sports')->count();
