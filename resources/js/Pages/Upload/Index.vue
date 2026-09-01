@@ -218,7 +218,7 @@ onUnmounted(() => { if (preview.value) URL.revokeObjectURL(preview.value); image
                         <label><span class="upload-label">Language</span><input v-model="language" class="su-input" maxlength="12" placeholder="en" /></label>
                     </div>
                     <label><span class="upload-label">Skills and topics</span><input v-model="skillTags" class="su-input" placeholder="finishing counter-attack goalkeeping" /></label>
-                    <label><span class="upload-label">Location via OpenStreetMap</span><OpenStreetMapPlaceInput v-model="locationName" :country="countryCode||'ZA'" @place="applyLocation"/></label>
+                    <label><span class="upload-label">Location</span><OpenStreetMapPlaceInput v-model="locationName" :country="countryCode||'ZA'" @place="applyLocation"/></label>
                     <label><span class="upload-label">Who can watch this video</span><select v-model="visibility" :disabled="postType==='story'"><option>Everyone</option><option>Followers</option><option>Only me</option></select><small v-if="postType==='story'">Stories are visible only to followers unless promoted.</small></label>
                     <div><span class="upload-label">Allow users to</span><label class="upload-check"><input v-model="comments" type="checkbox" /> Comments</label></div>
                     <div class="upload-note"><Info :size="17" /><p>Keep this page open only while the original file uploads. Processing continues in the background and we’ll notify you when it is ready.</p></div>
