@@ -182,6 +182,11 @@ jobs:
           cd /var/www/sportuniverse
           sudo -u www-data php artisan db:seed --class=Database\\Seeders\\SouthAfricaScaleSeeder --force
 
+      - name: Convert dummy posts to playable videos
+        run: |
+          cd /var/www/sportuniverse
+          sudo -u www-data php artisan feed:convert-dummy-posts-to-videos
+
       - name: Optimize production application
         run: |
           cd /var/www/sportuniverse
