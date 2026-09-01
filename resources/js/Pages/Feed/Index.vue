@@ -35,6 +35,7 @@ let loadMoreObserver: IntersectionObserver | null = null;
 const loadMoreSentinel = ref<Element | null>(null);
 const nextCursor = ref(props.nextCursor ?? null);
 const loadingMore = ref(false);
+const loadMoreError = ref('');
 const sponsoredElements = new Map<Element, any>();
 const feedItemElements = new Map<Element, any>();
 const feedSignalTimers = new Map<Element, ReturnType<typeof setTimeout>>();
@@ -232,15 +233,18 @@ const feedSignal = (item:any, event:'impression'|'skip'|'replay', watchedMs=0) =
 const loadMore = async () => {
     if (!authenticated.value || !nextCursor.value || loadingMore.value || props.location || props.sportFilter || props.positionFilter) return;
     loadingMore.value = true;
+    loadMoreError.value = '';
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 15000);
     try {
         const endpoint = props.mode === 'following' ? '/api/v1/feed/following' : '/api/v1/feed/for-you';
-        const response = await fetch(`${endpoint}?cursor=${encodeURIComponent(nextCursor.value)}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+        const response = await fetch(`${endpoint}?cursor=${encodeURIComponent(nextCursor.value)}`, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal: controller.signal });
         const payload = await response.json(); if (!response.ok) throw new Error(payload.message ?? 'Unable to load more posts.');
         const existing = new Set(feed.value.map(item => `${item.id}:${item.sponsored?.delivery_id ?? 'organic'}`));
         for (const item of payload.data ?? []) { const key=`${item.id}:${item.sponsored?.delivery_id ?? 'organic'}`; if (!existing.has(key)) { props.videos.push(item); existing.add(key); } }
         nextCursor.value = payload.meta?.next_cursor ?? null;
-    } catch { /* The observer can retry when the sentinel re-enters view. */ }
-    finally { loadingMore.value = false; }
+    } catch (error:any) { loadMoreError.value = error?.name === 'AbortError' ? 'Recommendations took too long to load.' : 'Unable to load more recommendations.'; }
+    finally { window.clearTimeout(timeout); loadingMore.value = false; }
 };
 const openSponsored = async (item: any) => {
     const sponsored = item.sponsored;
@@ -359,7 +363,7 @@ onUnmounted(() => { if(storyTimer)clearTimeout(storyTimer);window.removeEventLis
                             <button data-tooltip="More actions" aria-label="More actions" @click="controlsPost = item"><span><Ellipsis /></span><small>More</small></button>
                         </div>
                     </div>
-                    <div v-if="nextCursor" ref="loadMoreSentinel" class="feed-load-more" aria-live="polite"><span v-if="loadingMore">Loading more recommendations…</span></div>
+                    <div v-if="nextCursor" ref="loadMoreSentinel" class="feed-load-more" aria-live="polite"><span v-if="loadingMore">Loading more recommendations…</span><button v-else-if="loadMoreError" type="button" @click="loadMore">{{loadMoreError}} Try again</button></div>
                 </div>
                 <aside class="trending-athletes">
                     <h3>Trending athletes</h3>

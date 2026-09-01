@@ -512,6 +512,7 @@ html,body { background: #fff; color: #111827; color-scheme: light; }
 .for-you-layout { display: grid; grid-template-columns: minmax(430px,620px) 280px; gap: 3rem; justify-content: start; align-items: start; }
 .feed-stream { display: grid; gap: 2rem; scroll-snap-type: y proximity; }
 .feed-load-more{grid-column:1;min-height:3rem;padding:1rem;text-align:center;color:#718096;font-size:.65rem}
+.feed-load-more button{padding:.6rem .85rem;color:#476FEA;border:1px solid #cad7f8;border-radius:9px;background:#f5f8ff;font:inherit;font-weight:700;cursor:pointer}
 .featured-video-wrap { display: grid; width: 100%; grid-template-columns: minmax(0,500px) 52px; align-items: center; justify-content: start; gap: 1rem; }
 .feed-stream .featured-video-wrap { min-height: 0; align-items: center; scroll-margin-top: 72px; scroll-snap-align: start; }
 .feed-stream .featured-actions { align-self: center; }

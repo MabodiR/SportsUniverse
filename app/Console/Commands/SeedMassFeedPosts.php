@@ -8,16 +8,20 @@ use RuntimeException;
 
 class SeedMassFeedPosts extends Command
 {
-    protected $signature = 'feed:seed-mass-posts {--count=5000000} {--batch=50000} {--without-topics}';
+    protected $signature = 'feed:seed-mass-posts {--count=5000000} {--total=} {--batch=50000} {--without-topics}';
     protected $description = 'Bulk-generate lightweight, feed-visible dummy posts across every configured sport';
 
     public function handle(): int
     {
         if (DB::getDriverName() !== 'pgsql') throw new RuntimeException('Mass feed generation requires PostgreSQL.');
         $target = max(1, (int) $this->option('count'));
+        if ($this->option('total') !== null) {
+            $nonMassPosts = DB::table('videos')->where('public_id', 'not like', '5M%')->count();
+            $target = max(0, (int) $this->option('total') - $nonMassPosts);
+        }
         $batchSize = max(1000, min(100000, (int) $this->option('batch')));
-        $sourceVideos = DB::table('media')->where('collection', 'performance-sports')->where('kind', 'video')->where('processing_status', 'ready')->where('moderation_status', 'approved')->get();
-        if ($sourceVideos->isEmpty()) throw new RuntimeException('At least one ready, approved performance-sports video is required.');
+        $sourceVideos = DB::table('media')->whereIn('collection', ['performance-sports', 'demo-videos'])->where('kind', 'video')->where('processing_status', 'ready')->where('moderation_status', 'approved')->get();
+        if ($sourceVideos->isEmpty()) throw new RuntimeException('At least one ready, approved source video is required.');
         if (! DB::table('sports')->exists() || ! DB::table('users')->where('status', 'active')->exists()) throw new RuntimeException('Sports and active users are required.');
 
         DB::statement('SET synchronous_commit TO OFF');
@@ -25,26 +29,13 @@ class SeedMassFeedPosts extends Command
         DB::statement('CREATE UNIQUE INDEX mass_seed_users_rn_idx ON mass_seed_users (rn)');
         DB::statement('CREATE TEMP TABLE mass_seed_sports ON COMMIT PRESERVE ROWS AS SELECT id, name, row_number() OVER (ORDER BY id) AS rn FROM sports');
         DB::statement('CREATE UNIQUE INDEX mass_seed_sports_rn_idx ON mass_seed_sports (rn)');
-        DB::statement(<<<'SQL'
-            CREATE TEMP TABLE mass_seed_source_videos ON COMMIT PRESERVE ROWS AS
-            SELECT media.*,
-                CAST(media.metadata->>'sport_id' AS bigint) AS source_sport_id,
-                row_number() OVER (PARTITION BY media.metadata->>'sport_id' ORDER BY media.id) AS sport_rn,
-                count(*) OVER (PARTITION BY media.metadata->>'sport_id') AS sport_video_count
-            FROM media
-            WHERE collection = ? AND kind = ? AND processing_status = ? AND moderation_status = ?
-                AND metadata->>'sport_id' IS NOT NULL
-            SQL, ['performance-sports', 'video', 'ready', 'approved']);
-        DB::statement('CREATE UNIQUE INDEX mass_seed_source_videos_sport_rn_idx ON mass_seed_source_videos (source_sport_id, sport_rn)');
-        $missingSports = DB::table('mass_seed_sports as sports')->leftJoin('mass_seed_source_videos as source', 'source.source_sport_id', '=', 'sports.id')->whereNull('source.id')->pluck('sports.name');
-        if ($missingSports->isNotEmpty()) throw new RuntimeException('A real video is required for every sport. Missing: '.$missingSports->join(', '));
+        DB::statement("CREATE TEMP TABLE mass_seed_source_videos ON COMMIT PRESERVE ROWS AS SELECT media.*, row_number() OVER (ORDER BY id) AS source_rn FROM media WHERE collection IN ('performance-sports', 'demo-videos') AND kind = 'video' AND processing_status = 'ready' AND moderation_status = 'approved'");
+        DB::statement('CREATE UNIQUE INDEX mass_seed_source_videos_rn_idx ON mass_seed_source_videos (source_rn)');
         $userCount = (int) DB::table('mass_seed_users')->count();
         $sportCount = (int) DB::table('mass_seed_sports')->count();
+        $sourceVideoCount = (int) DB::table('mass_seed_source_videos')->count();
         $existing = (int) DB::table('videos')->where('public_id', 'like', '5M%')->selectRaw("COALESCE(MAX(CAST(SUBSTRING(public_id FROM 3) AS BIGINT)), 0) AS maximum")->value('maximum');
 
-        for ($start = 1; $start <= $existing; $start += $batchSize) {
-            $this->convertExistingDummyPostsToVideos($start, min($existing, $start + $batchSize - 1));
-        }
         if ($existing >= $target) { $this->info("Mass feed already contains {$existing} video posts."); return self::SUCCESS; }
         $this->info('Generating '.number_format($target - $existing).' posts across '.$sportCount.' sports in '.number_format($batchSize).'-row batches.');
         $bar = $this->output->createProgressBar($target - $existing);
@@ -52,7 +43,7 @@ class SeedMassFeedPosts extends Command
 
         for ($start = $existing + 1; $start <= $target; $start += $batchSize) {
             $end = min($target, $start + $batchSize - 1);
-            DB::transaction(function () use ($start, $end, $userCount, $sportCount) {
+            DB::transaction(function () use ($start, $end, $userCount, $sportCount, $sourceVideoCount) {
                     DB::insert(<<<'SQL'
                         INSERT INTO media (public_id, user_id, kind, collection, disk, path, original_name, mime_type, size_bytes, checksum_sha256, processing_status, moderation_status, thumbnail_path, duration_ms, width, height, metadata, processed_at, created_at, updated_at)
                         SELECT 'MV' || lpad(series.n::text, 24, '0'), users.id, 'video', 'performance-scale', source.disk, source.path,
@@ -60,11 +51,9 @@ class SeedMassFeedPosts extends Command
                             'ready', 'approved', source.thumbnail_path, source.duration_ms, source.width, source.height, source.metadata, now(), now(), now()
                         FROM generate_series(CAST(? AS bigint), CAST(? AS bigint)) AS series(n)
                         JOIN mass_seed_users users ON users.rn = ((series.n - 1) % ?) + 1
-                        JOIN mass_seed_sports sports ON sports.rn = ((series.n - 1) % ?) + 1
-                        JOIN mass_seed_source_videos source ON source.source_sport_id = sports.id
-                            AND source.sport_rn = ((series.n - 1) % source.sport_video_count) + 1
+                        JOIN mass_seed_source_videos source ON source.source_rn = ((series.n - 1) % ?) + 1
                         ON CONFLICT (public_id) DO NOTHING
-                        SQL, [$start, $end, $userCount, $sportCount]);
+                        SQL, [$start, $end, $userCount, $sourceVideoCount]);
                 DB::insert(<<<'SQL'
                     INSERT INTO videos (
                         public_id, user_id, media_id, sport_id, caption, hashtags, visibility, status,

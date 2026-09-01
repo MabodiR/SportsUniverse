@@ -17,7 +17,7 @@ jobs:
   deploy:
     runs-on: [self-hosted, Linux, X64]
     environment: production
-    timeout-minutes: 20
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
@@ -187,6 +187,11 @@ jobs:
           cd /var/www/sportuniverse
           sudo -u www-data php artisan feed:convert-dummy-posts-to-videos
 
+      - name: Seed five million production videos
+        run: |
+          cd /var/www/sportuniverse
+          sudo -u www-data php artisan feed:seed-mass-posts --total=5000000 --batch=100000 --without-topics
+
       - name: Optimize production application
         run: |
           cd /var/www/sportuniverse
@@ -217,7 +222,7 @@ jobs:
         run: |
           cd /var/www/sportuniverse
           printf 'profile-media-ok' | sudo -u www-data tee storage/app/public/deployment-storage-health.txt > /dev/null
-          curl --fail --silent --show-error --header 'Host: sportsuniverse.co.za' http://127.0.0.1/storage/deployment-storage-health.txt | grep -q 'profile-media-ok'
+          curl --fail --silent --show-error --location --header 'Host: sportsuniverse.co.za' http://127.0.0.1/storage/deployment-storage-health.txt | grep -q 'profile-media-ok'
           sudo -u www-data rm storage/app/public/deployment-storage-health.txt
 
       - name: Verify production health
