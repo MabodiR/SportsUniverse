@@ -14,6 +14,7 @@ class ExampleTest extends TestCase
     {
         $response = $this->get('/');
 
-        $response->assertRedirect('/feed');
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page->component('Public/Home'));
     }
 }

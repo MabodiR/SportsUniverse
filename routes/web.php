@@ -15,6 +15,7 @@ use App\Http\Controllers\Web\FeedController;
 use App\Http\Controllers\Web\MessagingContextController;
 use App\Http\Controllers\Web\MembershipController;
 use App\Http\Controllers\Web\MembershipPaymentController;
+use App\Http\Controllers\Web\PublicHomeController;
 use App\Http\Controllers\Web\ModulePageController;
 use App\Http\Controllers\Web\VideoStreamController;
 use App\Http\Controllers\Web\WebAuthController;
@@ -43,7 +44,7 @@ Route::middleware('guest')->group(function () {
     Route::get('/auth/{provider}/callback', [WebAuthController::class, 'socialCallback'])->name('social.callback');
 });
 
-Route::get('/', fn () => redirect('/feed'));
+Route::get('/', PublicHomeController::class)->name('home');
 Route::get('/session-expired', fn () => Inertia::render('Errors/Show', ['status' => 419]))->name('session-expired');
 Route::get('/about', fn () => Inertia::render('Public/About'))->name('about');
 Route::get('/privacy-policy', fn () => Inertia::render('Public/PrivacyPolicy'))->name('privacy-policy');
