@@ -11,7 +11,7 @@ permissions:
 
 concurrency:
   group: production-deployment
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy:
@@ -37,8 +37,8 @@ jobs:
 
       - name: Build frontend
         env:
-          NODE_OPTIONS: --max-old-space-size=2048
-        run: npm run build
+          NODE_OPTIONS: --max-old-space-size=768
+        run: nice -n 10 npm run build
 
       - name: Deploy application locally
         run: |
