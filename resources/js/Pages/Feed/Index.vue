@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Bookmark, Cast, ChevronLeft, ChevronRight, Download, Ellipsis, Eye, Flag, Heart, LockKeyhole, MessageCircle, Megaphone, Pencil, Plus, Radio, Repeat2, Send, Share2, Sparkles, Trash2, UserPlus, Users, Volume2, VolumeX, X } from '@lucide/vue';
+import { ArrowRight, Bookmark, BriefcaseBusiness, Cast, ChevronLeft, ChevronRight, CirclePlay, Download, Ellipsis, Eye, Flag, Heart, MessageCircle, Megaphone, Pencil, Plus, Radio, Repeat2, Send, Share2, ShieldCheck, Sparkles, Trash2, UserPlus, Users, Volume2, VolumeX, X } from '@lucide/vue';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import AppShell from '../../Layouts/AppShell.vue';
 
@@ -418,13 +418,17 @@ onUnmounted(() => { if(storyTimer)clearTimeout(storyTimer);window.removeEventLis
             <div v-if="gateVisible" class="auth-gate" role="dialog" aria-modal="true" aria-labelledby="auth-gate-title">
                 <div class="auth-gate-backdrop" />
                 <section class="auth-gate-card su-card">
+                    <div class="gate-art"><img :src="'/images/PopUp-Side.png'" alt="Football, athletics and basketball athletes on SportsUniverse" /></div>
+                    <div class="gate-content">
                     <button class="gate-close" aria-label="Return to preview" @click="closeGate"><X :size="19" /></button>
-                    <span class="gate-icon"><LockKeyhole :size="25" /></span>
-                    <div class="gate-eyebrow"><Sparkles :size="14" /> You’ve seen a glimpse</div>
-                    <h2 id="auth-gate-title">The next play starts with your profile.</h2>
-                    <p>Sign in to keep scrolling, follow athletes, save highlights and connect with the people shaping sport.</p>
-                    <div class="gate-actions"><Link href="/register" class="su-btn su-btn-primary">Create free account</Link><Link href="/login" class="su-btn su-btn-ghost">Sign in</Link></div>
-                    <small>No subscription required · Join athletes, fans, scouts and clubs</small>
+                    <img class="gate-brand" :src="'/images/logo/sportuniverse-logo-horizontal-transparent-black.png'" alt="SportsUniverse" />
+                    <span class="gate-icon"><UserPlus :size="30" /></span>
+                    <h2 id="auth-gate-title">Welcome to <span>SportsUniverse</span></h2>
+                    <p>Sign in to continue exploring, follow athletes, save highlights and connect with the people shaping sport.</p>
+                    <div class="gate-benefits" aria-label="Account benefits"><span><CirclePlay/> Share highlights</span><span><Users/> Get discovered</span><span><BriefcaseBusiness/> Find opportunities</span></div>
+                    <div class="gate-actions"><Link href="/register" class="su-btn su-btn-primary">Create free account <ArrowRight/></Link><Link href="/login" class="su-btn su-btn-ghost">Sign in <ArrowRight/></Link></div>
+                    <small><ShieldCheck/> No subscription required<br/><span>Join athletes, fans, scouts and clubs</span></small>
+                    </div>
                 </section>
             </div>
         </Transition>
