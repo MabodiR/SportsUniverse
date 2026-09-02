@@ -13,19 +13,24 @@ class RankFeed
     {
         $settings = FeedSetting::current();
 
-        app(PrioritizeUnseenPosts::class)->execute($query, $user);
-
         if ($settings->ranking_mode === 'recent') {
+            app(PrioritizeUnseenPosts::class)->execute($query, $user);
+
             return $query->orderByDesc('videos.published_at')->orderByDesc('videos.id');
         }
 
         if ($user && $settings->ranking_mode === 'personalized' && $precomputed->isNotEmpty()) {
+            // Recommendation positions already include the recently-viewed priority.
+            // Re-evaluating it here adds a correlated view-history lookup to every
+            // cursor page without changing the order of the precomputed feed.
             return $query->join('recommendation_feed_items as recommended', fn ($join) => $join
                 ->on('recommended.video_id', '=', 'videos.id')
                 ->where('recommended.user_id', $user->id))
                 ->addSelect('recommended.position as recommendation_position')
                 ->orderBy('recommendation_position')->orderByDesc('videos.id');
         }
+
+        app(PrioritizeUnseenPosts::class)->execute($query, $user);
 
         $score = sprintf('(videos.likes_count * %F + videos.comments_count * %F + videos.shares_count * %F + videos.views_count * %F)', $settings->like_weight, $settings->comment_weight, $settings->share_weight, $settings->view_weight);
         if ($user && $settings->ranking_mode === 'personalized') {
