@@ -375,7 +375,7 @@ onUnmounted(() => { if(storyTimer)clearTimeout(storyTimer);window.removeEventLis
                 </aside>
                 </template>
             </div>
-            <p class="snap-note">Scroll snap feed: users scroll through athlete videos one by one, like TikTok but for sports.</p>
+            <p class="snap-note">Explore athlete videos one by one in an immersive sports feed.</p>
         </div>
 
         <Transition name="gate">

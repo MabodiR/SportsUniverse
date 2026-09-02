@@ -4,7 +4,7 @@
 SportsUniverse is a sports-focused social ecosystem that connects athletes, coaches, scouts, clubs, sponsors, businesses and fans. The web application should feel like a sports version of a short-video platform: users scroll through athlete videos, interact with posts, follow profiles, and request messages, while admin users can manage content, users and moderation.
 
 ## 2. Core product direction
-Build a web application with a dark, modern, video-first interface. The main user experience should be a TikTok-style sports feed, but with professional sports profile details, discovery filters and admin controls.
+Build a web application with a dark, modern, video-first interface. The main user experience should be an immersive vertical sports feed with professional sports profile details, discovery filters and admin controls.
 
 Primary goals:
 - Help athletes showcase talent through highlight videos.
@@ -33,8 +33,8 @@ Typography:
 Design style:
 - Dark immersive background.
 - Rounded cards and video containers.
-- TikTok-inspired left sidebar and right action rail.
-- SportsUniverse branding, not a copy of TikTok.
+- Video-first left sidebar and right action rail.
+- Distinctive SportsUniverse branding throughout.
 - Clear admin-friendly dashboards for management pages.
 
 ## 4. User roles
@@ -460,7 +460,7 @@ Start with:
 3. Build reusable layout components.
 4. Build authentication pages.
 5. Build multi-step registration with skip support and profile completeness calculation.
-6. Build TikTok-style sports video feed.
+6. Build an immersive vertical sports video feed.
 7. Build video detail and comments page.
 8. Build athlete public profile.
 9. Build following feed.
@@ -477,7 +477,7 @@ Use mock data first. Keep code clean and component-based. Make sure the UI is re
 - Fan onboarding asks for sports interests.
 - User can skip optional fields.
 - Profile completeness percentage updates based on missing information.
-- Feed displays athlete videos in a TikTok-style layout.
+- Feed displays athlete videos in a vertical, one-at-a-time layout.
 - Users can like, comment, share, save and follow.
 - Message Request appears when users are not connected.
 - Admin page shows moderation stats and tables.
