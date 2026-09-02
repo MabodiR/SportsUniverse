@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { BarChart3, Bell, Bookmark, BriefcaseBusiness, ChevronDown, ClipboardList, Compass, Crown, Download, FileBarChart, Flag, FolderKanban, Heart, Home, LogOut, Menu, MessageCircle, Radio, Search, Settings, Shield, Smartphone, Sparkles, Tags, Upload, UserRound, Users, X } from '@lucide/vue';
+import { Activity, BarChart3, Bell, Bookmark, BriefcaseBusiness, ChevronDown, ClipboardList, Compass, Crown, Download, FileBarChart, Flag, FolderKanban, Heart, Home, LogOut, Menu, MessageCircle, Radio, Search, Settings, Shield, Smartphone, Sparkles, Tags, Upload, UserRound, Users, X } from '@lucide/vue';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import BrandLogo from '../Components/BrandLogo.vue';
 
@@ -36,6 +36,7 @@ const adminItems = [
     { label: 'Campaigns', href: '/management/campaigns', icon: FolderKanban },
     { label: 'Taxonomy', href: '/management/taxonomy', icon: Tags },
     { label: 'Settings', href: '/management/settings', icon: Settings },
+    { label: 'Performance', href: '/management/performance', icon: Activity },
 ];
 const isAdmin = user?.roles?.some((role: any) => ['admin', 'system_admin', 'super_admin'].includes(role.name));
 const canUseClubTools = user?.roles?.some((role: any) => ['club', 'academy', 'scout', 'agent', 'admin', 'system_admin', 'super_admin'].includes(role.name));

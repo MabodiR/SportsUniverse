@@ -140,6 +140,7 @@ Route::middleware('auth')->group(function () {
         '/management/campaigns' => 'campaigns',
         '/management/taxonomy' => 'taxonomy',
         '/management/settings' => 'system-settings',
+        '/management/performance' => 'performance',
         '/management/featured-athletes' => 'featured-athletes',
         '/management/reports' => 'reports',
     ];

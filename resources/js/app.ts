@@ -1,10 +1,22 @@
 import '../css/app.css';
-import { createInertiaApp } from '@inertiajs/vue3';
+import { createInertiaApp, router } from '@inertiajs/vue3';
 import { createApp, h } from 'vue';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 declare global { interface Window { Echo?: Echo<any>; Pusher?: typeof Pusher } }
+
+const reportPagePerformance = (kind: 'navigation'|'inertia', path: string, durationMs: number) => {
+    if (!Number.isFinite(durationMs) || durationMs < 0) return;
+    const csrf = document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
+    fetch('/api/v1/page-performance', { method: 'POST', credentials: 'same-origin', keepalive: true, headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf }, body: JSON.stringify({ kind, path: path.slice(0, 500), duration_ms: Math.round(durationMs) }) }).catch(() => undefined);
+};
+
+const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming|undefined;
+if (navigation) window.addEventListener('load', () => reportPagePerformance('navigation', location.pathname, navigation.duration), { once: true });
+let inertiaStartedAt = 0;
+router.on('start', () => { inertiaStartedAt = performance.now(); });
+router.on('finish', () => { if (inertiaStartedAt) reportPagePerformance('inertia', location.pathname, performance.now() - inertiaStartedAt); inertiaStartedAt = 0; });
 
 createInertiaApp({
     title: (title) => title ? `${title} · SportsUniverse` : 'SportsUniverse',

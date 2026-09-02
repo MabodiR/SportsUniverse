@@ -39,6 +39,11 @@ class ModulePageController extends Controller
             return Inertia::render('Management/Settings');
         }
 
+        if ($key === 'performance') {
+            abort_unless($request->user()->hasAnyRole(['admin', 'system_admin', 'super_admin']), 403);
+            return Inertia::render('Management/Performance');
+        }
+
         if (in_array($key, ['messages', 'message-requests'], true)) {
             return Inertia::render('Messages/Index', [
                 'initialTab' => $key === 'message-requests' ? 'requests' : 'messages',

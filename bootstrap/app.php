@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\MediaPermissionHeaders;
+use App\Http\Middleware\MeasurePagePerformance;
 use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -21,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
         $middleware->append(SecurityHeaders::class);
+        $middleware->append(MeasurePagePerformance::class);
         $middleware->web(append: [HandleInertiaRequests::class, MediaPermissionHeaders::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
