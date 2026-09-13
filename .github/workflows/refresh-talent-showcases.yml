@@ -1,0 +1,46 @@
+name: Refresh Production Talent Showcases
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Audit sources or replace all existing posts with 1000 sports showcases
+        required: true
+        default: audit
+        type: choice
+        options:
+          - audit
+          - replace
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: [self-hosted, Linux, X64]
+    environment: production
+    timeout-minutes: 60
+    steps:
+      - name: Audit sports video sources and preview replacement
+        working-directory: /var/www/sportuniverse
+        run: |
+          sudo -u www-data php <<'PHP'
+          <?php
+          require 'vendor/autoload.php';
+          $app = require 'bootstrap/app.php';
+          $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+          foreach (Illuminate\Support\Facades\DB::table('media')->where('collection', 'performance-sports')->where('kind', 'video')->where('processing_status', 'ready')->where('moderation_status', 'approved')->get() as $source) {
+              echo json_encode(['id' => $source->id, 'path' => $source->path, 'metadata' => json_decode($source->metadata, true), 'exists' => Illuminate\Support\Facades\Storage::disk($source->disk)->exists($source->path)], JSON_UNESCAPED_SLASHES).PHP_EOL;
+          }
+          PHP
+          sudo -u www-data php artisan feed:refresh-talent-showcases --dry-run --count=1000
+      - name: Replace all existing posts
+        if: inputs.action == 'replace'
+        working-directory: /var/www/sportuniverse
+        run: sudo -u www-data php artisan feed:refresh-talent-showcases --count=1000 --force
+      - name: Verify application health
+        run: curl --fail --silent --show-error https://sportsuniverse.co.za/up

@@ -44,7 +44,7 @@ class RefreshTalentShowcases extends Command
         }
         if (! $this->option('force') && ! $this->confirm('Permanently replace every existing post, including genuine user uploads?')) return self::FAILURE;
 
-        DB::transaction(function () {
+        DB::transaction(function () use ($count) {
             DB::statement(<<<'SQL'
                 CREATE TEMP TABLE talent_refresh_post_images ON COMMIT DROP AS
                 SELECT DISTINCT media.id FROM media
@@ -54,12 +54,13 @@ class RefreshTalentShowcases extends Command
             DB::table('videos')->delete();
             DB::table('media')->where('kind', 'video')->where('collection', '!=', 'performance-sports')->delete();
             DB::statement('DELETE FROM media USING talent_refresh_post_images WHERE media.id = talent_refresh_post_images.id');
+
+            $exitCode = Artisan::call('feed:seed-mass-posts', ['--count' => $count]);
+            $this->output->write(Artisan::output());
+            if ($exitCode !== self::SUCCESS || DB::table('videos')->count() !== $count) {
+                throw new RuntimeException('Replacement generation failed; the original feed has been restored.');
+            }
         });
-
-        $exitCode = Artisan::call('feed:seed-mass-posts', ['--count' => $count]);
-        $this->output->write(Artisan::output());
-
-        if ($exitCode !== self::SUCCESS) return self::FAILURE;
         $this->info('Talent showcase refresh complete. Users, profiles, sports and approved source media were preserved.');
         return self::SUCCESS;
     }
