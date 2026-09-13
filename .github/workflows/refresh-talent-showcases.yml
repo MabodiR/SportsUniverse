@@ -10,6 +10,7 @@ on:
         type: choice
         options:
           - audit
+          - import
           - replace
 
 permissions:
@@ -25,6 +26,10 @@ jobs:
     environment: production
     timeout-minutes: 60
     steps:
+      - name: Import sports video sources
+        if: inputs.action == 'import'
+        working-directory: /var/www/sportuniverse
+        run: sudo -u www-data php artisan db:seed --class=SportsMediaCatalogSeeder --force
       - name: Audit sports video sources and preview replacement
         working-directory: /var/www/sportuniverse
         run: |

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Symfony\Component\Process\Process;
 
 class SportsMediaCatalogSeeder extends Seeder
 {
@@ -20,17 +21,22 @@ class SportsMediaCatalogSeeder extends Seeder
         $disk = config('media.disk');
         $ownerId = DB::table('users')->where('status', 'active')->orderBy('id')->value('id');
         if (! $ownerId) throw new RuntimeException('An active user is required to own imported performance media.');
-        $videosPerSport = (int) config('scale.mass_feed_videos_per_sport', 2);
         $imported = 0;
-
-        foreach (DB::table('sports')->orderBy('id')->get(['id', 'name']) as $sport) {
-            $assets = $this->search($sport->name.' athlete skills training competition video', max($videosPerSport * 8, 30));
-            $videos = collect($assets)->filter(fn ($asset) => str_starts_with($asset['mime'], 'video/') || $asset['mime'] === 'application/ogg')->take($videosPerSport);
-            if ($videos->count() < $videosPerSport) {
-                $videos = $videos->concat(collect($this->search($sport->name.' skills highlights', max($videosPerSport * 12, 40)))->filter(fn ($asset) => str_starts_with($asset['mime'], 'video/') || $asset['mime'] === 'application/ogg'))->unique('source_url')->take($videosPerSport);
-            }
-            foreach ($videos as $asset) $imported += $this->store($asset, $sport, $ownerId, $disk) ? 1 : 0;
-            $this->command?->info("{$sport->name}: {$videos->count()} videos selected.");
+        // Exact sports footage selections prevent broad searches importing unrelated clips.
+        $catalogue = [
+            'Football' => 'File:Footballers.webm',
+            'Basketball' => 'File:Basketball-Basic Types of Dribbling.webm',
+            'Swimming' => 'File:Backstroke Underwater.webm',
+            'Tennis' => 'File:Kudrinskaya Square Building game tennis summer in moscow 2025.webm',
+            'Volleyball' => 'File:2012-08-04-olympics-beach-volleyball.webm',
+        ];
+        foreach ($catalogue as $name => $title) {
+            $sport = DB::table('sports')->where('name', $name)->first();
+            if (! $sport) throw new RuntimeException("Missing sport: {$name}");
+            $assets = $this->search($title, 1);
+            if (count($assets) !== 1) throw new RuntimeException("Could not resolve licensed sports footage: {$title}");
+            $imported += $this->store($assets[0], $sport, $ownerId, $disk) ? 1 : 0;
+            $this->command?->info("{$name}: source ready.");
         }
 
         $total = Media::where('collection', 'performance-sports')->count();
@@ -42,8 +48,7 @@ class SportsMediaCatalogSeeder extends Seeder
     {
         $response = Http::withHeaders(['User-Agent' => 'SportsUniversePerformanceSeeder/1.0 ('.config('app.url').')'])
             ->timeout(45)->retry(3, 750)->get(self::API, [
-                'action' => 'query', 'format' => 'json', 'formatversion' => 2, 'generator' => 'search',
-                'gsrsearch' => $sport.' sport', 'gsrnamespace' => 6, 'gsrlimit' => min(50, $limit),
+                'action' => 'query', 'format' => 'json', 'formatversion' => 2, 'titles' => $sport,
                 'prop' => 'imageinfo', 'iiprop' => 'url|mime|size|sha1|extmetadata', 'iiurlwidth' => 1280,
             ])->throw()->json();
 
@@ -63,15 +68,29 @@ class SportsMediaCatalogSeeder extends Seeder
     private function store(array $asset, object $sport, int $ownerId, string $disk): bool
     {
         $key = sha1($asset['source_url']);
-        if (Media::where('collection', 'performance-sports')->where('original_name', 'commons-'.$key.'.'.$this->extension($asset['mime']))->exists()) return false;
+        if (Media::where('collection', 'performance-sports')->where('original_name', 'commons-'.$key.'.mp4')->exists()) return false;
         $maxBytes = str_starts_with($asset['mime'], 'image/') ? 12 * 1024 * 1024 : (int) config('scale.mass_feed_max_video_mb', 80) * 1024 * 1024;
         if (($asset['reported_size'] ?? 0) > $maxBytes) return false;
         $response = Http::withHeaders(['User-Agent' => 'SportsUniversePerformanceSeeder/1.0 ('.config('app.url').')'])->timeout(180)->retry(2, 1000)->get($asset['download_url']);
         if (! $response->successful() || strlen($response->body()) > $maxBytes) return false;
-        $extension = $this->extension($asset['mime']);
-        $path = "performance/sports/{$sport->id}/{$key}.{$extension}";
-        Storage::disk($disk)->put($path, $response->body());
-        Media::create(['public_id' => (string) Str::ulid(), 'user_id' => $ownerId, 'kind' => str_starts_with($asset['mime'], 'image/') ? 'image' : 'video', 'collection' => 'performance-sports', 'disk' => $disk, 'path' => $path, 'original_name' => "commons-{$key}.{$extension}", 'mime_type' => $asset['mime'], 'size_bytes' => strlen($response->body()), 'checksum_sha256' => hash('sha256', $response->body()), 'processing_status' => 'ready', 'moderation_status' => 'approved', 'width' => $asset['width'], 'height' => $asset['height'], 'metadata' => ['source' => 'Wikimedia Commons', 'source_url' => $asset['source_url'], 'author' => $asset['author'], 'license' => $asset['license'], 'license_url' => $asset['license_url'], 'credit' => $asset['credit'], 'sport_id' => $sport->id, 'sport' => $sport->name, 'performance_test_asset' => true], 'processed_at' => now()]);
+        $extension = 'mp4';
+        $input = tempnam(sys_get_temp_dir(), 'sports-source-');
+        $output = $input.'.mp4';
+        try {
+            file_put_contents($input, $response->body());
+            $process = new Process([config('media.ffmpeg_binary', 'ffmpeg'), '-y', '-i', $input,
+                '-t', '60', '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', '-c:v', 'libx264',
+                '-preset', 'fast', '-crf', '25', '-pix_fmt', 'yuv420p', '-an', '-movflags', '+faststart', $output]);
+            $process->setTimeout(300)->mustRun();
+            $body = file_get_contents($output);
+            $asset['mime'] = 'video/mp4';
+            $path = "performance/sports/{$sport->id}/{$key}.{$extension}";
+            if (! Storage::disk($disk)->put($path, $body)) throw new RuntimeException('Failed to store sports video.');
+        } finally {
+            if (is_file($input)) unlink($input);
+            if (is_file($output)) unlink($output);
+        }
+        Media::create(['public_id' => (string) Str::ulid(), 'user_id' => $ownerId, 'kind' => str_starts_with($asset['mime'], 'image/') ? 'image' : 'video', 'collection' => 'performance-sports', 'disk' => $disk, 'path' => $path, 'original_name' => "commons-{$key}.{$extension}", 'mime_type' => $asset['mime'], 'size_bytes' => strlen($body), 'checksum_sha256' => hash('sha256', $body), 'processing_status' => 'ready', 'moderation_status' => 'approved', 'width' => $asset['width'], 'height' => $asset['height'], 'metadata' => ['source' => 'Wikimedia Commons', 'source_url' => $asset['source_url'], 'author' => $asset['author'], 'license' => $asset['license'], 'license_url' => $asset['license_url'], 'credit' => $asset['credit'], 'sport_id' => $sport->id, 'sport' => $sport->name, 'performance_test_asset' => true, 'changes' => 'Converted to silent MP4; limited to 60 seconds'], 'processed_at' => now()]);
         return true;
     }
 

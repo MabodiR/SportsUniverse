@@ -171,17 +171,6 @@ jobs:
           cd /var/www/sportuniverse
           sudo --preserve-env=PRODUCTION_ADMIN_PASSWORD -u www-data php artisan db:seed --class=Database\\Seeders\\ProductionAccessUserSeeder --force
 
-      - name: Seed production feed
-        run: |
-          cd /var/www/sportuniverse
-          sudo -u www-data php artisan db:seed --class=Database\\Seeders\\FeedDemoSeeder --force
-
-      - name: Seed production scale data
-        continue-on-error: true
-        run: |
-          cd /var/www/sportuniverse
-          sudo -u www-data php artisan db:seed --class=Database\\Seeders\\SouthAfricaScaleSeeder --force
-
       - name: Optimize production application
         run: |
           cd /var/www/sportuniverse

@@ -105,7 +105,11 @@ class SeedMassFeedPosts extends Command
                             WHEN 5 THEN 'A glimpse of the skill and discipline behind my sporting journey.'
                             WHEN 6 THEN 'Explosive movement, strong fundamentals and a hunger to improve.'
                             ELSE 'Built through repetition. Ready to be seen by the right team.'
-                        END,
+                        END || ' Footage: ' || COALESCE(scale_video.metadata->>'author', 'Wikimedia Commons')
+                            || ' (' || COALESCE(scale_video.metadata->>'license', '') || '). '
+                            || COALESCE(scale_video.metadata->>'source_url', '') || ' '
+                            || COALESCE(scale_video.metadata->>'license_url', '')
+                            || ' Converted to silent MP4; limited to 60 seconds.',
                         jsonb_build_array(lower(replace(sports.name, ' ', '')), 'talentshowcase', 'athletespotlight'),
                         'public', 'published', 25 + (series.n * 17) % 250000, 2 + (series.n * 7) % 18000,
                         series.n % 350, series.n % 240, series.n % 900,
