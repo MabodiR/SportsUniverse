@@ -26,6 +26,28 @@ jobs:
     environment: production
     timeout-minutes: 60
     steps:
+      - name: Stop an orphaned previous full-feed deletion
+        if: inputs.action == 'replace'
+        run: |
+          sudo -u postgres psql -d sportuniverse -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT pid, state, wait_event_type, left(query, 100) FROM pg_stat_activity
+          WHERE datname = 'sportuniverse' AND usename = 'www-data' AND state = 'active';
+          SELECT pg_cancel_backend(pid) FROM pg_stat_activity
+          WHERE datname = 'sportuniverse' AND usename = 'www-data'
+            AND query = 'delete from "videos"' AND state = 'active';
+          SQL
+      - name: Index references used by full-feed deletion
+        if: inputs.action == 'replace'
+        run: |
+          sudo -u postgres psql -d sportuniverse -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE INDEX IF NOT EXISTS recommendation_feed_items_video_id_idx ON recommendation_feed_items (video_id);
+          CREATE INDEX IF NOT EXISTS feed_preferences_video_id_idx ON feed_preferences (video_id);
+          CREATE INDEX IF NOT EXISTS ad_campaigns_video_id_idx ON ad_campaigns (video_id);
+          CREATE INDEX IF NOT EXISTS content_moderation_appeals_video_id_idx ON content_moderation_appeals (video_id);
+          CREATE INDEX IF NOT EXISTS opportunity_application_documents_media_id_idx ON opportunity_application_documents (media_id);
+          CREATE INDEX IF NOT EXISTS messages_media_id_idx ON messages (media_id);
+          CREATE INDEX IF NOT EXISTS opportunity_applications_resume_media_id_idx ON opportunity_applications (resume_media_id);
+          SQL
       - name: Import sports video sources
         if: inputs.action == 'import'
         working-directory: /var/www/sportuniverse
