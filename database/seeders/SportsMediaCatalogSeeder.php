@@ -24,10 +24,10 @@ class SportsMediaCatalogSeeder extends Seeder
         $imported = 0;
 
         foreach (DB::table('sports')->orderBy('id')->get(['id', 'name']) as $sport) {
-            $assets = $this->search($sport->name.' video', max($videosPerSport * 8, 30));
+            $assets = $this->search($sport->name.' athlete skills training competition video', max($videosPerSport * 8, 30));
             $videos = collect($assets)->filter(fn ($asset) => str_starts_with($asset['mime'], 'video/') || $asset['mime'] === 'application/ogg')->take($videosPerSport);
             if ($videos->count() < $videosPerSport) {
-                $videos = $videos->concat(collect($this->search($sport->name, max($videosPerSport * 12, 40)))->filter(fn ($asset) => str_starts_with($asset['mime'], 'video/') || $asset['mime'] === 'application/ogg'))->unique('source_url')->take($videosPerSport);
+                $videos = $videos->concat(collect($this->search($sport->name.' skills highlights', max($videosPerSport * 12, 40)))->filter(fn ($asset) => str_starts_with($asset['mime'], 'video/') || $asset['mime'] === 'application/ogg'))->unique('source_url')->take($videosPerSport);
             }
             foreach ($videos as $asset) $imported += $this->store($asset, $sport, $ownerId, $disk) ? 1 : 0;
             $this->command?->info("{$sport->name}: {$videos->count()} videos selected.");

@@ -20,20 +20,51 @@ class SeedMassFeedPosts extends Command
             $target = max(0, (int) $this->option('total') - $nonMassPosts);
         }
         $batchSize = max(1000, min(100000, (int) $this->option('batch')));
-        $sourceVideos = DB::table('media')->whereIn('collection', ['performance-sports', 'demo-videos'])->where('kind', 'video')->where('processing_status', 'ready')->where('moderation_status', 'approved')->get();
+        $sourceVideos = DB::table('media')->where('collection', 'performance-sports')->where('kind', 'video')->where('processing_status', 'ready')->where('moderation_status', 'approved')->whereNotNull('metadata->sport_id')->get();
         if ($sourceVideos->isEmpty()) throw new RuntimeException('At least one ready, approved source video is required.');
         if (! DB::table('sports')->exists() || ! DB::table('users')->where('status', 'active')->exists()) throw new RuntimeException('Sports and active users are required.');
 
         DB::statement('SET synchronous_commit TO OFF');
-        DB::statement('CREATE TEMP TABLE mass_seed_users ON COMMIT PRESERVE ROWS AS SELECT id, row_number() OVER (ORDER BY id) AS rn FROM users WHERE status = ?', ['active']);
+        DB::statement(<<<'SQL'
+            CREATE TEMP TABLE mass_seed_users ON COMMIT PRESERVE ROWS AS
+            SELECT users.id, row_number() OVER (ORDER BY users.id) AS rn
+            FROM users
+            WHERE users.status = ? AND EXISTS (
+                SELECT 1 FROM model_has_roles
+                JOIN roles ON roles.id = model_has_roles.role_id
+                WHERE model_has_roles.model_id = users.id
+                    AND model_has_roles.model_type = 'App\Models\User'
+                    AND roles.name = 'athlete'
+            )
+            SQL, ['active']);
         DB::statement('CREATE UNIQUE INDEX mass_seed_users_rn_idx ON mass_seed_users (rn)');
-        DB::statement('CREATE TEMP TABLE mass_seed_sports ON COMMIT PRESERVE ROWS AS SELECT id, name, row_number() OVER (ORDER BY id) AS rn FROM sports');
+        DB::statement(<<<'SQL'
+            CREATE TEMP TABLE mass_seed_sports ON COMMIT PRESERVE ROWS AS
+            SELECT sports.id, sports.name, row_number() OVER (ORDER BY sports.id) AS rn
+            FROM sports WHERE EXISTS (
+                SELECT 1 FROM media WHERE media.collection = 'performance-sports'
+                    AND media.kind = 'video' AND media.processing_status = 'ready'
+                    AND media.moderation_status = 'approved'
+                    AND (media.metadata->>'sport_id')::bigint = sports.id
+            )
+            SQL);
         DB::statement('CREATE UNIQUE INDEX mass_seed_sports_rn_idx ON mass_seed_sports (rn)');
-        DB::statement("CREATE TEMP TABLE mass_seed_source_videos ON COMMIT PRESERVE ROWS AS SELECT media.*, row_number() OVER (ORDER BY id) AS source_rn FROM media WHERE collection IN ('performance-sports', 'demo-videos') AND kind = 'video' AND processing_status = 'ready' AND moderation_status = 'approved'");
-        DB::statement('CREATE UNIQUE INDEX mass_seed_source_videos_rn_idx ON mass_seed_source_videos (source_rn)');
+        DB::statement(<<<'SQL'
+            CREATE TEMP TABLE mass_seed_source_videos ON COMMIT PRESERVE ROWS AS
+            SELECT media.*, (metadata->>'sport_id')::bigint AS source_sport_id,
+                row_number() OVER (PARTITION BY (metadata->>'sport_id')::bigint ORDER BY id) AS sport_rn,
+                count(*) OVER (PARTITION BY (metadata->>'sport_id')::bigint) AS sport_video_count
+            FROM media
+            WHERE collection = 'performance-sports' AND kind = 'video'
+                AND processing_status = 'ready' AND moderation_status = 'approved'
+                AND metadata->>'sport_id' IS NOT NULL
+            SQL);
+        DB::statement('CREATE UNIQUE INDEX mass_seed_source_videos_sport_rn_idx ON mass_seed_source_videos (source_sport_id, sport_rn)');
         $userCount = (int) DB::table('mass_seed_users')->count();
         $sportCount = (int) DB::table('mass_seed_sports')->count();
         $sourceVideoCount = (int) DB::table('mass_seed_source_videos')->count();
+        if ($userCount === 0) throw new RuntimeException('At least one active athlete user is required.');
+        if ($sourceVideoCount === 0) throw new RuntimeException('Approved, sport-tagged performance source videos are required.');
         $existing = (int) DB::table('videos')->where('public_id', 'like', '5M%')->selectRaw("COALESCE(MAX(CAST(SUBSTRING(public_id FROM 3) AS BIGINT)), 0) AS maximum")->value('maximum');
 
         if ($existing >= $target) { $this->info("Mass feed already contains {$existing} video posts."); return self::SUCCESS; }
@@ -43,7 +74,7 @@ class SeedMassFeedPosts extends Command
 
         for ($start = $existing + 1; $start <= $target; $start += $batchSize) {
             $end = min($target, $start + $batchSize - 1);
-            DB::transaction(function () use ($start, $end, $userCount, $sportCount, $sourceVideoCount) {
+            DB::transaction(function () use ($start, $end, $userCount, $sportCount) {
                     DB::insert(<<<'SQL'
                         INSERT INTO media (public_id, user_id, kind, collection, disk, path, original_name, mime_type, size_bytes, checksum_sha256, processing_status, moderation_status, thumbnail_path, duration_ms, width, height, metadata, processed_at, created_at, updated_at)
                         SELECT 'MV' || lpad(series.n::text, 24, '0'), users.id, 'video', 'performance-scale', source.disk, source.path,
@@ -51,9 +82,11 @@ class SeedMassFeedPosts extends Command
                             'ready', 'approved', source.thumbnail_path, source.duration_ms, source.width, source.height, source.metadata, now(), now(), now()
                         FROM generate_series(CAST(? AS bigint), CAST(? AS bigint)) AS series(n)
                         JOIN mass_seed_users users ON users.rn = ((series.n - 1) % ?) + 1
-                        JOIN mass_seed_source_videos source ON source.source_rn = ((series.n - 1) % ?) + 1
+                        JOIN mass_seed_sports sports ON sports.rn = ((series.n - 1) % ?) + 1
+                        JOIN mass_seed_source_videos source ON source.source_sport_id = sports.id
+                            AND source.sport_rn = ((series.n - 1) % source.sport_video_count) + 1
                         ON CONFLICT (public_id) DO NOTHING
-                        SQL, [$start, $end, $userCount, $sourceVideoCount]);
+                        SQL, [$start, $end, $userCount, $sportCount]);
                 DB::insert(<<<'SQL'
                     INSERT INTO videos (
                         public_id, user_id, media_id, sport_id, caption, hashtags, visibility, status,
@@ -63,8 +96,17 @@ class SeedMassFeedPosts extends Command
                     )
                     SELECT
                         '5M' || lpad(series.n::text, 24, '0'), users.id, scale_video.id, sports.id,
-                        'Scale demo: ' || sports.name || ' ' || CASE series.n % 5 WHEN 0 THEN 'match highlight' WHEN 1 THEN 'training session' WHEN 2 THEN 'skills showcase' WHEN 3 THEN 'tactical analysis' ELSE 'behind the scenes' END,
-                        jsonb_build_array(lower(replace(sports.name, ' ', '')), 'sportsuniverse', 'scaledemo'),
+                        CASE series.n % 8
+                            WHEN 0 THEN 'Watch my technique under pressure — ready for the next opportunity.'
+                            WHEN 1 THEN 'Speed, control and confidence. This is what I bring to the game.'
+                            WHEN 2 THEN 'Skills showcase: sharp movement, clean execution and relentless work.'
+                            WHEN 3 THEN 'Putting in the work. Here is a look at my latest performance.'
+                            WHEN 4 THEN 'Game intelligence meets athletic ability. My talent in action.'
+                            WHEN 5 THEN 'A glimpse of the skill and discipline behind my sporting journey.'
+                            WHEN 6 THEN 'Explosive movement, strong fundamentals and a hunger to improve.'
+                            ELSE 'Built through repetition. Ready to be seen by the right team.'
+                        END,
+                        jsonb_build_array(lower(replace(sports.name, ' ', '')), 'talentshowcase', 'athletespotlight'),
                         'public', 'published', 25 + (series.n * 17) % 250000, 2 + (series.n * 7) % 18000,
                         series.n % 350, series.n % 240, series.n % 900,
                         now() - ((series.n % 525600)::text || ' minutes')::interval,
@@ -81,8 +123,8 @@ class SeedMassFeedPosts extends Command
                         END,
                         sports.name || ' Club ' || ((series.n % 120) + 1),
                         sports.name || ' Championship',
-                        CASE series.n % 5 WHEN 0 THEN 'match_highlight' WHEN 1 THEN 'training' WHEN 2 THEN 'skills' WHEN 3 THEN 'analysis' ELSE 'behind_the_scenes' END,
-                        'en', jsonb_build_array(CASE series.n % 4 WHEN 0 THEN 'finishing' WHEN 1 THEN 'defending' WHEN 2 THEN 'speed' ELSE 'teamwork' END),
+                        CASE series.n % 4 WHEN 0 THEN 'skills' WHEN 1 THEN 'training' WHEN 2 THEN 'match_highlight' ELSE 'performance' END,
+                        'en', jsonb_build_array(CASE series.n % 8 WHEN 0 THEN 'technique' WHEN 1 THEN 'speed' WHEN 2 THEN 'control' WHEN 3 THEN 'finishing' WHEN 4 THEN 'agility' WHEN 5 THEN 'strength' WHEN 6 THEN 'defending' ELSE 'game intelligence' END),
                         jsonb_build_object('sport', jsonb_build_array(lower(sports.name)), 'country', jsonb_build_array(lower(CASE series.n % 4 WHEN 0 THEN 'ZA' WHEN 1 THEN 'GB' WHEN 2 THEN 'US' ELSE 'AU' END))),
                         now(), now(), now()
                     FROM generate_series(CAST(? AS bigint), CAST(? AS bigint)) AS series(n)
