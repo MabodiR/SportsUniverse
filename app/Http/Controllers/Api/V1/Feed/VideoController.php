@@ -63,6 +63,16 @@ class VideoController extends Controller
         if ($media && Video::where('media_id', $media->id)->exists()) {
             throw ValidationException::withMessages(['media_id' => ['This video has already been published in another post.']]);
         }
+        if ($media && Video::query()->join('media as published_media', 'published_media.id', '=', 'videos.media_id')
+            ->where(function ($query) use ($media) {
+                if ($media->checksum_sha256) {
+                    $query->where('published_media.checksum_sha256', $media->checksum_sha256);
+                } else {
+                    $query->where('published_media.disk', $media->disk)->where('published_media.path', $media->path);
+                }
+            })->exists()) {
+            throw ValidationException::withMessages(['media_id' => ['This video footage has already been published by another user.']]);
+        }
         if ($request->validated('post_type', 'post') === 'story' && $media && (int) $media->duration_ms > 30000) {
             throw ValidationException::withMessages(['media_id' => ['Story videos cannot be longer than 30 seconds. Trim this video and try again.']]);
         }

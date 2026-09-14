@@ -19,17 +19,19 @@ class RefreshTalentShowcases extends Command
             throw new RuntimeException('Talent showcase refresh requires PostgreSQL.');
         }
 
-        $count = max(1, min(100000, (int) $this->option('count')));
+        $requestedCount = max(1, min(100000, (int) $this->option('count')));
         $existingVideos = DB::table('videos')->count();
         $replaceableVideoMedia = DB::table('media')->where('kind', 'video')->where('collection', '!=', 'performance-sports')->count();
         $attachedImages = DB::table('video_images')->distinct('media_id')->count('media_id');
-        $approvedSources = DB::table('media')->where('collection', 'performance-sports')->where('kind', 'video')->where('processing_status', 'ready')->where('moderation_status', 'approved')->count();
+        $approvedSources = (int) DB::table('media')->where('collection', 'performance-sports')->where('kind', 'video')->where('processing_status', 'ready')->where('moderation_status', 'approved')->selectRaw('COUNT(DISTINCT COALESCE(checksum_sha256, path)) AS aggregate')->value('aggregate');
+        $count = min($requestedCount, $approvedSources);
 
         $this->table(['Action', 'Records'], [
             ['All existing posts to replace', number_format($existingVideos)],
             ['Non-source video media to remove', number_format($replaceableVideoMedia)],
             ['Post image attachments to remove', number_format($attachedImages)],
-            ['Approved licensed source videos preserved', number_format($approvedSources)],
+            ['Unique approved source videos preserved', number_format($approvedSources)],
+            ['Requested talent showcase posts', number_format($requestedCount)],
             ['New talent showcase posts', number_format($count)],
         ]);
 

@@ -243,6 +243,23 @@ class FeedModuleTest extends TestCase
         $this->assertDatabaseCount('videos', 1);
     }
 
+    public function test_same_video_file_cannot_be_published_by_different_users(): void
+    {
+        $firstUser = User::factory()->create();
+        $secondUser = User::factory()->create();
+        $checksum = str_repeat('a', 64);
+        $publishedMedia = Media::factory()->for($firstUser)->create(['kind' => 'video', 'checksum_sha256' => $checksum]);
+        $duplicateUpload = Media::factory()->for($secondUser)->create(['kind' => 'video', 'checksum_sha256' => $checksum]);
+        Video::factory()->for($firstUser)->create(['media_id' => $publishedMedia->id]);
+
+        $this->actingAs($secondUser, 'sanctum')->postJson('/api/v1/videos', [
+            'media_id' => $duplicateUpload->public_id,
+            'publish' => true,
+        ])->assertUnprocessable()->assertJsonValidationErrors('media_id');
+
+        $this->assertDatabaseMissing('videos', ['media_id' => $duplicateUpload->id]);
+    }
+
     public function test_video_post_can_include_two_images_and_select_a_cover(): void
     {
         $user = User::factory()->create();

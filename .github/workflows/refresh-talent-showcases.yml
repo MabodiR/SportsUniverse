@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: Audit sources or replace all existing posts with 1000 sports showcases
+        description: Audit sources or replace all existing posts with one post per unique sports video
         required: true
         default: audit
         type: choice
@@ -69,5 +69,20 @@ jobs:
         if: inputs.action == 'replace'
         working-directory: /var/www/sportuniverse
         run: sudo -u www-data php artisan feed:refresh-talent-showcases --count=1000 --force
+      - name: Verify every post uses unique footage
+        if: inputs.action == 'replace'
+        working-directory: /var/www/sportuniverse
+        run: |
+          sudo -u www-data php <<'PHP'
+          <?php
+          require 'vendor/autoload.php';
+          $app = require 'bootstrap/app.php';
+          $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+          $posts = Illuminate\Support\Facades\DB::table('videos')->count();
+          $uniqueFootage = Illuminate\Support\Facades\DB::table('videos')->join('media', 'media.id', '=', 'videos.media_id')
+              ->selectRaw('COUNT(DISTINCT COALESCE(media.checksum_sha256, media.path)) AS aggregate')->value('aggregate');
+          echo "posts={$posts} unique_footage={$uniqueFootage}".PHP_EOL;
+          if ($posts === 0 || $posts !== (int) $uniqueFootage) throw new RuntimeException('Duplicate footage remains in the feed.');
+          PHP
       - name: Verify application health
         run: curl --fail --silent --show-error https://sportsuniverse.co.za/up
