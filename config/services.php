@@ -77,8 +77,8 @@ return [
         'ios_minimum_version' => env('MOBILE_APP_IOS_MINIMUM_VERSION', '1.0.0'),
         'ios_latest_version' => env('MOBILE_APP_IOS_LATEST_VERSION', '1.0.0'),
         'release_notes' => env('MOBILE_APP_RELEASE_NOTES'),
-        'ios_url' => env('MOBILE_APP_IOS_URL'),
-        'android_url' => env('MOBILE_APP_ANDROID_URL'),
+        'ios_url' => env('MOBILE_APP_IOS_URL') ?: null,
+        'android_url' => env('MOBILE_APP_ANDROID_URL') ?: null,
         'direct_url' => env(
             'MOBILE_APP_DIRECT_URL',
             'https://expo.dev/artifacts/eas/KsZ2rXG0aRJ7rlTU0Wfw5FRrAKcqnP6meiDxicRd8tQ.apk'
