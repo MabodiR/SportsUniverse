@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Domain\Feed\Models\Video;
 use App\Http\Controllers\Controller;
+use App\Domain\Promotions\Services\VoucherService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
@@ -11,10 +12,10 @@ use Inertia\Response;
 
 class PublicHomeController extends Controller
 {
-    public function __invoke(Request $request): Response
+    public function __invoke(Request $request, VoucherService $vouchers): Response
     {
         if (! Schema::hasTable('videos')) {
-            return $this->render(collect());
+            return $this->render(collect(), $vouchers->publicPromotion());
         }
 
         $videos = Video::query()
@@ -26,13 +27,14 @@ class PublicHomeController extends Controller
             ->orderByRaw('(views_count + (likes_count * 3) + (comments_count * 4) + (shares_count * 5)) DESC')
             ->latest('published_at')->limit(5)->get();
 
-        return $this->render($videos);
+        return $this->render($videos, $vouchers->publicPromotion());
     }
 
-    private function render($videos): Response
+    private function render($videos, ?array $promotion = null): Response
     {
         return Inertia::render('Public/Home', [
             'highlights' => $videos->map(fn (Video $video) => $this->video($video))->values(),
+            'promotion' => $promotion,
         ])->withViewData('seo', [
             'title' => 'SportsUniverse | Where Sports Talent Meets Opportunity',
             'description' => 'Discover athletes, watch sports highlights and connect talent with scouts, clubs, coaches and sporting opportunities on SportsUniverse.',

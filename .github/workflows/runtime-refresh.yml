@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   refresh:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux, X64, xneelo-production]
     environment: production
     timeout-minutes: 10
 
@@ -58,7 +58,7 @@ jobs:
           sudo -u www-data php artisan optimize
           sudo systemctl daemon-reload
           sudo systemctl restart sportuniverse-queue.service sportuniverse-reverb.service
-          sudo systemctl reload php8.5-fpm.service nginx.service
+          sudo systemctl reload php8.3-fpm.service nginx.service
 
       - name: Verify runtime services
         run: |

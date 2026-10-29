@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
         }
         $this->call(SportSeeder::class);
         $this->call(SubscriptionPlanSeeder::class);
+        $this->call(EarlyAdopterPromotionSeeder::class);
         $this->call(FeedDemoSeeder::class);
         $this->call(OpportunityDemoSeeder::class);
         $user = User::factory()->create(['name' => 'SportsUniverse Admin', 'email' => 'admin@sportuniverse.test']);

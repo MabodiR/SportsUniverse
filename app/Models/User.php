@@ -18,6 +18,7 @@ use App\Domain\Profiles\Models\UserProfile;
 use App\Domain\Advertising\Models\AdCampaign;
 use App\Domain\Subscriptions\Models\Subscription;
 use App\Domain\Subscriptions\Models\SubscriptionPayment;
+use App\Domain\Promotions\Models\VoucherRedemption;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
@@ -128,6 +129,11 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
     public function subscriptionPayments(): HasMany
     {
         return $this->hasMany(SubscriptionPayment::class);
+    }
+
+    public function voucherRedemptions(): HasMany
+    {
+        return $this->hasMany(VoucherRedemption::class);
     }
 
     public function following(): BelongsToMany

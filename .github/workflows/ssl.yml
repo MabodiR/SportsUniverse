@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   ssl:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux, X64, xneelo-production]
     environment: production
     timeout-minutes: 15
 

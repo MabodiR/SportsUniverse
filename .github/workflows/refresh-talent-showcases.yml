@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   refresh:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux, X64, xneelo-production]
     environment: production
     timeout-minutes: 60
     steps:

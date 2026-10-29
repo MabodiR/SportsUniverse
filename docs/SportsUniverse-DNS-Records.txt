@@ -1,0 +1,47 @@
+SPORTSUNIVERSE DNS CONFIGURATION
+================================
+
+Domain: sportsuniverse.co.za
+Web server IP: 154.65.108.156
+Recommended temporary TTL: 300 seconds
+
+
+WEBSITE AND EMAIL RECORDS
+-------------------------
+
+Type   Host                 Value                                                    Priority
+----   -------------------  -------------------------------------------------------  --------
+A      @                    154.65.108.156                                           -
+A      www                  154.65.108.156                                           -
+A      mail                 129.232.138.143                                           -
+MX     @                    mail.sportsuniverse.co.za                                 10
+TXT    @                    v=spf1 include:spf.host-h.net ~all                       -
+TXT    xneelo._domainkey    KEEP THE EXISTING XNEELO DKIM VALUE UNCHANGED            -
+TXT    _dmarc               v=DMARC1; p=none;                                        -
+                             rua=mailto:support@sportsuniverse.co.za;
+                             adkim=r; aspf=r
+
+
+NAMESERVERS - KEEP UNCHANGED
+----------------------------
+
+Type   Host                 Value                                                    Priority
+----   -------------------  -------------------------------------------------------  --------
+NS     @                    ns1.host-h.net                                            -
+NS     @                    ns2.host-h.net                                            -
+NS     @                    ns1.dns-h.com                                             -
+NS     @                    ns2.dns-h.com                                             -
+
+
+IMPORTANT NOTES
+---------------
+
+1. Delete or replace A records for @, www, or mail that still point to the old
+   AWS IP address: 13.247.245.36.
+
+2. Do not delete or replace the existing xneelo._domainkey DKIM TXT record if it exist.
+
+3. Do not add an IPv6/AAAA record yet.
+
+5. After the records propagate, configure HTTPS and production SMTP, then test
+   Gmail and Outlook delivery and confirm SPF, DKIM, and DMARC all show PASS.

@@ -1,51 +1,97 @@
-name: Deploy to AWS
+name: Deploy to xneelo Production
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: production-deployment
-  cancel-in-progress: true
+  group: xneelo-production-deployment
+  cancel-in-progress: false
 
 jobs:
   deploy:
-    runs-on: [self-hosted, Linux, X64]
+    name: Build and deploy
+    runs-on: [self-hosted, Linux, X64, xneelo-production]
     environment: production
-    timeout-minutes: 60
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Verify server toolchain
+      - name: Verify xneelo runner and toolchain
         run: |
+          set -euo pipefail
+          test "$(hostname)" = "sportuniverse-production"
           php --version
           composer --version
           node --version
           npm --version
+          psql --version
 
-      - name: Install production dependencies
+      - name: Install build and test dependencies
         run: |
-          composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
+          set -euo pipefail
+          composer install --prefer-dist --no-interaction --no-progress
           npm ci --include=optional --no-audit --no-fund
 
       - name: Build frontend
         env:
-          NODE_OPTIONS: --max-old-space-size=768
-        run: nice -n 10 npm run build
+          NODE_OPTIONS: --max-old-space-size=1024
+        run: npm run build
 
-      - name: Deploy application locally
+      - name: Validate release before deployment
+        env:
+          APP_ENV: testing
+          APP_DEBUG: false
+          APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          DB_CONNECTION: sqlite
+          DB_DATABASE: database/deployment.sqlite
+          CACHE_STORE: array
+          SESSION_DRIVER: array
+          QUEUE_CONNECTION: sync
+          MAIL_MAILER: array
         run: |
-          rsync -az --delete \
+          set -euo pipefail
+          : > database/deployment.sqlite
+          php artisan migrate --force --no-interaction
+          php artisan test --filter=EarlyAdopterPromotionTest
+          php artisan route:list --except-vendor > /dev/null
+
+      - name: Prepare production PHP dependencies
+        run: composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
+
+      - name: Back up and deploy production release
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          APP_DIR=/var/www/sportuniverse
+          BACKUP_DIR=/var/backups/sportuniverse
+          STAMP=$(date -u +%Y%m%d-%H%M%S)
+
+          sudo test -f "$APP_DIR/.env"
+          sudo install -d -m 750 -o postgres -g postgres "$BACKUP_DIR"
+
+          users_before=$(sudo -u postgres psql -d sportuniverse -Atc \
+            "SELECT CASE WHEN to_regclass('public.users') IS NULL THEN 0 ELSE (SELECT count(*) FROM users) END")
+          echo "Production users before deployment: $users_before"
+
+          sudo -u postgres pg_dump --format=custom \
+            --file="$BACKUP_DIR/pre-deploy-$STAMP.dump" sportuniverse
+          sudo chmod 600 "$BACKUP_DIR/pre-deploy-$STAMP.dump"
+
+          sudo -u www-data php "$APP_DIR/artisan" down --retry=60
+          trap 'sudo -u www-data php /var/www/sportuniverse/artisan up || true' EXIT
+
+          sudo rsync -az --delete \
             --exclude='.env' \
             --exclude='.git/' \
             --exclude='.github/' \
+            --exclude='actions-runner/' \
             --exclude='database/*.sqlite*' \
             --exclude='mobile-app/' \
             --exclude='node_modules/' \
@@ -53,158 +99,51 @@ jobs:
             --exclude='public/storage' \
             --exclude='storage/' \
             --exclude='tests/' \
-            ./ /var/www/sportuniverse/
+            ./ "$APP_DIR/"
 
-      - name: Prepare Laravel runtime
-        env:
-          PRODUCTION_MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
-          PRODUCTION_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          PRODUCTION_GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          PRODUCTION_APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
-          PRODUCTION_APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
-          PRODUCTION_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          PRODUCTION_APPLE_PRIVATE_KEY_BASE64: ${{ secrets.APPLE_PRIVATE_KEY_BASE64 }}
-        run: |
-          cd /var/www/sportuniverse
-          set_env() {
-            key="$1"
-            value="$2"
-            sudo sed -i "/^${key}=/d" .env
-            printf '%s=%s\n' "$key" "$value" | sudo tee -a .env > /dev/null
-          }
-          if [ -z "$PRODUCTION_MAIL_PASSWORD" ]; then
-            echo "MAIL_PASSWORD is not configured in the GitHub production environment." >&2
-            exit 1
-          fi
-          if [ -z "$PRODUCTION_GOOGLE_CLIENT_ID" ] || [ -z "$PRODUCTION_GOOGLE_CLIENT_SECRET" ]; then
-            echo "GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be configured in the GitHub production environment." >&2
-            exit 1
-          fi
-          set_env APP_URL https://sportsuniverse.co.za
-          set_env GOOGLE_CLIENT_ID "$PRODUCTION_GOOGLE_CLIENT_ID"
-          set_env GOOGLE_CLIENT_SECRET "$PRODUCTION_GOOGLE_CLIENT_SECRET"
-          set_env GOOGLE_REDIRECT_URI https://sportsuniverse.co.za/auth/google/callback
-          if [ -n "$PRODUCTION_APPLE_CLIENT_ID" ] || [ -n "$PRODUCTION_APPLE_KEY_ID" ] || [ -n "$PRODUCTION_APPLE_TEAM_ID" ] || [ -n "$PRODUCTION_APPLE_PRIVATE_KEY_BASE64" ]; then
-            if [ -z "$PRODUCTION_APPLE_CLIENT_ID" ] || [ -z "$PRODUCTION_APPLE_KEY_ID" ] || [ -z "$PRODUCTION_APPLE_TEAM_ID" ] || [ -z "$PRODUCTION_APPLE_PRIVATE_KEY_BASE64" ]; then
-              echo "APPLE_CLIENT_ID, APPLE_KEY_ID, APPLE_TEAM_ID and APPLE_PRIVATE_KEY_BASE64 must all be configured when Apple login is enabled." >&2
-              exit 1
-            fi
-            sudo install -d -m 750 -o www-data -g www-data storage/app/private
-            printf '%s' "$PRODUCTION_APPLE_PRIVATE_KEY_BASE64" | base64 --decode | sudo tee storage/app/private/apple-auth-key.p8 > /dev/null
-            sudo chown www-data:www-data storage/app/private/apple-auth-key.p8
-            sudo chmod 640 storage/app/private/apple-auth-key.p8
-            set_env APPLE_CLIENT_ID "$PRODUCTION_APPLE_CLIENT_ID"
-            set_env APPLE_CLIENT_SECRET ''
-            set_env APPLE_KEY_ID "$PRODUCTION_APPLE_KEY_ID"
-            set_env APPLE_TEAM_ID "$PRODUCTION_APPLE_TEAM_ID"
-            set_env APPLE_PRIVATE_KEY /var/www/sportuniverse/storage/app/private/apple-auth-key.p8
-            set_env APPLE_REDIRECT_URI https://sportsuniverse.co.za/auth/apple/callback
-          fi
-          set_env DB_CONNECTION pgsql
-          set_env DB_HOST /var/run/postgresql
-          set_env DB_PORT 5432
-          set_env DB_DATABASE sportuniverse
-          set_env DB_USERNAME www-data
-          set_env DB_PASSWORD ''
-          set_env FILESYSTEM_DISK local
-          set_env MEDIA_DISK local
-          set_env MEDIA_REQUIRES_MODERATION false
-          set_env MAIL_MAILER smtp
-          set_env MAIL_SCHEME smtps
-          set_env MAIL_HOST www116.jnb2.host-h.net
-          set_env MAIL_PORT 465
-          set_env MAIL_USERNAME support@sportsuniverse.co.za
-          set_env MAIL_PASSWORD "$PRODUCTION_MAIL_PASSWORD"
-          set_env MAIL_FROM_ADDRESS support@sportsuniverse.co.za
-          set_env MAIL_FROM_NAME SportsUniverse
-          set_env PAYFAST_ENABLED true
-          set_env PAYFAST_SANDBOX true
-          set_env PAYFAST_MERCHANT_ID 10004002
-          set_env PAYFAST_MERCHANT_KEY q1cd2rdny4a53
-          set_env PAYFAST_PASSPHRASE payfast
-          set_env PAYFAST_VALIDATE_SERVER true
-          set_env PAYFAST_VALIDATE_IP true
-          sudo chown -R www-data:www-data storage bootstrap/cache
+          sudo chown -R www-data:www-data "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
+          cd "$APP_DIR"
           sudo -u www-data php artisan optimize:clear
-
-      - name: Prepare production PostgreSQL
-        run: |
-          if ! command -v psql > /dev/null; then
-            sudo apt-get update
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y postgresql
-          fi
-          if ! php -m | grep -qi '^pdo_pgsql$'; then
-            sudo apt-get update
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y php8.5-pgsql
-          fi
-          sudo systemctl enable --now postgresql
-          sudo -u postgres createuser www-data 2>/dev/null || true
-          sudo -u postgres createdb --owner=www-data sportuniverse 2>/dev/null || true
-          sudo -u postgres psql --set ON_ERROR_STOP=1 --command 'ALTER DATABASE sportuniverse OWNER TO "www-data";'
-
-      - name: Prepare production media runtime
-        run: |
-          if ! command -v ffmpeg > /dev/null || ! command -v ffprobe > /dev/null; then
-            sudo apt-get update
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ffmpeg
-          fi
-
-      - name: Run production migrations
-        run: |
-          cd /var/www/sportuniverse
-          sudo -u www-data php artisan migrate --force
-
-      - name: Seed production sports
-        run: |
-          cd /var/www/sportuniverse
+          sudo -u www-data php artisan migrate --force --no-interaction
           sudo -u www-data php artisan db:seed --class=Database\\Seeders\\SportSeeder --force
-
-      - name: Seed production membership plans
-        run: |
-          cd /var/www/sportuniverse
           sudo -u www-data php artisan db:seed --class=Database\\Seeders\\SubscriptionPlanSeeder --force
+          sudo -u www-data php artisan db:seed --class=Database\\Seeders\\EarlyAdopterPromotionSeeder --force
 
-      - name: Seed production test access
-        env:
-          PRODUCTION_ADMIN_PASSWORD: Password_123
-        run: |
-          cd /var/www/sportuniverse
-          sudo --preserve-env=PRODUCTION_ADMIN_PASSWORD -u www-data php artisan db:seed --class=Database\\Seeders\\ProductionAccessUserSeeder --force
+          users_after=$(sudo -u postgres psql -d sportuniverse -Atc 'SELECT count(*) FROM users')
+          echo "Production users after deployment: $users_after"
+          if [ "$users_after" -lt "$users_before" ]; then
+            echo "Refusing deployment: production user count decreased." >&2
+            exit 1
+          fi
 
-      - name: Optimize production application
-        run: |
-          cd /var/www/sportuniverse
+          sudo install -m 644 deploy/sportuniverse-queue.service /etc/systemd/system/sportuniverse-queue.service
+          sudo install -m 644 deploy/sportuniverse-reverb.service /etc/systemd/system/sportuniverse-reverb.service
+          sudo install -m 644 deploy/sportuniverse-scheduler.service /etc/systemd/system/sportuniverse-scheduler.service
+          sudo install -m 644 deploy/sportuniverse-scheduler.timer /etc/systemd/system/sportuniverse-scheduler.timer
+          sudo install -m 644 deploy/php-upload.ini /etc/php/8.3/fpm/conf.d/99-sportuniverse-upload.ini
+          sudo install -m 644 deploy/php-upload.ini /etc/php/8.3/cli/conf.d/99-sportuniverse-upload.ini
           sudo php artisan storage:link --force
           sudo -u www-data php artisan optimize
-
-      - name: Install production services
-        run: |
-          cd /var/www/sportuniverse
-          sudo install -m 644 deploy/sportuniverse-queue.service /etc/systemd/system/sportuniverse-queue.service
-          sudo install -m 644 deploy/php-upload.ini /etc/php/8.5/fpm/conf.d/99-sportuniverse-upload.ini
-          sudo install -m 644 deploy/php-upload.ini /etc/php/8.5/cli/conf.d/99-sportuniverse-upload.ini
-          sudo install -m 644 deploy/nginx.conf /etc/nginx/sites-available/sportuniverse
-          sudo nginx -t
-          sudo certbot --nginx \
-            --non-interactive \
-            --agree-tos \
-            --register-unsafely-without-email \
-            --redirect \
-            --keep-until-expiring \
-            --domain sportsuniverse.co.za \
-            --domain www.sportsuniverse.co.za
           sudo systemctl daemon-reload
+          sudo systemctl enable --now sportuniverse-scheduler.timer
           sudo systemctl restart sportuniverse-queue.service sportuniverse-reverb.service
-          sudo systemctl reload php8.5-fpm.service nginx.service
-
-      - name: Verify production profile media storage
-        run: |
-          cd /var/www/sportuniverse
-          printf 'profile-media-ok' | sudo -u www-data tee storage/app/public/deployment-storage-health.txt > /dev/null
-          curl --fail --silent --show-error --location --header 'Host: sportsuniverse.co.za' http://127.0.0.1/storage/deployment-storage-health.txt | grep -q 'profile-media-ok'
-          sudo -u www-data rm storage/app/public/deployment-storage-health.txt
+          sudo systemctl reload php8.3-fpm.service nginx.service
+          sudo -u www-data php artisan up
+          trap - EXIT
 
       - name: Verify production health
         run: |
+          set -euo pipefail
           curl --fail --silent --show-error --header 'Host: sportsuniverse.co.za' http://127.0.0.1/up > /dev/null
+          curl --fail --silent --show-error --header 'Host: sportsuniverse.co.za' http://127.0.0.1/ > /dev/null
           curl --fail --silent --show-error --header 'Host: sportsuniverse.co.za' http://127.0.0.1/feed > /dev/null
+          sudo systemctl is-active --quiet nginx php8.3-fpm postgresql redis-server
+          sudo systemctl is-active --quiet sportuniverse-queue sportuniverse-reverb
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo "### xneelo production deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: \`$GITHUB_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Runner: \`$(hostname)\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Status: \`${{ job.status }}\`" >> "$GITHUB_STEP_SUMMARY"

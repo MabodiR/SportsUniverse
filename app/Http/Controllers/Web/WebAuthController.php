@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Web;
 
 use App\Domain\Profiles\Actions\EnsureProfileSlug;
+use App\Domain\Promotions\Models\VoucherRedemption;
+use App\Domain\Promotions\Services\VoucherService;
 use App\Domain\Auth\Services\LoginHistoryRecorder;
 use App\Http\Controllers\Controller;
 use App\Models\User;
@@ -143,9 +145,9 @@ class WebAuthController extends Controller
         return redirect()->intended('/feed');
     }
 
-    public function registerPage(): Response
+    public function registerPage(VoucherService $vouchers): Response
     {
-        return Inertia::render('Auth/Register');
+        return Inertia::render('Auth/Register', ['promotion' => $vouchers->publicPromotion()]);
     }
 
     public function checkAvailability(Request $request): JsonResponse
@@ -161,7 +163,7 @@ class WebAuthController extends Controller
         ]]);
     }
 
-    public function register(Request $request): RedirectResponse
+    public function register(Request $request, VoucherService $vouchers): RedirectResponse
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
@@ -184,7 +186,9 @@ class WebAuthController extends Controller
             'province' => ['nullable', 'string', 'max:120'],
             'city' => ['nullable', 'string', 'max:120'],
             'locality' => ['nullable', 'string', 'max:120'],
+            'voucher_code' => ['nullable', 'string', 'max:80'],
         ]);
+        if (! empty($data['voucher_code'])) $vouchers->validateCode($data['voucher_code']);
         $token = (string) Str::uuid();
         $data['password'] = Hash::make($data['password']);
         unset($data['password_confirmation']);
@@ -223,7 +227,7 @@ class WebAuthController extends Controller
         return back()->with('success', 'A new verification email has been sent.');
     }
 
-    public function verifyPendingRegistration(Request $request, string $token, EnsureProfileSlug $slugs, LoginHistoryRecorder $logins): RedirectResponse
+    public function verifyPendingRegistration(Request $request, string $token, EnsureProfileSlug $slugs, LoginHistoryRecorder $logins, VoucherService $vouchers): RedirectResponse
     {
         $data = Cache::pull('pending-registration:'.$token);
         if (! $data) {
@@ -237,18 +241,23 @@ class WebAuthController extends Controller
         }
 
         $data['email_verified_at'] = now();
-        $user = $this->createRegisteredUser($data, $slugs);
+        $user = $this->createRegisteredUser($data, $slugs, $vouchers);
         Auth::login($user);
         $request->session()->forget(['pending_registration_token', 'pending_registration_email']);
         $request->session()->regenerate();
         $logins->record($user, $request, 'registration');
 
-        return redirect('/feed')->with('success', 'Email verified. Welcome to SportsUniverse.');
+        $redemption = VoucherRedemption::query()->with('plan')->where('user_id', $user->id)->latest('redeemed_at')->first();
+        $message = $redemption
+            ? "Welcome to SportsUniverse. Your free {$redemption->plan->name} membership is active."
+            : 'Email verified. Welcome to SportsUniverse.';
+
+        return redirect('/feed')->with('success', $message);
     }
 
-    private function createRegisteredUser(array $data, EnsureProfileSlug $slugs): User
+    private function createRegisteredUser(array $data, EnsureProfileSlug $slugs, VoucherService $vouchers): User
     {
-        $user = DB::transaction(function () use ($data) {
+        $user = DB::transaction(function () use ($data, $vouchers) {
             $user = User::create(collect($data)->only(['name','email','phone','password'])->all());
             $user->forceFill(['email_verified_at' => $data['email_verified_at']])->save();
             $user->profile()->create(['completeness' => 35, 'bio' => $data['bio'] ?? null, 'date_of_birth' => $data['date_of_birth'] ?? null, 'country' => 'ZA', 'province' => $data['province'] ?? null, 'city' => $data['city'] ?? null, 'locality' => $data['locality'] ?? null]);
@@ -258,6 +267,7 @@ class WebAuthController extends Controller
             if ($data['role'] === 'athlete') $user->athleteProfile()->create(['sport_id' => $data['sport_id'] ?? null, 'position_id' => $data['position_id'] ?? null, 'club_name' => $data['club_name'] ?? null, 'playing_level' => $data['playing_level'] ?? null]);
             if (in_array($data['role'], ['coach','referee','linesman','scout','agent'], true)) $user->professionalProfile()->create(['professional_type'=>$data['role'],'specialisation'=>$data['specialisation']??null,'years_experience'=>$data['years_experience']??null]);
             if (in_array($data['role'], ['club','academy','business','sponsor'], true)) $user->organisationProfile()->create(['organisation_name'=>($data['organisation_name']??null)?:$data['name'],'organisation_type'=>$data['role'],'contact_email'=>$data['email'],'contact_phone'=>$data['phone']??null,'services'=>array_values(array_filter(array_map('trim',explode(',', $data['services']??''))))]);
+            $vouchers->redeemForNewUser($user, $data['voucher_code'] ?? null);
 
             return $user;
         });

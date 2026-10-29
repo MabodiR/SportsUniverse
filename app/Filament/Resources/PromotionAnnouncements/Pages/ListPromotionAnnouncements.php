@@ -1,0 +1,2 @@
+<?php
+namespace App\Filament\Resources\PromotionAnnouncements\Pages; use App\Filament\Resources\PromotionAnnouncements\PromotionAnnouncementResource; use Filament\Actions\CreateAction; use Filament\Resources\Pages\ListRecords; class ListPromotionAnnouncements extends ListRecords{protected static string $resource=PromotionAnnouncementResource::class;protected function getHeaderActions():array{return[CreateAction::make()];}}
