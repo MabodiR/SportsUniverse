@@ -52,4 +52,27 @@ class EarlyAdopterPromotionTest extends TestCase
     {
         $this->promotion();$this->get('/')->assertOk()->assertInertia(fn($page)=>$page->component('Public/Home')->where('promotion.show_banner',true)->where('promotion.show_popup',true)->where('promotion.remaining',2));
     }
+
+    public function test_mobile_config_receives_active_promotion():void
+    {
+        $this->promotion();
+        $this->getJson('/api/v1/mobile/config')->assertOk()
+            ->assertJsonPath('data.promotion.code','EARLY200')
+            ->assertJsonPath('data.promotion.remaining',2)
+            ->assertJsonPath('data.promotion.show_banner',true)
+            ->assertJsonPath('data.promotion.show_popup',true);
+    }
+
+    public function test_mobile_registration_redeems_promotion_voucher():void
+    {
+        Notification::fake();$this->promotion();
+        $response=$this->postJson('/api/v1/auth/register',[
+            'name'=>'Mobile Early Adopter','email'=>'mobile-promo@sportuniverse.test',
+            'password'=>'MobilePass1!','password_confirmation'=>'MobilePass1!',
+            'role'=>'fan','voucher_code'=>'EARLY200','device_name'=>'ios-mobile',
+        ])->assertCreated()->assertJsonStructure(['token','data']);
+        $user=User::where('email','mobile-promo@sportuniverse.test')->firstOrFail();
+        $this->assertDatabaseHas('voucher_redemptions',['user_id'=>$user->id,'final_amount_cents'=>0]);
+        $this->assertDatabaseHas('subscriptions',['user_id'=>$user->id,'provider'=>'voucher','status'=>'active']);
+    }
 }

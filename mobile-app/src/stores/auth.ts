@@ -5,7 +5,7 @@ import { api } from '../api/client';
 import type { User } from '../types/api';
 
 type Credentials = { login: string; password: string };
-type Registration = { name: string; email: string; phone?: string; password: string; password_confirmation: string; role: string };
+type Registration = { name: string; email: string; phone?: string; password: string; password_confirmation: string; role: string; voucher_code?: string };
 type AuthState = { user: User | null; ready: boolean; busy: boolean; error: string | null; hydrate: () => Promise<void>; login: (data: Credentials) => Promise<boolean>; socialExchange: (code: string) => Promise<boolean>; register: (data: Registration) => Promise<boolean>; logout: () => Promise<void>; clearError: () => void };
 
 const tokenKey = 'sportuniverse_token';

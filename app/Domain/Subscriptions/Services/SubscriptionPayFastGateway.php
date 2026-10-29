@@ -7,6 +7,7 @@ use App\Domain\Subscriptions\Models\SubscriptionPayment;
 use App\Domain\Subscriptions\Models\SubscriptionPlan;
 use App\Models\User;
 use Illuminate\Support\Str;
+use Illuminate\Http\Request;
 
 class SubscriptionPayFastGateway
 {
@@ -46,5 +47,20 @@ class SubscriptionPayFastGateway
         $data['signature'] = $this->security->signature($data);
 
         return ['provider' => 'payfast', 'sandbox' => config('payfast.sandbox'), 'action' => config('payfast.process_url'), 'method' => 'POST', 'fields' => $data];
+    }
+
+    public function validSource(Request $request): bool
+    {
+        return $this->security->validSource($request);
+    }
+
+    public function validSignature(array $payload): bool
+    {
+        return $this->security->validSignature($payload);
+    }
+
+    public function validServerConfirmation(array $payload): bool
+    {
+        return $this->security->validServerConfirmation($payload);
     }
 }

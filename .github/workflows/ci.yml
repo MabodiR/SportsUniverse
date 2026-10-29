@@ -45,6 +45,14 @@ jobs:
         with:
           node-version: "22"
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            mobile-app/package-lock.json
+
+      - name: Check web and mobile parity
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: bash scripts/check-platform-parity.sh
 
       - name: Prepare environment
         run: |
@@ -65,8 +73,16 @@ jobs:
       - name: Install NPM dependencies
         run: npm ci --include=optional
 
+      - name: Install mobile dependencies
+        working-directory: mobile-app
+        run: npm ci --no-audit --no-fund
+
       - name: Build frontend
         run: npm run build
+
+      - name: Typecheck mobile application
+        working-directory: mobile-app
+        run: npm run typecheck
 
       - name: Run database migrations
         run: php artisan migrate --force

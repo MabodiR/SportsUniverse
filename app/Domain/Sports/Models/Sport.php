@@ -5,7 +5,6 @@ namespace App\Domain\Sports\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Domain\Profiles\Models\AthleteProfile;
 
 class Sport extends Model
 {
@@ -21,11 +20,6 @@ class Sport extends Model
     public function positions(): HasMany
     {
         return $this->hasMany(Position::class);
-    }
-
-    public function athletes(): HasMany
-    {
-        return $this->hasMany(AthleteProfile::class);
     }
 
 }

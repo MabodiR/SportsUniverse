@@ -1,0 +1,73 @@
+name: Release Mobile Production Update
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-production-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - name: Checkout verified commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 2
+
+      - name: Detect mobile changes
+        id: changes
+        shell: bash
+        run: |
+          if git diff --quiet HEAD^ HEAD -- mobile-app; then echo "mobile=false" >> "$GITHUB_OUTPUT"; else echo "mobile=true" >> "$GITHUB_OUTPUT"; fi
+          if git diff --quiet HEAD^ HEAD -- mobile-app/app.json mobile-app/eas.json mobile-app/package.json mobile-app/package-lock.json; then echo "native=false" >> "$GITHUB_OUTPUT"; else echo "native=true" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Setup Node.js
+        if: steps.changes.outputs.mobile == 'true' && env.EXPO_TOKEN != ''
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile-app/package-lock.json
+
+      - name: Setup Expo and EAS
+        if: steps.changes.outputs.mobile == 'true' && env.EXPO_TOKEN != ''
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install mobile dependencies
+        if: steps.changes.outputs.mobile == 'true' && env.EXPO_TOKEN != ''
+        working-directory: mobile-app
+        run: npm ci --no-audit --no-fund
+
+      - name: Publish production EAS update
+        if: steps.changes.outputs.mobile == 'true' && steps.changes.outputs.native == 'false' && env.EXPO_TOKEN != ''
+        working-directory: mobile-app
+        run: eas update --channel production --message "SportsUniverse production update ${{ github.event.workflow_run.head_sha || github.sha }}" --non-interactive
+
+      - name: Flag native binary release
+        if: steps.changes.outputs.mobile == 'true' && steps.changes.outputs.native == 'true'
+        run: |
+          echo "### Native mobile release required" >> "$GITHUB_STEP_SUMMARY"
+          echo "Mobile dependencies or native configuration changed. Build and submit new iOS and Android binaries with the EAS production profile; prepare the Android artifact for Huawei AppGallery separately." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report missing Expo credentials
+        if: steps.changes.outputs.mobile == 'true' && env.EXPO_TOKEN == ''
+        run: |
+          echo "EXPO_TOKEN is not configured; the mobile release was not published." >&2
+          exit 1

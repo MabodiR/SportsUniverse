@@ -10,6 +10,7 @@ import { colors } from '../src/theme';
 import { routeForNotification } from '../src/notifications/push';
 import { ConnectivityBanner } from '../src/components/ConnectivityBanner';
 import { AppUpdateGate } from '../src/components/AppUpdateGate';
+import { PromotionExperience } from '../src/components/PromotionExperience';
 
 Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true }) });
 
@@ -31,7 +32,7 @@ export default function RootLayout() {
   }, []);
   useEffect(() => { if (ready && user && !user.onboarding_completed_at) router.replace('/onboarding'); }, [ready, user]);
   if (!ready) return <View style={{flex:1,backgroundColor:colors.navy,alignItems:'center',justifyContent:'center'}}><ActivityIndicator color={colors.blue}/></View>;
-  return <SafeAreaProvider><QueryClientProvider client={queryClient}><StatusBar style="light"/><ConnectivityBanner queryClient={queryClient}/><Stack screenOptions={{headerShown:false,contentStyle:{backgroundColor:colors.navy}}}/><AppUpdateGate /></QueryClientProvider></SafeAreaProvider>;
+  return <SafeAreaProvider><QueryClientProvider client={queryClient}><StatusBar style="light"/><ConnectivityBanner queryClient={queryClient}/><Stack screenOptions={{headerShown:false,contentStyle:{backgroundColor:colors.navy}}}/><PromotionExperience/><AppUpdateGate /></QueryClientProvider></SafeAreaProvider>;
 }
 
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {

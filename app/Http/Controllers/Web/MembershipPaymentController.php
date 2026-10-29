@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Web;
 
-use App\Domain\Advertising\Services\PayFastGateway;
 use App\Domain\Subscriptions\Models\SubscriptionPayment;
 use App\Domain\Subscriptions\Models\SubscriptionPlan;
 use App\Domain\Subscriptions\Services\SubscriptionManager;
@@ -26,7 +25,7 @@ class MembershipPaymentController extends Controller
         return response()->json(['data' => ['checkout' => $gateway->checkout($plan, $request->user(), $data['billing_interval'])]]);
     }
 
-    public function notify(Request $request, PayFastGateway $security, SubscriptionManager $manager): JsonResponse
+    public function notify(Request $request, SubscriptionPayFastGateway $security, SubscriptionManager $manager): JsonResponse
     {
         $payload = $request->post();
         abort_unless($security->validSource($request), 403, 'Invalid PayFast source.');

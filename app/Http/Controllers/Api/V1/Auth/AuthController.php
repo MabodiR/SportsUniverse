@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Auth;
 
 use App\Domain\Profiles\Actions\EnsureProfileSlug;
+use App\Domain\Promotions\Services\VoucherService;
 use App\Domain\Auth\Services\LoginHistoryRecorder;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Auth\LoginRequest;
@@ -21,11 +22,13 @@ use Spatie\Permission\Models\Role;
 
 class AuthController extends Controller
 {
-    public function register(RegisterRequest $request, EnsureProfileSlug $slugs, LoginHistoryRecorder $logins): JsonResponse
+    public function register(RegisterRequest $request, EnsureProfileSlug $slugs, LoginHistoryRecorder $logins, VoucherService $vouchers): JsonResponse
     {
-        $user = DB::transaction(function () use ($request) {
+        $voucherCode = $request->validated('voucher_code');
+        if ($voucherCode) $vouchers->validateCode($voucherCode);
+        $user = DB::transaction(function () use ($request, $vouchers, $voucherCode) {
             $role = $request->validated('role');
-            $user = User::create($request->safe()->except(['password_confirmation', 'device_name', 'role']));
+            $user = User::create($request->safe()->except(['password_confirmation', 'device_name', 'role', 'voucher_code']));
             $user->profile()->create(['completeness' => 20]);
             if ($role) {
                 Role::findOrCreate($role, 'web');
@@ -37,6 +40,7 @@ class AuthController extends Controller
                     $user->organisationProfile()->create(['organisation_name' => $user->name, 'organisation_type' => $role]);
                 }
             }
+            $vouchers->redeemForNewUser($user, $voucherCode);
 
             return $user;
         });

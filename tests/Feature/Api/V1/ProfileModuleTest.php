@@ -26,7 +26,7 @@ class ProfileModuleTest extends TestCase
 
     public function test_sports_endpoint_returns_positions(): void
     {
-        $this->getJson('/api/v1/sports')->assertOk()->assertJsonPath('data.0.name', 'Athletics')->assertJsonStructure(['data' => [['id', 'name', 'slug', 'positions']]]);
+        $this->getJson('/api/v1/sports')->assertOk()->assertJsonPath('data.0.name', 'Football')->assertJsonStructure(['data' => [['id', 'name', 'slug', 'positions']]]);
     }
 
     public function test_owner_can_update_general_and_athlete_profile(): void

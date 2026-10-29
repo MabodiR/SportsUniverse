@@ -1,6 +1,10 @@
 name: Deploy to xneelo Production
 
 on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -12,6 +16,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     name: Build and deploy
     runs-on: [self-hosted, Linux, X64, xneelo-production]
     environment: production
@@ -20,6 +25,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Verify xneelo runner and toolchain
         run: |

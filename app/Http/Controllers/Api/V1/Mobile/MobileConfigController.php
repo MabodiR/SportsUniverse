@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers\Api\V1\Mobile;
 
+use App\Domain\Promotions\Services\VoucherService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 
 class MobileConfigController extends Controller
 {
-    public function __invoke(): JsonResponse
+    public function __invoke(VoucherService $vouchers): JsonResponse
     {
         return response()->json(['data' => [
             'android' => [
@@ -21,6 +22,7 @@ class MobileConfigController extends Controller
                 'download_url' => config('services.mobile_app.ios_url'),
             ],
             'release_notes' => config('services.mobile_app.release_notes'),
+            'promotion' => $vouchers->publicPromotion(),
         ]]);
     }
 }
