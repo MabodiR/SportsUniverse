@@ -47,8 +47,8 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/images/logo/favicon-16x16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/images/logo/favicon-180x180.png">
     <link rel="manifest" href="/images/logo/site.webmanifest">
-    <script type="application/ld+json">{!! json_encode(['@context' => 'https://schema.org', '@type' => 'Organization', 'name' => 'SportsUniverse', 'url' => config('app.url'), 'logo' => url('/images/logo/sportuniverse-icon-1024.png'), 'description' => $seoDescription], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
-    <script type="application/ld+json">{!! json_encode(['@context' => 'https://schema.org', '@type' => 'WebSite', 'name' => 'SportsUniverse', 'url' => config('app.url')], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
+    <script type="application/ld+json">{!! json_encode(['@'.'context' => 'https://schema.org', '@'.'type' => 'Organization', 'name' => 'SportsUniverse', 'url' => config('app.url'), 'logo' => url('/images/logo/sportuniverse-icon-1024.png'), 'description' => $seoDescription], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
+    <script type="application/ld+json">{!! json_encode(['@'.'context' => 'https://schema.org', '@'.'type' => 'WebSite', 'name' => 'SportsUniverse', 'url' => config('app.url')], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
     <title inertia>{{ $seoTitle }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.ts'])
     @inertiaHead
