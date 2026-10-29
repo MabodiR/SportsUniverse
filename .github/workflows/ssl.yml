@@ -1,12 +1,6 @@
 name: Configure Production SSL
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/ssl.yml"
-      - "deploy/nginx.conf"
   workflow_dispatch:
 
 permissions:

@@ -1,15 +1,6 @@
 name: Refresh Production Runtime
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/runtime-refresh.yml"
-      - "resources/js/app.ts"
-      - "resources/js/Pages/Live/**"
-      - "deploy/sportuniverse-queue.service"
-      - "deploy/sportuniverse-reverb.service"
   workflow_dispatch:
 
 permissions:
