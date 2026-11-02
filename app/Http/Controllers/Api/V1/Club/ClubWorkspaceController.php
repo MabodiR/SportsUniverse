@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Api\V1\Club;
 
-use App\Events\NotificationRequested;
 use App\Domain\Opportunities\Models\OpportunityApplication;
+use App\Events\NotificationRequested;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -13,6 +13,8 @@ use Illuminate\Support\Str;
 
 class ClubWorkspaceController extends Controller
 {
+    private const PLAYER_STATUSES = ['active', 'trial', 'injured', 'inactive', 'released'];
+
     private function workspace(Request $r): object
     {
         $user = $r->user();
@@ -36,8 +38,78 @@ class ClubWorkspaceController extends Controller
         });
         $staff = DB::table('club_staff')->join('users', 'users.id', '=', 'club_staff.user_id')->where('workspace_id', $w->id)->select('users.id', 'users.name', 'users.email', 'club_staff.role', 'club_staff.status')->get();
         $invitations = DB::table('trial_invitations')->join('users', 'users.id', '=', 'trial_invitations.athlete_id')->where('workspace_id', $w->id)->select('trial_invitations.*', 'users.name as athlete_name')->latest('sent_at')->limit(30)->get();
+        $players = DB::table('club_workspace_players')
+            ->join('users', 'users.id', '=', 'club_workspace_players.athlete_id')
+            ->join('user_profiles', 'user_profiles.user_id', '=', 'users.id')
+            ->leftJoin('athlete_profiles', 'athlete_profiles.user_id', '=', 'users.id')
+            ->leftJoin('sports', 'sports.id', '=', 'athlete_profiles.sport_id')
+            ->where('club_workspace_players.workspace_id', $w->id)
+            ->select('club_workspace_players.*', 'users.name', 'user_profiles.slug', 'user_profiles.city', 'sports.name as sport', 'athlete_profiles.position', 'athlete_profiles.playing_level')
+            ->orderByRaw("case club_workspace_players.status when 'active' then 1 when 'trial' then 2 when 'injured' then 3 when 'inactive' then 4 else 5 end")
+            ->orderBy('users.name')
+            ->get();
+        $canManagePlayers = $this->canManagePlayers($r, $w);
 
-        return response()->json(['data' => ['workspace' => $w, 'permissions' => ['is_owner' => $w->owner_id === $r->user()->id, 'can_manage_staff' => $w->owner_id === $r->user()->id], 'shortlists' => $shortlists, 'staff' => $staff, 'invitations' => $invitations, 'counts' => ['athletes' => DB::table('shortlist_athletes')->join('talent_shortlists', 'talent_shortlists.id', '=', 'shortlist_athletes.shortlist_id')->where('talent_shortlists.workspace_id', $w->id)->count(), 'notes' => DB::table('scouting_notes')->where('workspace_id', $w->id)->count(), 'invitations' => DB::table('trial_invitations')->where('workspace_id', $w->id)->count()]]]);
+        return response()->json(['data' => ['workspace' => $w, 'permissions' => ['is_owner' => $w->owner_id === $r->user()->id, 'can_manage_staff' => $w->owner_id === $r->user()->id, 'can_manage_players' => $canManagePlayers], 'players' => $players, 'shortlists' => $shortlists, 'staff' => $staff, 'invitations' => $invitations, 'counts' => ['players' => $players->where('status', '!=', 'released')->count(), 'athletes' => DB::table('shortlist_athletes')->join('talent_shortlists', 'talent_shortlists.id', '=', 'shortlist_athletes.shortlist_id')->where('talent_shortlists.workspace_id', $w->id)->count(), 'notes' => DB::table('scouting_notes')->where('workspace_id', $w->id)->count(), 'invitations' => DB::table('trial_invitations')->where('workspace_id', $w->id)->count()]]]);
+    }
+
+    public function addPlayer(Request $r): JsonResponse
+    {
+        $w = $this->workspace($r);
+        abort_unless($this->canManagePlayers($r, $w), 403, 'You do not have permission to manage players.');
+        $data = $this->validatePlayer($r, true);
+        $athlete = User::findOrFail($data['athlete_id']);
+        abort_unless($athlete->hasRole('athlete'), 422, 'Only athlete accounts can be added as players.');
+
+        DB::table('club_workspace_players')->updateOrInsert(
+            ['workspace_id' => $w->id, 'athlete_id' => $athlete->id],
+            [...collect($data)->except('athlete_id')->all(), 'added_by_id' => $r->user()->id, 'updated_at' => now(), 'created_at' => now()]
+        );
+
+        return response()->json(['message' => 'Player added to your roster.'], 201);
+    }
+
+    public function updatePlayer(Request $r, User $athlete): JsonResponse
+    {
+        $w = $this->workspace($r);
+        abort_unless($this->canManagePlayers($r, $w), 403, 'You do not have permission to manage players.');
+        abort_unless(DB::table('club_workspace_players')->where(['workspace_id' => $w->id, 'athlete_id' => $athlete->id])->exists(), 404, 'Player is not on this roster.');
+        $data = $this->validatePlayer($r, false);
+        DB::table('club_workspace_players')->where(['workspace_id' => $w->id, 'athlete_id' => $athlete->id])->update([...$data, 'updated_at' => now()]);
+
+        return response()->json(['message' => 'Player details updated.']);
+    }
+
+    public function removePlayer(Request $r, User $athlete): JsonResponse
+    {
+        $w = $this->workspace($r);
+        abort_unless($this->canManagePlayers($r, $w), 403, 'You do not have permission to manage players.');
+        $removed = DB::table('club_workspace_players')->where(['workspace_id' => $w->id, 'athlete_id' => $athlete->id])->delete();
+        abort_unless($removed, 404, 'Player is not on this roster.');
+
+        return response()->json(['message' => 'Player removed from your roster.']);
+    }
+
+    private function validatePlayer(Request $r, bool $creating): array
+    {
+        return $r->validate([
+            'athlete_id' => [$creating ? 'required' : 'sometimes', 'integer', 'exists:users,id'],
+            'status' => [$creating ? 'sometimes' : 'required', 'string', 'in:'.implode(',', self::PLAYER_STATUSES)],
+            'squad' => ['nullable', 'string', 'max:80'],
+            'shirt_number' => ['nullable', 'string', 'max:12'],
+            'joined_on' => ['nullable', 'date'],
+            'contract_ends_on' => ['nullable', 'date', 'after_or_equal:joined_on'],
+            'notes' => ['nullable', 'string', 'max:5000'],
+        ]);
+    }
+
+    private function canManagePlayers(Request $r, object $workspace): bool
+    {
+        if ((int) $workspace->owner_id === (int) $r->user()->id) {
+            return true;
+        }
+
+        return DB::table('club_staff')->where('workspace_id', $workspace->id)->where('user_id', $r->user()->id)->where('status', 'active')->whereIn('role', ['manager', 'scout', 'coach'])->exists();
     }
 
     public function update(Request $r): JsonResponse
@@ -151,7 +223,7 @@ class ClubWorkspaceController extends Controller
         abort_unless($application->opportunity()->where('posted_by_id', $w->owner_id)->exists(), 403);
         $d = $r->validate(['status' => ['required', 'in:submitted,reviewing,shortlisted,accepted,rejected']]);
         $application->update(['status' => $d['status'], 'reviewed_at' => now()]);
-        NotificationRequested::dispatch($application->user_id,'opportunities',['event' => 'opportunity_application_status', 'application_id' => $application->public_id, 'status' => $d['status']]);
+        NotificationRequested::dispatch($application->user_id, 'opportunities', ['event' => 'opportunity_application_status', 'application_id' => $application->public_id, 'status' => $d['status']]);
 
         return response()->json(['data' => ['status' => $d['status']]]);
     }

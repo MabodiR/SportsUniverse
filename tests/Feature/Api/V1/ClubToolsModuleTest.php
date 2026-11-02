@@ -37,6 +37,44 @@ class ClubToolsModuleTest extends TestCase
         $this->actingAs($this->member('fan', 'Fan Account'), 'sanctum')->getJson('/api/v1/club-tools')->assertForbidden();
     }
 
+    public function test_club_can_add_update_and_remove_a_managed_player(): void
+    {
+        $club = $this->member('club', 'Roster United');
+        $athlete = $this->member('athlete', 'Managed Athlete');
+
+        $this->actingAs($club, 'sanctum')->getJson('/api/v1/club-tools')->assertOk();
+        $this->postJson('/api/v1/club-tools/players', [
+            'athlete_id' => $athlete->id,
+            'status' => 'trial',
+            'squad' => 'First team',
+            'shirt_number' => '10',
+        ])->assertCreated();
+
+        $this->getJson('/api/v1/club-tools')
+            ->assertOk()
+            ->assertJsonPath('data.counts.players', 1)
+            ->assertJsonPath('data.players.0.name', 'Managed Athlete')
+            ->assertJsonPath('data.players.0.status', 'trial');
+
+        $this->patchJson("/api/v1/club-tools/players/{$athlete->id}", ['status' => 'active', 'squad' => 'Senior squad'])
+            ->assertOk();
+        $this->assertDatabaseHas('club_workspace_players', ['athlete_id' => $athlete->id, 'status' => 'active', 'squad' => 'Senior squad']);
+
+        $this->deleteJson("/api/v1/club-tools/players/{$athlete->id}")->assertOk();
+        $this->assertDatabaseMissing('club_workspace_players', ['athlete_id' => $athlete->id]);
+    }
+
+    public function test_non_athlete_account_cannot_be_added_to_a_roster(): void
+    {
+        $club = $this->member('club', 'Role Check Club');
+        $fan = $this->member('fan', 'Not An Athlete');
+
+        $this->actingAs($club, 'sanctum')->getJson('/api/v1/club-tools')->assertOk();
+        $this->postJson('/api/v1/club-tools/players', ['athlete_id' => $fan->id, 'status' => 'active'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Only athlete accounts can be added as players.');
+    }
+
     private function member(string $role, string $name): User
     {
         $user = User::factory()->create(['name' => $name]);
