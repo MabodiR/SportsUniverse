@@ -14,20 +14,27 @@ class SubscriptionStats extends StatsOverviewWidget
 
     protected function getStats(): array
     {
-        $plans = SubscriptionPlan::query()->withCount(['subscriptions as active_count' => fn ($query) => $query->current()])->orderBy('sort_order')->get();
+        $plans = SubscriptionPlan::query()->orderBy('sort_order')->get();
+        $plans->each(fn ($plan) => $plan->setAttribute(
+            'active_count',
+            $plan->subscriptions()->current()->distinct('user_id')->count('user_id')
+        ));
         $active = $plans->sum('active_count');
         $paidMembers = $plans->where('monthly_price_cents', '>', 0)->sum('active_count');
         $paidPayments = SubscriptionPayment::query()->where('status', 'paid');
         $revenueCents = (clone $paidPayments)->sum('amount_cents');
         $monthRevenueCents = (clone $paidPayments)->where('paid_at', '>=', now()->startOfMonth())->sum('amount_cents');
-        $attempts = SubscriptionPayment::query()->where('created_at', '>=', now()->subDays(30))->count();
-        $completed = SubscriptionPayment::query()->where('created_at', '>=', now()->subDays(30))->where('status', 'paid')->count();
+        $paymentWindow = now()->subDays(30);
+        $attempts = SubscriptionPayment::query()->where('created_at', '>=', $paymentWindow)->count();
+        $completed = SubscriptionPayment::query()->where('created_at', '>=', $paymentWindow)->where('status', 'paid')->count();
         $cancelled = Subscription::query()->whereNotNull('cancelled_at')->where('cancelled_at', '>=', now()->subDays(30))->count();
         $started = Subscription::query()->where('starts_at', '>=', now()->subDays(30))->count();
 
         $stats = $plans->map(fn ($plan) => Stat::make($plan->name.' members', number_format($plan->active_count))
             ->description($active ? number_format(($plan->active_count / $active) * 100, 1).'% of active memberships' : 'No active members')
-            ->color(match ($plan->slug) {'pro' => 'primary', 'elite' => 'info', default => 'gray'}))->all();
+            ->color(match ($plan->slug) {
+                'pro' => 'primary', 'elite' => 'info', default => 'gray'
+            }))->all();
 
         return [...$stats,
             Stat::make('Paid members', number_format($paidMembers))->description($active ? number_format(($paidMembers / $active) * 100, 1).'% paid-plan adoption' : '0% paid-plan adoption')->color('success'),

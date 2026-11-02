@@ -96,7 +96,7 @@ onMounted(async () => { const response = await fetch('/api/v1/sports', { headers
         <section class="design-auth-form">
             <div class="design-auth-top"><div class="design-dots"><i v-for="n in 4" :key="n" :class="{ on: n <= step }"/></div><p>Step {{ step }} of 4</p></div>
             <div class="design-form-inner">
-                <aside v-if="promotion" class="registration-promo"><span>Early adopter special</span><strong>{{ promotion.remaining }} of {{ promotion.limit }} free {{ promotion.plan }} memberships remain</strong><p>Your voucher is applied automatically. No payment details are required.</p><div><del>R{{ ((promotion.original_price_cents || 0) / 100).toFixed(0) }}</del><b>FREE</b></div></aside>
+                <aside v-if="promotion" class="registration-promo"><span>Early adopter special</span><strong>{{ promotion.remaining }} of {{ promotion.limit }} free {{ promotion.plan }} memberships remain</strong><p>Your {{ promotion.duration_label }} membership is applied automatically. No payment details are required.</p><div><del>R{{ ((promotion.original_price_cents || 0) / 100).toFixed(0) }}</del><b>FREE</b></div></aside>
                 <h2>{{ ['Account basics', 'Select your role', form.role === 'fan' ? 'Favourite sports' : 'Profile details', 'Age and location'][step - 1] }}</h2>
                 <p>{{ step === 3 && form.role === 'fan' ? 'Your For You feed will use these choices.' : 'You can update these details later from your profile.' }}</p>
                 <form @submit.prevent="step < 4 ? next() : submit()">

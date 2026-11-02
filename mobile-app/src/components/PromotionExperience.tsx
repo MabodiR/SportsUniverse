@@ -16,7 +16,7 @@ export function PromotionExperience() {
   const insets = useSafeAreaInsets();
   const [bannerVisible, setBannerVisible] = useState(false);
   const [popupVisible, setPopupVisible] = useState(false);
-  const config = useQuery({ queryKey: ['mobile-config'], queryFn: async () => (await api.get<{ data: MobileConfig }>('/mobile/config')).data.data, staleTime: 5 * 60 * 1000, retry: 1 });
+  const config = useQuery({ queryKey: ['mobile-config'], queryFn: async () => (await api.get<{ data: MobileConfig }>('/mobile/config')).data.data, staleTime: 30 * 1000, refetchInterval: 30 * 1000, retry: 1 });
   const promotion = config.data?.promotion;
 
   useEffect(() => {
@@ -57,7 +57,7 @@ export function PromotionExperience() {
         <Text style={styles.copy}>{promotion.message}</Text>
         <View style={styles.remaining}><Text style={styles.remainingNumber}>{promotion.remaining}</Text><Text style={styles.remainingCopy}>of {promotion.limit} free memberships remaining</Text></View>
         <View style={styles.progress}><LinearGradient colors={['#12C4E5', '#EC2D91']} style={[styles.progressFill, { width: `${progress}%` }]} /></View>
-        <View style={styles.price}><Text style={styles.pricePlan}>One month of {promotion.plan ?? 'Pro'}</Text>{promotion.original_price_cents ? <Text style={styles.oldPrice}>R{Math.round(promotion.original_price_cents / 100)}</Text> : null}<Text style={styles.free}>FREE</Text></View>
+        <View style={styles.price}><Text style={styles.pricePlan}>{promotion.duration_label} of {promotion.plan ?? 'Pro'}</Text>{promotion.original_price_cents ? <Text style={styles.oldPrice}>R{Math.round(promotion.original_price_cents / 100)}</Text> : null}<Text style={styles.free}>FREE</Text></View>
         <Pressable accessibilityRole="button" onPress={claim} style={styles.claim}><LinearGradient colors={['#10C5E5', '#178DE7']} start={{ x: 0, y: .5 }} end={{ x: 1, y: .5 }} style={styles.claimGradient}><Text style={styles.claimText}>{promotion.cta_label}</Text><Ionicons name="arrow-forward" size={20} color="#fff" /></LinearGradient></Pressable>
         <View style={styles.safe}><Ionicons name="shield-checkmark-outline" size={17} color="#16BCE2"/><Text style={styles.safeText}>No payment details required</Text></View>
       </View></View>

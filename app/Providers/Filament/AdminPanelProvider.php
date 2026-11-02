@@ -2,11 +2,11 @@
 
 namespace App\Providers\Filament;
 
+use Filament\Enums\ThemeMode;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Enums\ThemeMode;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
@@ -29,6 +29,7 @@ class AdminPanelProvider extends PanelProvider
             ->brandName('SportsUniverse Admin')
             ->brandLogo(asset('images/logo/sportuniverse-logo-horizontal.svg'))
             ->brandLogoHeight('2.25rem')
+            ->collapsibleNavigationGroups(false)
             ->darkMode(false)
             ->defaultThemeMode(ThemeMode::Light)
             ->viteTheme('resources/css/filament/admin/theme.css')

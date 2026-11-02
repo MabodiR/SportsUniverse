@@ -10,7 +10,7 @@ class LoginHistoryRecorder
 {
     public function record(User $user, Request $request, string $method = 'password', ?int $tokenId = null): void
     {
-        $device = $this->device((string) $request->userAgent());
+        $device = $this->device((string) $request->userAgent(), $request->string('device_name')->value());
         $countryCode = $this->header($request, ['CF-IPCountry', 'CloudFront-Viewer-Country', 'X-Country-Code']);
         DB::table('login_histories')->insert([
             'user_id' => $user->id,
@@ -30,17 +30,34 @@ class LoginHistoryRecorder
         ]);
     }
 
-    public function device(string $agent): array
+    public function device(string $agent, ?string $deviceName = null): array
     {
+        $deviceName = mb_strtolower((string) $deviceName);
         $browser = str_contains($agent, 'Edg/') ? 'Edge' : (str_contains($agent, 'Chrome/') ? 'Chrome' : (str_contains($agent, 'Firefox/') ? 'Firefox' : (str_contains($agent, 'Safari/') ? 'Safari' : (str_contains($agent, 'SportsUniverse') ? 'SportsUniverse' : 'Browser'))));
         $platform = preg_match('/iPhone|iPad/', $agent) ? 'iOS' : (str_contains($agent, 'Android') ? 'Android' : (str_contains($agent, 'Windows') ? 'Windows' : (str_contains($agent, 'Macintosh') ? 'macOS' : (str_contains($agent, 'Linux') ? 'Linux' : 'Unknown'))));
         $type = preg_match('/Mobile|Android|iPhone/', $agent) ? 'mobile' : (str_contains($agent, 'iPad') ? 'tablet' : 'desktop');
+
+        if (str_contains($deviceName, 'ios')) {
+            $platform = 'iOS';
+            $type = 'mobile';
+            $browser = 'SportsUniverse';
+        } elseif (str_contains($deviceName, 'android') || str_contains($deviceName, 'mobile')) {
+            $platform = str_contains($deviceName, 'android') ? 'Android' : $platform;
+            $type = 'mobile';
+            $browser = 'SportsUniverse';
+        }
+
         return compact('browser', 'platform', 'type');
     }
 
     private function header(Request $request, array $names): ?string
     {
-        foreach ($names as $name) if ($value = $request->header($name)) return mb_substr(trim($value), 0, 120);
+        foreach ($names as $name) {
+            if ($value = $request->header($name)) {
+                return mb_substr(trim($value), 0, 120);
+            }
+        }
+
         return null;
     }
 }

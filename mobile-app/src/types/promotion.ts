@@ -10,6 +10,9 @@ export type EarlyAdopterPromotion = {
   remaining: number;
   limit: number;
   plan?: string | null;
+  duration_label: string;
+  duration_value: number;
+  duration_unit: 'days' | 'weeks' | 'months' | 'years';
   original_price_cents?: number | null;
 };
 

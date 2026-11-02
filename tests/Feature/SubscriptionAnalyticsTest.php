@@ -19,7 +19,9 @@ class SubscriptionAnalyticsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        foreach (['admin', 'system_admin', 'super_admin'] as $role) Role::findOrCreate($role, 'web');
+        foreach (['admin', 'system_admin', 'super_admin'] as $role) {
+            Role::findOrCreate($role, 'web');
+        }
         $this->seed(SubscriptionPlanSeeder::class);
     }
 
@@ -51,5 +53,28 @@ class SubscriptionAnalyticsTest extends TestCase
             ->assertSee('Free members')->assertSee('4')
             ->assertSee('Pro members')->assertSee('3')
             ->assertSee('Elite members')->assertSee('2');
+    }
+
+    public function test_subscription_stats_count_members_not_duplicate_subscription_rows(): void
+    {
+        $owner = User::factory()->create();
+        $owner->assignRole('super_admin');
+        $member = User::factory()->create();
+        $plan = SubscriptionPlan::where('slug', 'pro')->firstOrFail();
+
+        foreach (range(1, 2) as $index) {
+            Subscription::create([
+                'user_id' => $member->id,
+                'subscription_plan_id' => $plan->id,
+                'status' => 'active',
+                'billing_interval' => 'monthly',
+                'starts_at' => now()->subDays($index),
+            ]);
+        }
+
+        $this->actingAs($owner);
+        Livewire::test(SubscriptionStats::class)
+            ->assertSee('Pro members')
+            ->assertSee('1');
     }
 }

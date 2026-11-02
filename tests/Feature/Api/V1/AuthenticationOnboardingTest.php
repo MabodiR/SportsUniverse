@@ -2,12 +2,14 @@
 
 namespace Tests\Feature\Api\V1;
 
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
+use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
-use App\Models\User;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Notification;
 
 class AuthenticationOnboardingTest extends TestCase
 {
@@ -27,7 +29,7 @@ class AuthenticationOnboardingTest extends TestCase
         $response->assertCreated()->assertJsonPath('data.name', 'Ada Athlete')->assertJsonStructure(['token', 'data' => ['id', 'profile']]);
         $this->assertDatabaseHas('users', ['email' => 'ada@example.com']);
         $this->assertDatabaseHas('user_profiles', ['completeness' => 20]);
-        $this->assertDatabaseHas('login_histories', ['user_id' => User::where('email', 'ada@example.com')->value('id'), 'method' => 'registration', 'device_type' => 'desktop']);
+        $this->assertDatabaseHas('login_histories', ['user_id' => User::where('email', 'ada@example.com')->value('id'), 'method' => 'registration', 'device_type' => 'mobile', 'platform' => 'iOS']);
     }
 
     public function test_mobile_registration_creates_the_selected_role_atomically(): void
@@ -84,7 +86,7 @@ class AuthenticationOnboardingTest extends TestCase
             'password' => 'NewPassword9',
             'password_confirmation' => 'NewPassword9',
         ])->assertOk();
-        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('NewPassword9', $user->fresh()->password));
+        $this->assertTrue(Hash::check('NewPassword9', $user->fresh()->password));
     }
 
     public function test_password_change_rejects_incorrect_current_password(): void
@@ -118,9 +120,9 @@ class AuthenticationOnboardingTest extends TestCase
     public function test_referee_and_linesman_roles_create_professional_profiles(): void
     {
         foreach (['referee', 'linesman'] as $role) {
-            $user = \App\Models\User::factory()->create(['email' => $role.'@example.com']);
+            $user = User::factory()->create(['email' => $role.'@example.com']);
             $user->profile()->create(['completeness' => 20]);
-            \Laravel\Sanctum\Sanctum::actingAs($user);
+            Sanctum::actingAs($user);
             $this->patchJson('/api/v1/profile/role', ['role' => $role])->assertOk()->assertJsonPath('data.roles.0', $role)->assertJsonPath('data.professional.professional_type', $role);
             $this->assertDatabaseHas('professional_profiles', ['professional_type' => $role]);
         }
@@ -129,9 +131,9 @@ class AuthenticationOnboardingTest extends TestCase
     public function test_api_onboarding_accepts_official_roles_and_creates_professional_details(): void
     {
         foreach (['referee', 'linesman'] as $role) {
-            $user = \App\Models\User::factory()->create(['email' => 'onboarding-'.$role.'@example.com']);
+            $user = User::factory()->create(['email' => 'onboarding-'.$role.'@example.com']);
             $user->profile()->create(['completeness' => 20]);
-            \Laravel\Sanctum\Sanctum::actingAs($user);
+            Sanctum::actingAs($user);
 
             $this->putJson('/api/v1/onboarding/role', ['role' => $role])
                 ->assertOk()->assertJsonPath('data.roles.0', $role);
