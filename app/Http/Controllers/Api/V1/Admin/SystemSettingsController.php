@@ -7,6 +7,7 @@ use App\Domain\Feed\Models\FeedSetting;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -36,7 +37,40 @@ class SystemSettingsController extends Controller
                 'pending_campaigns' => DB::table('ad_campaigns')->whereIn('status', ['awaiting_payment', 'pending_review'])->count(),
                 'failed_jobs' => DB::getSchemaBuilder()->hasTable('failed_jobs') ? DB::table('failed_jobs')->count() : 0,
             ],
+            'failed_jobs' => $this->failedJobs(),
         ]]);
+    }
+
+    public function retry(Request $request, string $uuid): JsonResponse
+    {
+        $this->admin($request);
+        abort_unless(DB::getSchemaBuilder()->hasTable('failed_jobs'), 404, 'Failed jobs are not available.');
+        abort_unless(DB::table('failed_jobs')->where('uuid', $uuid)->exists(), 404, 'This failed job no longer exists.');
+
+        $exitCode = Artisan::call('queue:retry', ['id' => [$uuid], '--no-interaction' => true]);
+        if ($exitCode !== 0) {
+            abort(422, trim(Artisan::output()) ?: 'The job could not be retried.');
+        }
+
+        return response()->json(['message' => 'The failed job was placed back on its queue.']);
+    }
+
+    public function retryAll(Request $request): JsonResponse
+    {
+        $this->admin($request);
+        abort_unless(DB::getSchemaBuilder()->hasTable('failed_jobs'), 404, 'Failed jobs are not available.');
+
+        $count = DB::table('failed_jobs')->count();
+        if ($count === 0) {
+            return response()->json(['message' => 'There are no failed jobs to retry.']);
+        }
+
+        $exitCode = Artisan::call('queue:retry', ['id' => ['all'], '--no-interaction' => true]);
+        if ($exitCode !== 0) {
+            abort(422, trim(Artisan::output()) ?: 'The failed jobs could not be retried.');
+        }
+
+        return response()->json(['message' => "{$count} failed ".str('job')->plural($count).' placed back on the queue.']);
     }
 
     public function update(Request $request, string $section): JsonResponse
@@ -76,5 +110,28 @@ class SystemSettingsController extends Controller
     private function admin(Request $request): void
     {
         abort_unless($request->user()->hasAnyRole(['admin', 'system_admin', 'super_admin']), 403);
+    }
+
+    private function failedJobs(): array
+    {
+        if (! DB::getSchemaBuilder()->hasTable('failed_jobs')) {
+            return [];
+        }
+
+        return DB::table('failed_jobs')->latest('failed_at')->limit(50)->get()->map(function ($job): array {
+            $payload = json_decode($job->payload, true) ?: [];
+            $name = $payload['displayName'] ?? $payload['job'] ?? 'Queued job';
+            $name = class_basename(is_string($name) ? $name : 'Queued job');
+            $exception = preg_replace('/\s+/', ' ', trim((string) $job->exception));
+
+            return [
+                'uuid' => $job->uuid,
+                'name' => $name,
+                'connection' => $job->connection,
+                'queue' => $job->queue,
+                'error' => str($exception)->limit(500)->toString(),
+                'failed_at' => $job->failed_at,
+            ];
+        })->all();
     }
 }

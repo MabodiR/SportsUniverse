@@ -26,16 +26,23 @@ const openStory = (index:number) => { if(storyTimer)clearTimeout(storyTimer);act
 function nextStory(){ if(activeStoryIndex.value < stories.value.length-1)openStory(activeStoryIndex.value+1);else closeStory(); }
 const previousStory=()=>activeStoryIndex.value>0?openStory(activeStoryIndex.value-1):undefined;
 const activeMedia = ref<Record<string, number>>({});
+const mediaErrors = ref<Record<string, boolean>>({});
 let touchX = 0;
 const recordedViews = new Set<string>();
 let observer: IntersectionObserver | null = null;
 let sponsoredObserver: IntersectionObserver | null = null;
 let feedItemObserver: IntersectionObserver | null = null;
 let loadMoreObserver: IntersectionObserver | null = null;
+let activeFeedRequest: AbortController | null = null;
 const loadMoreSentinel = ref<Element | null>(null);
 const nextCursor = ref(props.nextCursor ?? null);
 const loadingMore = ref(false);
 const loadMoreError = ref('');
+const loadMoreNotice = ref('');
+const fallbackFeed = ref(false);
+const furthestViewedIndex = ref(0);
+const visibleFeedIndex = ref(0);
+const lastPrefetchIndex = ref(-1);
 const sponsoredElements = new Map<Element, any>();
 const feedItemElements = new Map<Element, any>();
 const feedSignalTimers = new Map<Element, ReturnType<typeof setTimeout>>();
@@ -234,17 +241,38 @@ const loadMore = async () => {
     if (!authenticated.value || !nextCursor.value || loadingMore.value || props.location || props.sportFilter || props.positionFilter) return;
     loadingMore.value = true;
     loadMoreError.value = '';
+    activeFeedRequest?.abort();
     const controller = new AbortController();
+    activeFeedRequest = controller;
     const timeout = window.setTimeout(() => controller.abort(), 15000);
-    try {
-        const endpoint = props.mode === 'following' ? '/api/v1/feed/following' : '/api/v1/feed/for-you';
-        const response = await fetch(`${endpoint}?cursor=${encodeURIComponent(nextCursor.value)}`, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal: controller.signal });
-        const payload = await response.json(); if (!response.ok) throw new Error(payload.message ?? 'Unable to load more posts.');
+    const appendPage = (payload:any) => {
         const existing = new Set(feed.value.map(item => `${item.id}:${item.sponsored?.delivery_id ?? 'organic'}`));
         for (const item of payload.data ?? []) { const key=`${item.id}:${item.sponsored?.delivery_id ?? 'organic'}`; if (!existing.has(key)) { props.videos.push(item); existing.add(key); } }
         nextCursor.value = payload.meta?.next_cursor ?? null;
-    } catch (error:any) { loadMoreError.value = error?.name === 'AbortError' ? 'Recommendations took too long to load.' : 'Unable to load more recommendations.'; }
-    finally { window.clearTimeout(timeout); loadingMore.value = false; }
+    };
+    try {
+        const endpoint = props.mode === 'following' ? '/api/v1/feed/following' : '/api/v1/feed/for-you';
+        const params = new URLSearchParams({ cursor: nextCursor.value });
+        if (fallbackFeed.value && props.mode !== 'following') params.set('fallback', '1');
+        const response = await fetch(`${endpoint}?${params}`, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal: controller.signal });
+        const payload = await response.json(); if (!response.ok) throw new Error(payload.message ?? 'Unable to load more posts.');
+        appendPage(payload);
+    } catch (error:any) {
+        if (error?.name === 'AbortError' && props.mode !== 'following') {
+            try {
+                const fallbackController = new AbortController();
+                activeFeedRequest = fallbackController;
+                const params = new URLSearchParams({ fallback: '1' });
+                feed.value.slice(-20).forEach(item => params.append('exclude[]', item.id));
+                const response = await fetch(`/api/v1/feed/for-you?${params}`, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal: fallbackController.signal });
+                const payload = await response.json(); if (!response.ok) throw new Error(payload.message ?? 'Unable to load latest posts.');
+                fallbackFeed.value = true;
+                loadMoreNotice.value = 'Showing the latest posts while personalized recommendations catch up.';
+                appendPage(payload);
+            } catch { loadMoreError.value = 'More posts are temporarily unavailable.'; }
+        } else loadMoreError.value = 'More posts are temporarily unavailable.';
+    }
+    finally { window.clearTimeout(timeout); activeFeedRequest=null; loadingMore.value = false; }
 };
 const openSponsored = async (item: any) => {
     const sponsored = item.sponsored;
@@ -310,6 +338,12 @@ onMounted(() => {
     feedItemObserver = new IntersectionObserver(entries => entries.forEach(entry => {
         const item = feedItemElements.get(entry.target); if (!item) return;
         if (entry.isIntersecting && entry.intersectionRatio >= .6) {
+            const index = feed.value.indexOf(item);
+            if (index >= 0) { visibleFeedIndex.value=index;furthestViewedIndex.value = Math.max(furthestViewedIndex.value, index); }
+            if (nextCursor.value && feed.value.length - index <= 10 && index > lastPrefetchIndex.value) {
+                lastPrefetchIndex.value = index;
+                loadMore();
+            }
             if (!recordedImpressions.has(item.id) && !feedSignalTimers.has(entry.target)) feedSignalTimers.set(entry.target, setTimeout(() => { recordedImpressions.add(item.id); feedSignalTimers.delete(entry.target); feedSignal(item, 'impression'); }, 1000));
         } else {
             if (feedSignalTimers.has(entry.target)) { clearTimeout(feedSignalTimers.get(entry.target)); feedSignalTimers.delete(entry.target); }
@@ -319,7 +353,7 @@ onMounted(() => {
     loadMoreObserver = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) loadMore(); }, { rootMargin: '800px 0px' });
     requestAnimationFrame(() => { videoElements.forEach(video => observer?.observe(video)); feedItemElements.forEach((_, element) => feedItemObserver?.observe(element)); sponsoredElements.forEach((_, element) => sponsoredObserver?.observe(element)); if(loadMoreSentinel.value)loadMoreObserver?.observe(loadMoreSentinel.value); });
 });
-onUnmounted(() => { if(storyTimer)clearTimeout(storyTimer);window.removeEventListener('scroll', onScroll);document.removeEventListener('pointerdown', closeAudioControlsAway);document.removeEventListener('keydown', closeAudioControlsWithKeyboard);observer?.disconnect(); sponsoredObserver?.disconnect(); feedItemObserver?.disconnect(); loadMoreObserver?.disconnect(); sponsoredTimers.forEach(timer => clearTimeout(timer)); feedSignalTimers.forEach(timer => clearTimeout(timer)); videoElements.forEach(video => video.pause()); document.body.style.overflow = ''; });
+onUnmounted(() => { activeFeedRequest?.abort();if(storyTimer)clearTimeout(storyTimer);window.removeEventListener('scroll', onScroll);document.removeEventListener('pointerdown', closeAudioControlsAway);document.removeEventListener('keydown', closeAudioControlsWithKeyboard);observer?.disconnect(); sponsoredObserver?.disconnect(); feedItemObserver?.disconnect(); loadMoreObserver?.disconnect(); sponsoredTimers.forEach(timer => clearTimeout(timer)); feedSignalTimers.forEach(timer => clearTimeout(timer)); videoElements.forEach(video => video.pause()); document.body.style.overflow = ''; });
 </script>
 
 <template>
@@ -340,7 +374,7 @@ onUnmounted(() => { if(storyTimer)clearTimeout(storyTimer);window.removeEventLis
                     <div v-for="(item, index) in feed" :id="item.id" :key="`${item.id}:${item.sponsored?.delivery_id ?? 'organic'}`" :ref="element => registerPost(element as Element,item)" class="featured-video-wrap" :class="{ 'sponsored-post': item.sponsored }">
                         <article class="featured-video-card" :class="`feed-card-${(index % 3) + 1}`">
                             <div class="post-carousel" @touchstart.passive="swipeStart" @touchend.passive="swipeEnd(item,$event)">
-                                <template v-for="(slide,slideIndex) in slides(item)" :key="slide.url"><img v-if="slide.type==='image' && mediaIndex(item)===slideIndex" :src="slide.url" :alt="item.caption||'SportsUniverse post image'"/><video v-else-if="slide.type==='video' && mediaIndex(item)===slideIndex" :ref="element => registerVideo(element as HTMLVideoElement,item.id)" class="feed-video" :src="slide.url" :muted="!soundEnabled" loop playsinline preload="metadata" @click="toggleVideo" @timeupdate="recordView(item,$event.currentTarget as HTMLVideoElement)" @ended="feedSignal(item,'replay',Math.round(($event.currentTarget as HTMLVideoElement).duration*1000))"/></template>
+                                <template v-for="(slide,slideIndex) in slides(item)" :key="slide.url"><img v-if="slide.type==='image' && mediaIndex(item)===slideIndex" :src="slide.url" :alt="item.caption||'SportsUniverse post image'" loading="lazy"/><video v-else-if="slide.type==='video' && mediaIndex(item)===slideIndex && !mediaErrors[item.id]" :ref="element => registerVideo(element as HTMLVideoElement,item.id)" class="feed-video" :src="Math.abs(index-visibleFeedIndex)<=1?slide.url:undefined" :muted="!soundEnabled" loop playsinline preload="metadata" @error="mediaErrors[item.id]=true" @click="toggleVideo" @timeupdate="recordView(item,$event.currentTarget as HTMLVideoElement)" @ended="feedSignal(item,'replay',Math.round(($event.currentTarget as HTMLVideoElement).duration*1000))"/><div v-else-if="slide.type==='video' && mediaIndex(item)===slideIndex" class="feed-media-unavailable"><CirclePlay/><strong>Video temporarily unavailable</strong><span>Continue scrolling for more highlights.</span></div></template>
                                 <template v-if="slides(item).length>1"><button class="carousel-arrow previous" @click="changeMedia(item,-1)"><ChevronLeft/></button><button class="carousel-arrow next" @click="changeMedia(item,1)"><ChevronRight/></button><div class="carousel-dots"><i v-for="(_,dot) in slides(item)" :class="{active:mediaIndex(item)===dot}"/></div></template>
                             </div>
                             <div v-if="item.url && slides(item)[mediaIndex(item)]?.type==='video'" class="video-audio-control" @click.stop @mouseleave="audioControlsPost = null">
@@ -363,7 +397,7 @@ onUnmounted(() => { if(storyTimer)clearTimeout(storyTimer);window.removeEventLis
                             <button data-tooltip="More actions" aria-label="More actions" @click="controlsPost = item"><span><Ellipsis /></span><small>More</small></button>
                         </div>
                     </div>
-                    <div v-if="nextCursor" ref="loadMoreSentinel" class="feed-load-more" aria-live="polite"><span v-if="loadingMore">Loading more recommendations…</span><button v-else-if="loadMoreError" type="button" @click="loadMore">{{loadMoreError}} Try again</button></div>
+                    <div v-if="nextCursor || loadMoreNotice" ref="loadMoreSentinel" class="feed-load-more" aria-live="polite"><span v-if="loadingMore">Loading more posts…</span><button v-else-if="loadMoreError" type="button" @click="loadMore">{{loadMoreError}} Try again</button><span v-else-if="loadMoreNotice" class="feed-fallback-note"><Sparkles/>{{loadMoreNotice}}</span></div>
                 </div>
                 <aside class="trending-athletes">
                     <h3>Trending athletes</h3>

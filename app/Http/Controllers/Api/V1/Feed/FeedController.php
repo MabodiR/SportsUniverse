@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers\Api\V1\Feed;
 
-use App\Domain\Feed\Models\Video;
 use App\Domain\Feed\Models\FeedSetting;
-use App\Domain\Feed\Services\SafeSponsoredPostProvider;
+use App\Domain\Feed\Models\Video;
 use App\Domain\Feed\Services\ApplyFeedPreferences;
+use App\Domain\Feed\Services\DiversifyFeed;
 use App\Domain\Feed\Services\RankFeed;
 use App\Domain\Feed\Services\RecommendationFeed;
-use App\Domain\Feed\Services\DiversifyFeed;
 use App\Domain\Feed\Services\RetrieveFeedCandidates;
+use App\Domain\Feed\Services\SafeSponsoredPostProvider;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\V1\Feed\VideoResource;
 use Illuminate\Http\Request;
@@ -33,8 +33,13 @@ class FeedController extends Controller
     public function forYou(Request $request, VideoController $videos, RecommendationFeed $recommendations): AnonymousResourceCollection
     {
         $query = app(ApplyFeedPreferences::class)->execute($this->published(false), $request->user());
-        $precomputed = $recommendations->ids($request->user());
         $settings = FeedSetting::current();
+        $fallback = $request->boolean('fallback');
+        if ($fallback) {
+            $excluded = collect($request->input('exclude', []))->filter(fn ($id) => is_string($id) && strlen($id) <= 26)->take(100)->all();
+            $query->when($excluded, fn ($videos) => $videos->whereNotIn('videos.public_id', $excluded))
+                ->orderByDesc('videos.published_at')->orderByDesc('videos.id');
+        }
         $fanSports = $settings->use_fan_sports && $request->user()->hasRole('fan') ? collect($request->user()->fanProfile?->interested_sports ?? [])->map(fn ($sport) => mb_strtolower((string) $sport))->filter()->values()->all() : [];
         if ($fanSports) {
             $query->where(fn ($videos) => $videos
@@ -44,8 +49,13 @@ class FeedController extends Controller
         if ($request->filled('sport')) {
             $query->whereHas('sport', fn ($q) => $q->where('slug', $request->string('sport')));
         }
-        if ($precomputed->isEmpty()) app(RetrieveFeedCandidates::class)->execute($query);
-        app(RankFeed::class)->execute($query, $request->user(), $precomputed);
+        if (! $fallback) {
+            $precomputed = $recommendations->ids($request->user());
+            if ($precomputed->isEmpty()) {
+                app(RetrieveFeedCandidates::class)->execute($query);
+            }
+            app(RankFeed::class)->execute($query, $request->user(), $precomputed);
+        }
         $page = $query->cursorPaginate($settings->page_size);
         $page->setCollection(app(DiversifyFeed::class)->execute($page->getCollection()));
         $page->setCollection(app(SafeSponsoredPostProvider::class)->insert($page->getCollection(), $request));
@@ -76,6 +86,8 @@ class FeedController extends Controller
                 fn ($query) => $query->whereIn('visibility', ['public', 'followers']),
                 fn ($query) => $query->where('visibility', 'public')->where('post_type', 'post'))
             ->where(fn ($query) => $query->where('post_type', 'post')->orWhere('expires_at', '>', now()))
-            ->where(function($post){$post->whereHas('media', fn ($q) => $q->where('processing_status', 'ready')->where('moderation_status', 'approved'))->orWhereHas('images', fn ($q) => $q->where('processing_status', 'ready')->where('moderation_status', 'approved'));})->with('user.profile','media','images','sport');
+            ->where(function ($post) {
+                $post->whereHas('media', fn ($q) => $q->where('processing_status', 'ready')->where('moderation_status', 'approved'))->orWhereHas('images', fn ($q) => $q->where('processing_status', 'ready')->where('moderation_status', 'approved'));
+            })->with('user.profile', 'media', 'images', 'sport');
     }
 }

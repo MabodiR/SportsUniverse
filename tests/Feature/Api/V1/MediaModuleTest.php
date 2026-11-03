@@ -32,7 +32,7 @@ class MediaModuleTest extends TestCase
         $media = Media::firstOrFail();
         Storage::disk('local')->assertExists($media->path);
         $this->assertNull($media->checksum_sha256);
-        Queue::assertPushedOn('media', ProcessMedia::class, fn ($job) => $job->media->is($media));
+        Queue::assertPushedOn('media', ProcessMedia::class, fn ($job) => $job->media->is($media) && $job->deleteWhenMissingModels);
     }
 
     public function test_file_type_must_match_declared_kind(): void

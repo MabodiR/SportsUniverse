@@ -16,6 +16,9 @@ class FinalizeQueuedPost implements ShouldQueue
 
     public int $timeout = 60;
 
+    /** Discard stale upload work when its post was deleted before the job ran. */
+    public bool $deleteWhenMissingModels = true;
+
     public function __construct(public Video $video, public bool $publishWhenReady)
     {
         $this->onQueue('media');
