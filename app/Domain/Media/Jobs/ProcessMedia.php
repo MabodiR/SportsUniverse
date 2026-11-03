@@ -16,6 +16,9 @@ class ProcessMedia implements ShouldQueue
 
     public int $timeout = 1800;
 
+    /** Discard stale processing work when its media was deleted before the job ran. */
+    public bool $deleteWhenMissingModels = true;
+
     public function __construct(public Media $media)
     {
         $this->onQueue('media');

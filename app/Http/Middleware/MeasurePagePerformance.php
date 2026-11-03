@@ -25,7 +25,7 @@ class MeasurePagePerformance
 
     public function terminate(Request $request, Response $response): void
     {
-        if ($request->method() !== 'GET' || $request->is('up', 'media/*', 'watch/*/stream') || $this->durationMs === null) {
+        if (app()->isLocal() || $request->method() !== 'GET' || $request->is('up', 'media/*', 'watch/*/stream') || $this->durationMs === null) {
             return;
         }
 

@@ -2,21 +2,24 @@
 
 namespace Tests\Feature\Api\V1;
 
-use App\Domain\Feed\Jobs\FinalizeQueuedPost;
 use App\Domain\Feed\Jobs\AnalyzeVideoContent;
+use App\Domain\Feed\Jobs\FinalizeQueuedPost;
 use App\Domain\Feed\Models\FeedSetting;
 use App\Domain\Feed\Models\Video;
+use App\Domain\Feed\Services\AutomatedContentAnalyzer;
+use App\Domain\Feed\Services\ContentFeatureExtractor;
 use App\Domain\Feed\Services\RecommendationFeed;
 use App\Domain\Media\Models\Media;
 use App\Domain\Notifications\Notifications\SportUniverseNotification;
 use App\Domain\Notifications\Services\NotificationDispatcher;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class FeedModuleTest extends TestCase
@@ -34,8 +37,8 @@ class FeedModuleTest extends TestCase
         $video = Video::factory()->create(['status' => 'published']);
 
         app(AnalyzeVideoContent::class, ['videoId' => $video->id])->handle(
-            app(\App\Domain\Feed\Services\ContentFeatureExtractor::class),
-            app(\App\Domain\Feed\Services\AutomatedContentAnalyzer::class),
+            app(ContentFeatureExtractor::class),
+            app(AutomatedContentAnalyzer::class),
         );
 
         $video->refresh();
@@ -50,7 +53,7 @@ class FeedModuleTest extends TestCase
         $viewer = User::factory()->create();
         $first = Video::factory()->create(['likes_count' => 0]);
         $second = Video::factory()->create(['likes_count' => 999]);
-        $generation = (string) \Illuminate\Support\Str::ulid();
+        $generation = (string) Str::ulid();
         DB::table('recommendation_feed_items')->insert([
             ['user_id' => $viewer->id, 'video_id' => $first->id, 'score' => 10, 'position' => 0, 'generation' => $generation, 'generated_at' => now()],
             ['user_id' => $viewer->id, 'video_id' => $second->id, 'score' => 9, 'position' => 1, 'generation' => $generation, 'generated_at' => now()],
@@ -73,6 +76,22 @@ class FeedModuleTest extends TestCase
 
         $second = $this->getJson('/api/v1/feed/for-you?cursor='.urlencode($cursor))->assertOk()->assertJsonCount(2, 'data');
         $this->assertTrue($firstIds->intersect(collect($second->json('data'))->pluck('id'))->isEmpty());
+    }
+
+    public function test_for_you_feed_can_fall_back_to_recent_posts_and_exclude_items_already_shown(): void
+    {
+        $viewer = User::factory()->create();
+        FeedSetting::current()->update(['page_size' => 2]);
+        $oldest = Video::factory()->create(['published_at' => now()->subHours(3)]);
+        $middle = Video::factory()->create(['published_at' => now()->subHours(2)]);
+        $newest = Video::factory()->create(['published_at' => now()->subHour()]);
+
+        $this->actingAs($viewer, 'sanctum')
+            ->getJson('/api/v1/feed/for-you?fallback=1&exclude[]='.$newest->public_id)
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.id', $middle->public_id)
+            ->assertJsonPath('data.1.id', $oldest->public_id);
     }
 
     public function test_for_you_feed_prioritizes_posts_not_viewed_recently(): void
@@ -166,12 +185,12 @@ class FeedModuleTest extends TestCase
             'video_id' => $video->id,
             'score' => 10,
             'position' => 0,
-            'generation' => (string) \Illuminate\Support\Str::ulid(),
+            'generation' => (string) Str::ulid(),
             'generated_at' => now(),
         ]);
         $version = FeedSetting::current()->updated_at?->getTimestamp() ?? 0;
         $key = "feed:recommended:{$version}:{$viewer->id}";
-        Cache::put($key, new \__PHP_Incomplete_Class(), 60);
+        Cache::put($key, new \__PHP_Incomplete_Class, 60);
 
         $ids = app(RecommendationFeed::class)->ids($viewer);
 
@@ -211,7 +230,7 @@ class FeedModuleTest extends TestCase
             ->assertJsonPath('data.status', 'draft');
 
         $video = Video::firstOrFail();
-        Queue::assertPushedOn('media', FinalizeQueuedPost::class, fn ($job) => $job->video->is($video) && $job->publishWhenReady);
+        Queue::assertPushedOn('media', FinalizeQueuedPost::class, fn ($job) => $job->video->is($video) && $job->publishWhenReady && $job->deleteWhenMissingModels);
 
         $media->update(['processing_status' => 'ready', 'moderation_status' => 'approved']);
         Notification::fake();
@@ -281,23 +300,23 @@ class FeedModuleTest extends TestCase
     public function test_user_can_publish_picture_only_post_and_edit_metadata(): void
     {
         $user = User::factory()->create();
-        $images = Media::factory()->count(2)->for($user)->create(['kind'=>'image']);
-        $created = $this->actingAs($user,'sanctum')->postJson('/api/v1/videos',[
-            'image_media_ids'=>$images->pluck('public_id')->all(),'cover_media_id'=>$images->first()->public_id,
-            'caption'=>'Match day','hashtags'=>['Football'],'location_name'=>'Soweto','comments_enabled'=>false,'publish'=>true,
-        ])->assertCreated()->assertJsonPath('data.type','images')->assertJsonPath('data.location.name','Soweto');
-        $id=$created->json('data.id');
-        $this->patchJson('/api/v1/videos/'.$id,['caption'=>'Final whistle','hashtags'=>['Champions'],'visibility'=>'followers'])
-            ->assertOk()->assertJsonPath('data.caption','Final whistle')->assertJsonPath('data.visibility','followers');
-        $this->assertDatabaseHas('videos',['public_id'=>$id,'media_id'=>null,'location_name'=>'Soweto','comments_enabled'=>false]);
+        $images = Media::factory()->count(2)->for($user)->create(['kind' => 'image']);
+        $created = $this->actingAs($user, 'sanctum')->postJson('/api/v1/videos', [
+            'image_media_ids' => $images->pluck('public_id')->all(), 'cover_media_id' => $images->first()->public_id,
+            'caption' => 'Match day', 'hashtags' => ['Football'], 'location_name' => 'Soweto', 'comments_enabled' => false, 'publish' => true,
+        ])->assertCreated()->assertJsonPath('data.type', 'images')->assertJsonPath('data.location.name', 'Soweto');
+        $id = $created->json('data.id');
+        $this->patchJson('/api/v1/videos/'.$id, ['caption' => 'Final whistle', 'hashtags' => ['Champions'], 'visibility' => 'followers'])
+            ->assertOk()->assertJsonPath('data.caption', 'Final whistle')->assertJsonPath('data.visibility', 'followers');
+        $this->assertDatabaseHas('videos', ['public_id' => $id, 'media_id' => null, 'location_name' => 'Soweto', 'comments_enabled' => false]);
     }
 
     public function test_owner_can_delete_post(): void
     {
-        $user=User::factory()->create();
-        $post=Video::factory()->for($user)->create();
-        $this->actingAs($user,'sanctum')->deleteJson('/api/v1/videos/'.$post->public_id)->assertOk();
-        $this->assertDatabaseMissing('videos',['id'=>$post->id]);
+        $user = User::factory()->create();
+        $post = Video::factory()->for($user)->create();
+        $this->actingAs($user, 'sanctum')->deleteJson('/api/v1/videos/'.$post->public_id)->assertOk();
+        $this->assertDatabaseMissing('videos', ['id' => $post->id]);
     }
 
     public function test_owner_can_list_and_publish_a_draft(): void
@@ -439,7 +458,7 @@ class FeedModuleTest extends TestCase
         $video = Video::factory()->create();
         $first = $this->actingAs($viewer, 'sanctum')->postJson('/api/v1/videos/'.$video->public_id.'/comments', ['body' => 'Great finish!'])->assertCreated();
         $this->postJson('/api/v1/videos/'.$video->public_id.'/comments', ['body' => 'Agreed', 'parent_id' => $first->json('data.id')])->assertCreated()->assertJsonPath('data.parent_id', $first->json('data.id'));
-        $this->assertDatabaseHas('videos',['id' => $video->id, 'comments_count' => 2]);
+        $this->assertDatabaseHas('videos', ['id' => $video->id, 'comments_count' => 2]);
     }
 
     public function test_user_can_like_and_unlike_a_comment(): void
