@@ -49,6 +49,32 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        \Illuminate\Auth\Notifications\ResetPassword::toMailUsing(function (object $notifiable, string $token) {
+            $url = url(route('password.reset', [
+                'token' => $token,
+                'email' => $notifiable->getEmailForPasswordReset(),
+            ], false));
+
+            return (new \Illuminate\Notifications\Messages\MailMessage)
+                ->subject('Reset your password · SportsUniverse')
+                ->greeting('Let’s get you back in the game.')
+                ->line('Hi '.($notifiable->name ?: 'there').', we received a request to reset your SportsUniverse password.')
+                ->line('Choose a new password and get back to your community, your connections and your next opportunity.')
+                ->action('Choose a new password', $url)
+                ->line('This secure link expires in '.config('auth.passwords.'.config('auth.defaults.passwords').'.expire', 60).' minutes.')
+                ->line('Didn’t request a reset? You can ignore this email. Your password will stay the same.');
+        });
+
+        \Illuminate\Auth\Notifications\VerifyEmail::toMailUsing(function (object $notifiable, string $url) {
+            return (new \Illuminate\Notifications\Messages\MailMessage)
+                ->subject('You’re almost in · SportsUniverse')
+                ->greeting('Your next chapter starts here.')
+                ->line('Hi '.($notifiable->name ?: 'there').', welcome to SportsUniverse.')
+                ->line('Verify your email to connect with your sporting community and discover your next opportunity.')
+                ->action('Verify my email', $url)
+                ->line('This link expires in '.config('auth.verification.expire', 60).' minutes. If you didn’t create this account, you can ignore this email.');
+        });
+
         Event::listen(NotificationRequested::class, SendRequestedNotification::class);
 
         Event::listen(function (SocialiteWasCalled $event): void {

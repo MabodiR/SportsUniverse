@@ -6,6 +6,39 @@ use Tests\TestCase;
 
 class SecurityHardeningTest extends TestCase
 {
+    public function test_production_admin_pages_allow_alpine_expression_evaluation(): void
+    {
+        $this->app['env'] = 'production';
+        $middleware = new \App\Http\Middleware\SecurityHeaders;
+
+        foreach (['/admin', '/admin/login', '/admin/users/5'] as $path) {
+            $response = $middleware->handle(
+                \Illuminate\Http\Request::create('https://localhost'.$path),
+                fn () => response('Admin content'),
+            );
+
+            $policy = $response->headers->get('Content-Security-Policy');
+            $this->assertStringContainsString("script-src 'self' 'unsafe-inline' 'unsafe-eval'", $policy);
+            $this->assertStringContainsString("frame-ancestors 'self'", $policy);
+            $this->assertStringContainsString("object-src 'none'", $policy);
+        }
+    }
+
+    public function test_production_public_and_api_pages_keep_dynamic_evaluation_blocked(): void
+    {
+        $this->app['env'] = 'production';
+        $middleware = new \App\Http\Middleware\SecurityHeaders;
+
+        foreach (['/login', '/feed', '/administrator', '/api/v1/profile'] as $path) {
+            $response = $middleware->handle(
+                \Illuminate\Http\Request::create('https://localhost'.$path),
+                fn () => response('Public content'),
+            );
+
+            $this->assertStringNotContainsString('unsafe-eval', $response->headers->get('Content-Security-Policy'));
+        }
+    }
+
     public function test_web_responses_include_security_headers_and_skip_link(): void
     {
         $response = $this->get('/login');
