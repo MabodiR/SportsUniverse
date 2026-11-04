@@ -14,7 +14,7 @@ class ProductionAccessUserSeeder extends Seeder
     {
         $adminPassword = (string) env('PRODUCTION_ADMIN_PASSWORD', '');
         $accounts = [
-            ['name' => 'SportsUniverse Super Admin', 'email' => 'superadmin@sportsuniverse.co.za', 'slug' => 'sportsuniverse-super-admin', 'role' => 'super_admin'],
+            ['name' => 'SportsUniverse Super Admin', 'email' => 'support@sportsuniverse.co.za', 'slug' => 'sportsuniverse-super-admin', 'role' => 'super_admin'],
             ['name' => 'SportsUniverse Athlete Demo', 'email' => 'athlete.demo@sportsuniverse.co.za', 'slug' => 'sportsuniverse-athlete-demo', 'role' => 'athlete'],
             ['name' => 'SportsUniverse Sponsor Demo', 'email' => 'sponsor.demo@sportsuniverse.co.za', 'slug' => 'sportsuniverse-sponsor-demo', 'role' => 'sponsor'],
         ];
