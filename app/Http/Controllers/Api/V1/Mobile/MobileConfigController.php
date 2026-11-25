@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Mobile;
 
 use App\Domain\Promotions\Services\VoucherService;
 use App\Http\Controllers\Controller;
+use App\Models\RegistrationSetting;
 use Illuminate\Http\JsonResponse;
 
 class MobileConfigController extends Controller
@@ -22,6 +23,7 @@ class MobileConfigController extends Controller
                 'download_url' => config('services.mobile_app.ios_url'),
             ],
             'release_notes' => config('services.mobile_app.release_notes'),
+            'registration' => RegistrationSetting::current()->only(['verification_required', 'whatsapp_enabled']),
             'promotion' => $vouchers->publicPromotion(),
         ]]);
     }

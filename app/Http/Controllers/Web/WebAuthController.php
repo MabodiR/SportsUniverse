@@ -2,48 +2,75 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Domain\Auth\Services\LoginHistoryRecorder;
+use App\Domain\Auth\Services\RegistrationFlow;
 use App\Domain\Profiles\Actions\EnsureProfileSlug;
 use App\Domain\Promotions\Models\VoucherRedemption;
 use App\Domain\Promotions\Services\VoucherService;
-use App\Domain\Auth\Services\LoginHistoryRecorder;
 use App\Http\Controllers\Controller;
-use App\Models\User;
+use App\Models\PendingRegistration;
+use App\Models\RegistrationSetting;
 use App\Models\SocialAccount;
-use App\Notifications\VerifyPendingRegistration;
-use Illuminate\Http\RedirectResponse;
+use App\Models\User;
+use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password as PasswordBroker;
-use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Inertia\Response;
 use Laravel\Socialite\Facades\Socialite;
-use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpFoundation\RedirectResponse as SymfonyRedirectResponse;
 use Throwable;
 
 class WebAuthController extends Controller
 {
     private const SOCIAL_PROVIDERS = ['google', 'apple', 'facebook', 'microsoft'];
+
     public function loginPage(): Response
     {
         return Inertia::render('Auth/Login');
     }
 
-    public function forgotPasswordPage(): Response { return Inertia::render('Auth/ForgotPassword', ['status' => session('status')]); }
-    public function sendPasswordResetLink(Request $request): RedirectResponse { $request->validate(['email'=>['required','email']]);$status=PasswordBroker::sendResetLink($request->only('email'));return $status===PasswordBroker::RESET_LINK_SENT?back()->with('status',__($status)):back()->withErrors(['email'=>__($status)]); }
-    public function resetPasswordPage(Request $request,string $token): Response { return Inertia::render('Auth/ResetPassword',['token'=>$token,'email'=>$request->string('email')->value()]); }
-    public function resetPassword(Request $request): RedirectResponse { $data=$request->validate(['token'=>['required'],'email'=>['required','email'],'password'=>['required','confirmed',Password::min(8)->letters()->numbers()]]);$status=PasswordBroker::reset($data,function(User $user,string $password):void{$user->forceFill(['password'=>$password,'remember_token'=>Str::random(60)])->save();event(new PasswordReset($user));});return $status===PasswordBroker::PASSWORD_RESET?redirect('/login')->with('status',__($status)):back()->withErrors(['email'=>__($status)]); }
-    public function verificationPage(Request $request): Response { return Inertia::render('Auth/VerifyEmail',['verified'=>$request->user()->hasVerifiedEmail(),'status'=>session('success')]); }
+    public function forgotPasswordPage(): Response
+    {
+        return Inertia::render('Auth/ForgotPassword', ['status' => session('status')]);
+    }
+
+    public function sendPasswordResetLink(Request $request): RedirectResponse
+    {
+        $request->validate(['email' => ['required', 'email']]);
+        $status = PasswordBroker::sendResetLink($request->only('email'));
+
+        return $status === PasswordBroker::RESET_LINK_SENT ? back()->with('status', __($status)) : back()->withErrors(['email' => __($status)]);
+    }
+
+    public function resetPasswordPage(Request $request, string $token): Response
+    {
+        return Inertia::render('Auth/ResetPassword', ['token' => $token, 'email' => $request->string('email')->value()]);
+    }
+
+    public function resetPassword(Request $request): RedirectResponse
+    {
+        $data = $request->validate(['token' => ['required'], 'email' => ['required', 'email'], 'password' => ['required', 'confirmed', Password::min(8)->letters()->numbers()]]);
+        $status = PasswordBroker::reset($data, function (User $user, string $password): void {
+            $user->forceFill(['password' => $password, 'remember_token' => Str::random(60)])->save();
+            event(new PasswordReset($user));
+        });
+
+        return $status === PasswordBroker::PASSWORD_RESET ? redirect('/login')->with('status', __($status)) : back()->withErrors(['email' => __($status)]);
+    }
+
+    public function verificationPage(Request $request): Response
+    {
+        return Inertia::render('Auth/VerifyEmail', ['verified' => $request->user()->hasVerifiedEmail(), 'status' => session('success')]);
+    }
 
     public function login(Request $request, LoginHistoryRecorder $logins): RedirectResponse
     {
@@ -147,7 +174,7 @@ class WebAuthController extends Controller
 
     public function registerPage(VoucherService $vouchers): Response
     {
-        return Inertia::render('Auth/Register', ['promotion' => $vouchers->publicPromotion()]);
+        return Inertia::render('Auth/Register', ['promotion' => $vouchers->publicPromotion(), 'registrationSettings' => RegistrationSetting::current()->only(['verification_required', 'whatsapp_enabled'])]);
     }
 
     public function checkAvailability(Request $request): JsonResponse
@@ -166,6 +193,7 @@ class WebAuthController extends Controller
     public function register(Request $request, VoucherService $vouchers): RedirectResponse
     {
         $data = $request->validate([
+            'verification_channel' => ['nullable', Rule::in(['email', 'whatsapp'])],
             'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'email', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:32', 'unique:users,phone'],
@@ -188,18 +216,28 @@ class WebAuthController extends Controller
             'locality' => ['nullable', 'string', 'max:120'],
             'voucher_code' => ['nullable', 'string', 'max:80'],
         ]);
-        if (! empty($data['voucher_code'])) $vouchers->validateCode($data['voucher_code']);
-        $token = (string) Str::uuid();
-        $data['password'] = Hash::make($data['password']);
-        unset($data['password_confirmation']);
-        Cache::put('pending-registration:'.$token, $data, now()->addMinutes(60));
+        if (! empty($data['voucher_code'])) {
+            $vouchers->validateCode($data['voucher_code']);
+        }
+        $service = app(RegistrationFlow::class);
+        $pending = $service->store($data);
+        if (! RegistrationSetting::current()->verification_required) {
+            $user = $service->complete($pending);
+            Auth::login($user);
+            $request->session()->regenerate();
+            app(LoginHistoryRecorder::class)->record($user, $request, 'registration');
+
+            return redirect('/feed');
+        }
+        $token = $pending->id;
+
         $request->session()->put('pending_registration_token', $token);
         $request->session()->put('pending_registration_email', $data['email']);
-        $sent = $this->sendPendingVerification($token, $data);
+        $sent = $this->sendPendingVerification($token);
 
         return redirect()->route('register.verification-sent')->with(
             $sent ? 'success' : 'mail_error',
-            $sent ? 'A verification email has been sent.' : 'Your registration is saved, but we could not send the verification email. Please use Resend verification email.'
+            $sent ? 'A verification message has been sent.' : 'Your registration is saved, but delivery failed. Try resending or contact an administrator for approval.'
         );
     }
 
@@ -210,38 +248,27 @@ class WebAuthController extends Controller
             return redirect('/register');
         }
 
-        return Inertia::render('Auth/PendingRegistration', ['email' => $email, 'status' => session('success'), 'mailError' => session('mail_error')]);
+        return Inertia::render('Auth/PendingRegistration', ['email' => $email, 'status' => session('success'), 'mailError' => session('mail_error'), 'channel' => PendingRegistration::find($request->session()->get('pending_registration_token'))?->channel]);
     }
 
     public function resendPendingVerification(Request $request): RedirectResponse
     {
         $token = $request->session()->get('pending_registration_token');
-        $data = $token ? Cache::get('pending-registration:'.$token) : null;
+        $data = $token ? app(RegistrationFlow::class)->findPending($token)->payload : null;
         if (! $token || ! $data) {
             return redirect('/register')->withErrors(['email' => 'Your registration request expired. Please register again.']);
         }
-        if (! $this->sendPendingVerification($token, $data)) {
-            return back()->with('mail_error', 'We could not send the verification email. Please try again shortly.');
+        if (! $this->sendPendingVerification($token)) {
+            return back()->with('mail_error', 'We could not send the verification message. Your registration is saved for administrator approval.');
         }
 
-        return back()->with('success', 'A new verification email has been sent.');
+        return back()->with('success', 'A new verification message has been sent.');
     }
 
-    public function verifyPendingRegistration(Request $request, string $token, EnsureProfileSlug $slugs, LoginHistoryRecorder $logins, VoucherService $vouchers): RedirectResponse
+    public function verifyPendingRegistration(Request $request, string $token, LoginHistoryRecorder $logins): RedirectResponse
     {
-        $data = Cache::pull('pending-registration:'.$token);
-        if (! $data) {
-            return redirect('/register')->withErrors(['email' => 'This verification link has expired or has already been used.']);
-        }
-        if (User::whereRaw('LOWER(email) = ?', [strtolower($data['email'])])->exists()) {
-            return redirect('/login')->withErrors(['login' => 'This email address is already registered. Please sign in.']);
-        }
-        if (! empty($data['phone']) && User::where('phone', $data['phone'])->exists()) {
-            return redirect('/register')->withErrors(['phone' => 'This phone number is already registered.']);
-        }
-
-        $data['email_verified_at'] = now();
-        $user = $this->createRegisteredUser($data, $slugs, $vouchers);
+        $pending = app(RegistrationFlow::class)->findPending($token);
+        $user = app(RegistrationFlow::class)->complete($pending, true);
         Auth::login($user);
         $request->session()->forget(['pending_registration_token', 'pending_registration_email']);
         $request->session()->regenerate();
@@ -255,39 +282,21 @@ class WebAuthController extends Controller
         return redirect('/feed')->with('success', $message);
     }
 
-    private function createRegisteredUser(array $data, EnsureProfileSlug $slugs, VoucherService $vouchers): User
+    private function sendPendingVerification(string $token): bool
     {
-        $user = DB::transaction(function () use ($data, $vouchers) {
-            $user = User::create(collect($data)->only(['name','email','phone','password'])->all());
-            $user->forceFill(['email_verified_at' => $data['email_verified_at']])->save();
-            $user->profile()->create(['completeness' => 35, 'bio' => $data['bio'] ?? null, 'date_of_birth' => $data['date_of_birth'] ?? null, 'country' => 'ZA', 'province' => $data['province'] ?? null, 'city' => $data['city'] ?? null, 'locality' => $data['locality'] ?? null]);
-            Role::findOrCreate($data['role'], 'web');
-            $user->assignRole($data['role']);
-            if ($data['role'] === 'fan') $user->fanProfile()->create(['interested_sports' => $data['interested_sports'] ?? []]);
-            if ($data['role'] === 'athlete') $user->athleteProfile()->create(['sport_id' => $data['sport_id'] ?? null, 'position_id' => $data['position_id'] ?? null, 'club_name' => $data['club_name'] ?? null, 'playing_level' => $data['playing_level'] ?? null]);
-            if (in_array($data['role'], ['coach','referee','linesman','scout','agent'], true)) $user->professionalProfile()->create(['professional_type'=>$data['role'],'specialisation'=>$data['specialisation']??null,'years_experience'=>$data['years_experience']??null]);
-            if (in_array($data['role'], ['club','academy','business','sponsor'], true)) $user->organisationProfile()->create(['organisation_name'=>($data['organisation_name']??null)?:$data['name'],'organisation_type'=>$data['role'],'contact_email'=>$data['email'],'contact_phone'=>$data['phone']??null,'services'=>array_values(array_filter(array_map('trim',explode(',', $data['services']??''))))]);
-            $vouchers->redeemForNewUser($user, $data['voucher_code'] ?? null);
-
-            return $user;
-        });
-        $slugs->execute($user->load('profile'));
-
-        return $user;
+        return app(RegistrationFlow::class)->send(PendingRegistration::findOrFail($token));
     }
 
-    private function sendPendingVerification(string $token, array $data): bool
+    public function verifyPendingOtp(Request $request): RedirectResponse
     {
-        $url = URL::temporarySignedRoute('register.verify', now()->addMinutes(60), ['token' => $token]);
-        try {
-            Notification::route('mail', $data['email'])->notify(new VerifyPendingRegistration($data['name'], $url));
+        $data = $request->validate(['otp' => ['required', 'digits:6']]);
+        $user = app(RegistrationFlow::class)->verifyOtp((string) $request->session()->get('pending_registration_token'), $data['otp']);
+        Auth::login($user);
+        $request->session()->forget(['pending_registration_token', 'pending_registration_email']);
+        $request->session()->regenerate();
+        app(LoginHistoryRecorder::class)->record($user, $request, 'registration');
 
-            return true;
-        } catch (\Throwable $exception) {
-            report($exception);
-
-            return false;
-        }
+        return redirect('/feed');
     }
 
     public function logout(Request $request): RedirectResponse

@@ -2,58 +2,62 @@
 
 namespace App\Http\Controllers\Api\V1\Auth;
 
-use App\Domain\Profiles\Actions\EnsureProfileSlug;
-use App\Domain\Promotions\Services\VoucherService;
 use App\Domain\Auth\Services\LoginHistoryRecorder;
+use App\Domain\Auth\Services\RegistrationFlow;
+use App\Domain\Promotions\Services\VoucherService;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Auth\LoginRequest;
 use App\Http\Requests\Api\V1\Auth\RegisterRequest;
 use App\Http\Resources\Api\V1\UserResource;
+use App\Models\PendingRegistration;
+use App\Models\RegistrationSetting;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rules\Password as PasswordRule;
-use Spatie\Permission\Models\Role;
+use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    public function register(RegisterRequest $request, EnsureProfileSlug $slugs, LoginHistoryRecorder $logins, VoucherService $vouchers): JsonResponse
+    public function register(RegisterRequest $request, LoginHistoryRecorder $logins, VoucherService $vouchers): JsonResponse
     {
         $voucherCode = $request->validated('voucher_code');
-        if ($voucherCode) $vouchers->validateCode($voucherCode);
-        $user = DB::transaction(function () use ($request, $vouchers, $voucherCode) {
-            $role = $request->validated('role');
-            $user = User::create($request->safe()->except(['password_confirmation', 'device_name', 'role', 'voucher_code']));
-            $user->profile()->create(['completeness' => 20]);
-            if ($role) {
-                Role::findOrCreate($role, 'web');
-                $user->syncRoles([$role]);
-                if (in_array($role, ['coach', 'referee', 'linesman', 'scout', 'agent'], true)) {
-                    $user->professionalProfile()->create(['professional_type' => $role]);
-                }
-                if (in_array($role, ['club', 'academy', 'business', 'sponsor'], true)) {
-                    $user->organisationProfile()->create(['organisation_name' => $user->name, 'organisation_type' => $role]);
-                }
-            }
-            $vouchers->redeemForNewUser($user, $voucherCode);
-
-            return $user;
-        });
-        $slugs->execute($user->load('profile'));
-        try {
-            $user->sendEmailVerificationNotification();
-        } catch (\Throwable $exception) {
-            report($exception);
+        if ($voucherCode) {
+            $vouchers->validateCode($voucherCode);
         }
+        $flow = app(RegistrationFlow::class);
+        $pending = $flow->store([...$request->validated(), 'profile_completeness' => 20]);
+        if (RegistrationSetting::current()->verification_required) {
+            $sent = $flow->send($pending);
 
+            return response()->json(['pending_registration' => ['id' => $pending->id, 'channel' => $pending->channel], 'message' => $sent ? 'Your registration is saved. Check your verification message, then sign in.' : 'Your registration is saved, but delivery failed. Retry or contact an administrator for approval.'], 202);
+        }
+        $user = $flow->complete($pending);
         $token = $user->createToken($request->string('device_name')->value() ?: 'api');
         $logins->record($user, $request, 'registration', $token->accessToken->id);
+
         return response()->json(['message' => 'Account created. Continue onboarding.', 'token' => $token->plainTextToken, 'data' => new UserResource($user->load('roles', 'profile'))], 201);
+    }
+
+    public function verifyRegistration(Request $request): JsonResponse
+    {
+        $data = $request->validate(['id' => ['required', 'uuid'], 'otp' => ['required', 'digits:6']]);
+        app(RegistrationFlow::class)->verifyOtp($data['id'], $data['otp']);
+
+        return response()->json(['message' => 'Registration verified. Please sign in.']);
+    }
+
+    public function resendRegistration(Request $request): JsonResponse
+    {
+        $data = $request->validate(['id' => ['required', 'uuid']]);
+        $pending = PendingRegistration::findOrFail($data['id']);
+        abort_unless($pending->status === 'pending', 422);
+        $sent = app(RegistrationFlow::class)->send($pending);
+
+        return response()->json(['message' => $sent ? 'Verification message sent.' : 'Delivery failed. Your registration remains saved for admin approval.'], $sent ? 200 : 503);
     }
 
     public function login(LoginRequest $request, LoginHistoryRecorder $logins): JsonResponse
@@ -67,6 +71,7 @@ class AuthController extends Controller
 
         $token = $user->createToken($request->string('device_name')->value() ?: 'api');
         $logins->record($user, $request, 'password', $token->accessToken->id);
+
         return response()->json(['token' => $token->plainTextToken, 'data' => new UserResource($user->load('roles', 'profile'))]);
     }
 
@@ -89,14 +94,18 @@ class AuthController extends Controller
             $user->forceFill(['password' => Hash::make($password)])->save();
             $user->tokens()->delete();
         });
-        if ($status !== Password::PASSWORD_RESET) throw ValidationException::withMessages(['email' => [__($status)]]);
+        if ($status !== Password::PASSWORD_RESET) {
+            throw ValidationException::withMessages(['email' => [__($status)]]);
+        }
 
         return response()->json(['message' => 'Your password has been reset. Sign in with your new password.']);
     }
 
     public function resendVerification(Request $request): JsonResponse
     {
-        if ($request->user()->hasVerifiedEmail()) return response()->json(['message' => 'Your email address is already verified.', 'data' => ['verified' => true]]);
+        if ($request->user()->hasVerifiedEmail()) {
+            return response()->json(['message' => 'Your email address is already verified.', 'data' => ['verified' => true]]);
+        }
         $request->user()->sendEmailVerificationNotification();
 
         return response()->json(['message' => 'A new verification link has been sent.', 'data' => ['verified' => false]]);
@@ -106,7 +115,9 @@ class AuthController extends Controller
     {
         $user = User::findOrFail($id);
         abort_unless(hash_equals($hash, sha1($user->getEmailForVerification())), 403, 'This verification link is invalid.');
-        if (! $user->hasVerifiedEmail()) $user->markEmailAsVerified();
+        if (! $user->hasVerifiedEmail()) {
+            $user->markEmailAsVerified();
+        }
 
         return response()->json(['message' => 'Email verified successfully.', 'data' => ['verified' => true]]);
     }
@@ -122,6 +133,7 @@ class AuthController extends Controller
 
         $token = $user->createToken($device);
         $logins->record($user, $request, 'social', $token->accessToken->id);
+
         return response()->json(['token' => $token->plainTextToken, 'data' => new UserResource($user->load('roles', 'profile'))]);
     }
 

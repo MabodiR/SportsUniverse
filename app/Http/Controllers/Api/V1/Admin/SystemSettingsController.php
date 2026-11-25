@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Domain\Advertising\Models\BoostSetting;
+use App\Domain\Auth\Services\RegistrationFlow;
 use App\Domain\Feed\Models\FeedSetting;
 use App\Http\Controllers\Controller;
+use App\Models\PendingRegistration;
+use App\Models\RegistrationSetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -16,10 +19,15 @@ class SystemSettingsController extends Controller
     public function index(Request $request): JsonResponse
     {
         $this->admin($request);
+        $pending = PendingRegistration::where('status', 'pending')->latest()->orderBy('id')->paginate(25, ['id', 'name', 'email', 'phone', 'channel', 'delivery_status', 'created_at'], 'pending_page');
         $feed = FeedSetting::current();
         $advertising = BoostSetting::current();
 
         return response()->json(['data' => [
+            'registration' => RegistrationSetting::current()->only(['verification_required', 'whatsapp_enabled']),
+            'can_manage_registration' => $request->user()->hasAnyRole(['super_admin', 'system_admin']),
+            'pending_registrations' => $pending->items(),
+            'registration_pagination' => ['current_page' => $pending->currentPage(), 'last_page' => $pending->lastPage(), 'total' => $pending->total()],
             'feed' => $feed->only(['ranking_mode', 'view_weight', 'like_weight', 'comment_weight', 'share_weight', 'follow_boost', 'page_size', 'recommendation_size', 'use_fan_sports', 'updated_at']),
             'advertising' => $advertising->only(['enabled', 'cpm_cents', 'organic_posts_between', 'frequency_cap_per_day', 'minimum_daily_budget_cents', 'maximum_daily_budget_cents', 'maximum_duration_days', 'require_review', 'updated_at']),
             'environment' => [
@@ -77,6 +85,13 @@ class SystemSettingsController extends Controller
     {
         $this->admin($request);
 
+        if ($section === 'registration') {
+            abort_unless($request->user()->hasAnyRole(['super_admin', 'system_admin']), 403);
+            $data = $request->validate(['verification_required' => ['required', 'boolean'], 'whatsapp_enabled' => ['required', 'boolean']]);
+            RegistrationSetting::applyPolicy($request->user(), $data);
+
+            return response()->json(['message' => 'Registration settings saved.']);
+        }
         if ($section === 'feed') {
             $data = $request->validate([
                 'ranking_mode' => ['required', Rule::in(['personalized', 'engagement', 'recent'])],
@@ -87,6 +102,7 @@ class SystemSettingsController extends Controller
                 'recommendation_size' => ['required', 'integer', 'between:50,2000'],
             ]);
             FeedSetting::current()->update([...$data, 'updated_by' => $request->user()->id]);
+
             return response()->json(['message' => 'Feed settings saved. Recommendation caches will rebuild automatically.']);
         }
 
@@ -101,10 +117,20 @@ class SystemSettingsController extends Controller
                 'frequency_cap_per_day' => ['required', 'integer', 'between:1,20'],
             ]);
             BoostSetting::current()->update([...$data, 'updated_by' => $request->user()->id]);
+
             return response()->json(['message' => 'Advertising settings saved.']);
         }
 
         abort(404, 'Unknown settings section.');
+    }
+
+    public function approveRegistration(Request $request, string $id): JsonResponse
+    {
+        $this->admin($request);
+        $pending = PendingRegistration::findOrFail($id);
+        app(RegistrationFlow::class)->complete($pending, false, $request->user()->id);
+
+        return response()->json(['message' => 'Registration approved. The member can now sign in.']);
     }
 
     private function admin(Request $request): void

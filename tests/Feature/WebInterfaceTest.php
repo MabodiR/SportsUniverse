@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Domain\Feed\Models\Video;
+use App\Models\RegistrationSetting;
 use App\Models\User;
 use App\Notifications\VerifyPendingRegistration;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -57,6 +58,7 @@ class WebInterfaceTest extends TestCase
 
     public function test_member_can_register_and_enter_feed(): void
     {
+        RegistrationSetting::current()->update(['verification_required' => true]);
         Notification::fake();
         $response = $this->post('/register', [
             'name' => 'Lerato Athlete',
@@ -93,6 +95,7 @@ class WebInterfaceTest extends TestCase
 
     public function test_registration_is_preserved_when_verification_email_delivery_fails(): void
     {
+        RegistrationSetting::current()->update(['verification_required' => true]);
         config(['mail.default' => 'unavailable-test-mailer']);
 
         $response = $this->post('/register', [
