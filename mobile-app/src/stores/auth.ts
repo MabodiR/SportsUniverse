@@ -5,8 +5,8 @@ import { api } from '../api/client';
 import type { User } from '../types/api';
 
 type Credentials = { login: string; password: string };
-type Registration = { name: string; email: string; phone?: string; password: string; password_confirmation: string; role: string; voucher_code?: string };
-type AuthState = { user: User | null; ready: boolean; busy: boolean; error: string | null; hydrate: () => Promise<void>; login: (data: Credentials) => Promise<boolean>; socialExchange: (code: string) => Promise<boolean>; register: (data: Registration) => Promise<boolean>; logout: () => Promise<void>; clearError: () => void };
+type Registration = { name: string; email: string; phone?: string; password: string; password_confirmation: string; role: string; voucher_code?: string; verification_channel?: string };
+type AuthState = { pendingRegistration?: {id:string;channel:string}; user: User | null; ready: boolean; busy: boolean; error: string | null; hydrate: () => Promise<void>; login: (data: Credentials) => Promise<boolean>; socialExchange: (code: string) => Promise<boolean>; register: (data: Registration) => Promise<boolean>; logout: () => Promise<void>; clearError: () => void };
 
 const tokenKey = 'sportuniverse_token';
 export const getAuthToken = () => SecureStore.getItemAsync(tokenKey);
@@ -33,7 +33,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   register: async (registration) => {
     set({ busy: true, error: null });
-    try { const { data } = await api.post('/auth/register', { ...registration, device_name: `${Platform.OS}-mobile` }); await SecureStore.setItemAsync(tokenKey, data.token); set({ user: data.data, busy: false }); return true; }
+    try { const { data } = await api.post('/auth/register', { ...registration, device_name: `${Platform.OS}-mobile` }); if (data.pending_registration) { set({ busy: false, error: data.message, pendingRegistration: data.pending_registration }); return false; } await SecureStore.setItemAsync(tokenKey, data.token); set({ user: data.data, busy: false }); return true; }
     catch (error) { set({ error: message(error), busy: false }); return false; }
   },
   logout: async () => { try { await api.post('/auth/logout'); } finally { await SecureStore.deleteItemAsync(tokenKey); set({ user: null }); } },

@@ -1,10 +1,10 @@
 <?php
 
-use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\Auth\AccountDeletionController;
+use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\Auth\SessionController;
-use App\Http\Controllers\Api\V1\Onboarding\OnboardingController;
 use App\Http\Controllers\Api\V1\Mobile\MobileConfigController;
+use App\Http\Controllers\Api\V1\Onboarding\OnboardingController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('mobile/config', MobileConfigController::class)->middleware('throttle:60,1');
@@ -12,6 +12,8 @@ Route::get('auth/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail
 
 Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register'])->middleware('throttle:6,1');
+    Route::post('register/verify', [AuthController::class, 'verifyRegistration'])->middleware('throttle:6,1');
+    Route::post('register/resend', [AuthController::class, 'resendRegistration'])->middleware('throttle:3,1');
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
     Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:6,1');
     Route::post('reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:6,1');

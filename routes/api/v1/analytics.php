@@ -14,6 +14,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('analytics/me', [AnalyticsController::class, 'creator']);
     Route::get('admin/analytics', [AnalyticsController::class, 'admin']);
     Route::get('admin/page-performance', [PagePerformanceController::class, 'index']);
+    Route::post('admin/registrations/{id}/approve', [SystemSettingsController::class, 'approveRegistration']);
     Route::get('admin/system-settings', [SystemSettingsController::class, 'index']);
     Route::patch('admin/system-settings/{section}', [SystemSettingsController::class, 'update']);
     Route::post('admin/system-settings/failed-jobs/retry-all', [SystemSettingsController::class, 'retryAll']);

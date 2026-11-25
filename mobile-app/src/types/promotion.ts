@@ -16,7 +16,7 @@ export type EarlyAdopterPromotion = {
   original_price_cents?: number | null;
 };
 
-export type MobileConfig = {
+export type MobileConfig = { registration?: {verification_required:boolean;whatsapp_enabled:boolean};
   android: { minimum_version: string; latest_version: string; download_url?: string | null };
   ios: { minimum_version: string; latest_version: string; download_url?: string | null };
   release_notes?: string | null;

@@ -1,5 +1,7 @@
 <?php
 
+use App\Domain\Opportunities\Models\Opportunity;
+use App\Http\Controllers\Api\V1\Advertising\PayFastController;
 use App\Http\Controllers\Api\V1\Auth\SessionController;
 use App\Http\Controllers\Api\V1\Feed\EngagementController;
 use App\Http\Controllers\Api\V1\Feed\FeedPreferenceController;
@@ -10,21 +12,19 @@ use App\Http\Controllers\Api\V1\Messaging\MessageRequestController;
 use App\Http\Controllers\Api\V1\Moderation\ReportController;
 use App\Http\Controllers\Web\AthleteProfileController;
 use App\Http\Controllers\Web\ClubPageController;
-use App\Http\Controllers\Web\MobileAssociationController;
 use App\Http\Controllers\Web\FeedController;
-use App\Http\Controllers\Web\MessagingContextController;
 use App\Http\Controllers\Web\MembershipController;
 use App\Http\Controllers\Web\MembershipPaymentController;
-use App\Http\Controllers\Web\PublicHomeController;
+use App\Http\Controllers\Web\MessagingContextController;
+use App\Http\Controllers\Web\MobileAssociationController;
 use App\Http\Controllers\Web\ModulePageController;
+use App\Http\Controllers\Web\PublicHomeController;
 use App\Http\Controllers\Web\VideoStreamController;
 use App\Http\Controllers\Web\WebAuthController;
-use App\Http\Controllers\Api\V1\Advertising\PayFastController;
-use App\Domain\Opportunities\Models\Opportunity;
 use App\Models\User;
-use Illuminate\Support\Facades\Route;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::middleware('guest')->group(function () {
@@ -32,8 +32,9 @@ Route::middleware('guest')->group(function () {
     Route::post('/login', [WebAuthController::class, 'login']);
     Route::get('/register', [WebAuthController::class, 'registerPage'])->name('register');
     Route::post('/register/check-availability', [WebAuthController::class, 'checkAvailability'])->middleware('throttle:20,1');
-    Route::post('/register', [WebAuthController::class, 'register']);
+    Route::post('/register', [WebAuthController::class, 'register'])->middleware('throttle:6,1');
     Route::get('/register/verification-sent', [WebAuthController::class, 'pendingVerification'])->name('register.verification-sent');
+    Route::post('/register/verify-otp', [WebAuthController::class, 'verifyPendingOtp'])->middleware('throttle:6,1');
     Route::post('/register/resend-verification', [WebAuthController::class, 'resendPendingVerification'])->middleware('throttle:3,1');
     Route::get('/register/verify/{token}', [WebAuthController::class, 'verifyPendingRegistration'])->middleware('signed')->name('register.verify');
     Route::get('/password/reset', [WebAuthController::class, 'forgotPasswordPage'])->name('password.request');
@@ -81,11 +82,20 @@ Route::get('/sitemap.xml', function () {
     return response()->view('sitemap', ['urls' => $urls])->header('Content-Type', 'application/xml; charset=UTF-8');
 })->name('sitemap');
 
-
 Route::middleware('auth')->group(function () {
     Route::get('/verify-account', [WebAuthController::class, 'verificationPage'])->name('verification.notice');
-    Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {$request->fulfill();return redirect('/feed')->with('success', 'Your email address has been verified.');})->middleware('signed')->name('verification.verify');
-    Route::post('/email/verification-notification', function (Request $request) {if (! $request->user()->hasVerifiedEmail()) $request->user()->sendEmailVerificationNotification();return back()->with('success', 'A new verification link has been sent.');})->middleware('throttle:6,1')->name('verification.send');
+    Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
+        $request->fulfill();
+
+        return redirect('/feed')->with('success', 'Your email address has been verified.');
+    })->middleware('signed')->name('verification.verify');
+    Route::post('/email/verification-notification', function (Request $request) {
+        if (! $request->user()->hasVerifiedEmail()) {
+            $request->user()->sendEmailVerificationNotification();
+        }
+
+return back()->with('success', 'A new verification link has been sent.');
+    })->middleware('throttle:6,1')->name('verification.send');
     Route::get('/api/v1/auth/sessions', [SessionController::class, 'index']);
     Route::delete('/api/v1/auth/sessions/others', [SessionController::class, 'destroyOthers']);
     Route::delete('/api/v1/auth/sessions/{session}', [SessionController::class, 'destroy']);

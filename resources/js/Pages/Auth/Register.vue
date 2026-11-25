@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, Check, Dumbbell, E
 import { computed, onMounted, ref, watch } from 'vue';
 import BrandLogo from '../../Components/BrandLogo.vue';
 
-const props = defineProps<{ promotion?: any | null }>();
+const props = defineProps<{ promotion?: any | null; registrationSettings?: {verification_required: boolean; whatsapp_enabled: boolean} }>();
 
 const step = ref(1);
 const sports = ref<any[]>([]);
@@ -12,7 +12,7 @@ const showPassword = ref(false);
 const showConfirmation = ref(false);
 const availabilityChecking = ref(false);
 const localErrors = ref<Record<string, string>>({});
-const form = useForm({ name: '', email: '', phone: '', password: '', password_confirmation: '', voucher_code: props.promotion?.code || '', role: '', interested_sports: [] as string[], sport_id: '', position_id: '', club_name: '', playing_level: '', specialisation: '', years_experience: '', organisation_name: '', services: '', bio: '', date_of_birth: '', province: '', city: '', locality: '' });
+const form = useForm({ verification_channel: 'email', name: '', email: '', phone: '', password: '', password_confirmation: '', voucher_code: props.promotion?.code || '', role: '', interested_sports: [] as string[], sport_id: '', position_id: '', club_name: '', playing_level: '', specialisation: '', years_experience: '', organisation_name: '', services: '', bio: '', date_of_birth: '', province: '', city: '', locality: '' });
 
 const roles = [
     { value: 'athlete', label: 'Athlete', hint: 'Showcase talent and find opportunities', icon: Dumbbell },
@@ -106,7 +106,7 @@ onMounted(async () => { const response = await fetch('/api/v1/sports', { headers
                             <label><span class="su-label">Email</span><input v-model.trim="form.email" class="su-input" :class="{ invalid: invalid('email') }" type="email" autocomplete="email" @input="clearError('email')" @blur="checkAvailability('email')"/><small v-if="errorFor('email')" class="field-error">{{ errorFor('email') }}</small></label>
                             <label><span class="su-label">Phone</span><input v-model.trim="form.phone" class="su-input" :class="{ invalid: invalid('phone') }" type="tel" autocomplete="tel" placeholder="+27" @input="clearError('phone')" @blur="checkAvailability('phone')"/><small v-if="errorFor('phone')" class="field-error">{{ errorFor('phone') }}</small></label>
                         </div>
-                        <label><span class="su-label">Password</span><span class="registration-password"><input v-model="form.password" class="su-input" :class="{ invalid: invalid('password') }" :type="showPassword ? 'text' : 'password'" autocomplete="new-password"/><button type="button" :aria-label="showPassword ? 'Hide password' : 'Show password'" @click="showPassword = !showPassword"><EyeOff v-if="showPassword"/><Eye v-else/></button></span><small v-if="errorFor('password')" class="field-error">{{ errorFor('password') }}</small></label>
+                        <label v-if="registrationSettings?.verification_required && registrationSettings?.whatsapp_enabled"><span class="su-label">Verification method</span><select class="su-input" v-model="form.verification_channel"><option value="email">Email link</option><option value="whatsapp">WhatsApp OTP</option></select><small v-if="errorFor('verification_channel')" class="field-error">{{errorFor('verification_channel')}}</small></label><label><span class="su-label">Password</span><span class="registration-password"><input v-model="form.password" class="su-input" :class="{ invalid: invalid('password') }" :type="showPassword ? 'text' : 'password'" autocomplete="new-password"/><button type="button" :aria-label="showPassword ? 'Hide password' : 'Show password'" @click="showPassword = !showPassword"><EyeOff v-if="showPassword"/><Eye v-else/></button></span><small v-if="errorFor('password')" class="field-error">{{ errorFor('password') }}</small></label>
                         <div v-if="form.password" class="password-strength"><div><span :style="{ width: `${passwordScore * 20}%` }" :class="passwordStrength.toLowerCase()"/></div><strong>{{ passwordStrength }} password</strong><ul><li v-for="rule in passwordRules" :key="rule.label" :class="{ met: rule.met }"><Check v-if="rule.met"/><X v-else/>{{ rule.label }}</li></ul></div>
                         <label><span class="su-label">Confirm password</span><span class="registration-password"><input v-model="form.password_confirmation" class="su-input" :class="{ invalid: invalid('password_confirmation') }" :type="showConfirmation ? 'text' : 'password'" autocomplete="new-password"/><button type="button" :aria-label="showConfirmation ? 'Hide password' : 'Show password'" @click="showConfirmation = !showConfirmation"><EyeOff v-if="showConfirmation"/><Eye v-else/></button></span><small v-if="errorFor('password_confirmation')" class="field-error">{{ errorFor('password_confirmation') }}</small></label>
                         <p v-if="availabilityChecking" class="availability-status"><Loader2/> Checking email and phone…</p>

@@ -1,6 +1,13 @@
 <?php
 
 return [
+    'registration_whatsapp' => [
+        'token' => env('WHATSAPP_ACCESS_TOKEN'),
+        'phone_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
+        'template' => env('WHATSAPP_AUTH_TEMPLATE'),
+        'language' => env('WHATSAPP_AUTH_LANGUAGE', 'en_US'),
+        'version' => env('WHATSAPP_GRAPH_VERSION', 'v24.0'),
+    ],
 
     /*
     |--------------------------------------------------------------------------
